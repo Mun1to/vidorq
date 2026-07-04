@@ -87,7 +87,7 @@ Transcribir → Empaquetar → Razonar (LLM) → EDL → Aplicar en Resolve → 
 
 ### 6. Generación multimedia (opcional, BYOK)
 - **Imagen**: Nano Banana / Imagen (Google), gpt-image (OpenAI) — miniaturas, fondos, texturas.
-- **Vídeo**: Veo 3 (Google), Sora (OpenAI) — b-roll imposible de grabar.
+- **Vídeo**: Veo 3 (Google), Sora (OpenAI) — b-roll imposible de grabar y **edits generativos de impacto**: efectos espectaculares insertados en el vídeo real (ej.: estás en la playa y de repente aparece un tsunami; gracioso pero impactante). El criterio de cuándo un efecto así eleva el vídeo y cuándo es slop se entrena en el core privado.
 - **Voz/TTS**: ElevenLabs — narración, doblaje.
 - **Música**: búsqueda estructurada de música sin copyright con prompt guiado (ver RECURSOS.md).
 

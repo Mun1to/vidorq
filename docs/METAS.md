@@ -56,5 +56,5 @@ Equivale a completar los Niveles 1-3. Si la API de Resolve bloquea algo, se busc
 **Meta: Vidorq se conecta con el resto de herramientas del día a día.**
 - [ ] Generación BYOK: Nano Banana / Veo / ElevenLabs integrados como herramientas opcionales.
 - [ ] Multi-versión por red social (16:9 → 9:16) con recorte inteligente local.
-- [ ] Búsqueda musical sin copyright guiada (prompt estructurado, 20 opciones).
+- [ ] Skill de música: un clic abre un mini-formulario (dónde ocurre el momento, qué emoción transmitir, qué ritmo/energía) y propone ~20 canciones sin copyright acordes al vídeo.
 - [ ] Comunidad: contribuciones externas, plantillas de animación compartidas.
