@@ -49,3 +49,4 @@ Crear animaciones es una obra de arte, como el efecto parallax de una buena web.
 3. **Calidad sobre cantidad.** Mejor un vídeo que la gente quiera ver que diez que nadie vea. El anti-slop es un valor de producto.
 4. **Preguntar → confirmar → ejecutar → auto-evaluar → persistir.** La IA propone estrategia y espera tu OK antes de tocar el corte.
 5. **Tu marca es tuya.** El perfil de estilo te pertenece, es un archivo local, exportable y versionable.
+6. **Easy tech (filosofía de la Fundación Orquio).** Vidorq no reinventa piezas: coge lo mejor que ya existe (el puente de Resolve, el pipeline de video-use, el patrón de captions de AutoSubs, los motores MIT de animación), lo potencia y lo interconecta en UNA sola herramienta simple y funcional. La complejidad se queda dentro; al usuario le llega un prompt y un resultado.
