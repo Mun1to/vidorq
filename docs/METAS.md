@@ -22,7 +22,8 @@ Equivale a completar los Niveles 1-3. Si la API de Resolve bloquea algo, se busc
 
 ## Nivel 1 — El primer corte mágico
 **Meta: un prompt corta un vídeo real en Resolve Free y el resultado se sostiene.**
-- [ ] Puente Resolve integrado (davinci-resolve-mcp como base/submódulo) y estable en Resolve 20.3.
+- [ ] Puente Resolve integrado (davinci-resolve-mcp como base/submódulo) y estable en Resolve 20.3, con cliente HTTP robusto (lección AutoSubs: evitar el cuelgue con las respuestas Connection: close de Resolve).
+- [ ] Spike técnico: confirmar en Resolve 20.3 Free el workaround de `ImportFusionComp` (comp dummy) con una comp animada simple — es la apuesta central de la animación nativa.
 - [ ] Pipeline transcribir → empaquetar → razonar → EDL → aplicar cortes en timeline.
 - [ ] Demo reproducible: "córtame los silencios y muletillas de este clip" funciona de punta a punta.
 
@@ -30,12 +31,12 @@ Equivale a completar los Niveles 1-3. Si la API de Resolve bloquea algo, se busc
 **Meta: el vídeo sale con subtítulos animados en el estilo de la marca del usuario.**
 - [ ] Perfil de estilo v1 (style.md + brand.json + subtitles.json).
 - [ ] Onboarding conversacional (cuestionario de marca).
-- [ ] Subtítulos quemados con estilo configurable (bloques 2 palabras, uppercase, etc.).
+- [ ] Captions animados vía macro Fusion parametrizable (patrón AutoSubs). Presets iniciales: Hormozi word-by-word (por defecto) y "Minimalismo Dinámico" (premium, sin ruido), siempre con colores de marca configurables.
 
 ## Nivel 3 — Animaciones cinematográficas
 **Meta: "añade una tarjeta animada en cada cambio de tema" funciona.**
-- [ ] Zooms cinemáticos: zoom punch en cortes (funciona hoy con la API) + zoom suave/speedramp (vía Fusion comps o import FCPXML, según resultado de la investigación).
-- [ ] Motor Remotion: prompt → componente React → render con alfa → import a Resolve → colocación en timeline.
+- [ ] Zooms cinemáticos: zoom punch en cortes (funciona hoy con la API, confirmado) + zoom suave con easing vía comps Fusion pre-animadas (workaround ImportFusionComp; el import FCPXML quedó descartado por poco fiable).
+- [ ] Motor de overlays con Motion Canvas/Revideo (MIT): prompt → componente TypeScript → render con alfa → import a Resolve → colocación en timeline.
 - [ ] Biblioteca de animaciones reutilizables por marca.
 - [ ] Detección de cambios de tema en podcasts/entrevistas (el caso de uso ejemplo de la visión).
 

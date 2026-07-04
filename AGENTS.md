@@ -23,7 +23,7 @@
   - No se pueden animar keyframes por API (solo valores estáticos).
   - No se pueden añadir transiciones por API.
   - No se puede editar el contenido interno de nodos Fusion por API.
-  - → Por eso las animaciones se generan FUERA (Remotion/HyperFrames → overlay con canal alfa) y se importan como media, o se usan plantillas Fusion (.setting/.drfx) pre-construidas con parámetros.
+  - → Por eso las animaciones van por dos vías: comps Fusion pre-animadas cargadas con el workaround de `ImportFusionComp` (patrón AutoSubs, probado en Free), y overlays con canal alfa generados fuera con Motion Canvas/Revideo (MIT; Remotion descartado como default por licencia). Detalle en docs/ARQUITECTURA.md e informe en Vidorq-Core/informes/.
 - **Filosofía de percepción (de video-use)**: el LLM no "ve" el vídeo, lo LEE. Transcripción con timestamps a nivel de palabra como superficie principal + vistas visuales (filmstrip) solo en puntos de decisión. Nunca volcar frames masivamente.
 - **Repo hermano privado**: `Vidorq-Core` (estrategia, marca, conocimiento interno). Lo público va aquí; lo estratégico va allí.
 

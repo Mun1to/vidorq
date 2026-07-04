@@ -34,16 +34,18 @@ Esto ya da 162 herramientas sobre Resolve Free: timeline, clips, marcadores, med
 
 La API no expone keyframes, pero hay una escalera de técnicas, de más segura a más experimental, para conseguir animación real. Las marcadas "hoy" funcionan ya; las marcadas "verificar" son investigación activa:
 
-| # | Técnica | Estado | Cómo |
+| # | Técnica | Estado (verificado 2026-07-04) | Cómo |
 |---|---|---|---|
 | 1 | Propiedades estáticas por clip | hoy | zoom, pan, tilt, rotación vía `set_clip_properties` |
-| 2 | **Zoom punch por segmentación** | hoy | cortar el clip en el punto de énfasis y aplicar zoom estático mayor al segundo segmento; es EL estilo dominante en contenido social y no necesita keyframes |
-| 3 | Composiciones Fusion importadas | probable | `import_fusion_comp_to_clip` carga .comp pre-construidas; DENTRO de Fusion la animación sí existe → biblioteca de comps paramétricas (zoom suave, shake, speedramp) |
-| 4 | Plantillas .drfx / Text+ paramétricas | probable | macros instaladas con animación interna, controladas por parámetros publicados + `insert_title` |
-| 5 | Import de timeline con keyframes | verificar | generar FCPXML/AAF/OTIO fuera con keyframes de transform y usar `import_timeline_from_file`; si Resolve los respeta al importar, se desbloquea TODO |
-| 6 | Edición del formato .drt | verificar | exportar timeline .drt, modificar el archivo, reimportar |
-| 7 | Overlay renderizado | hoy (coste render) | el movimiento se cocina fuera (Remotion/ffmpeg) y se importa como clip; para efectos complejos |
+| 2 | **Zoom punch por segmentación** | hoy · confirmado por investigación | cortar el clip en el punto de énfasis y aplicar zoom estático mayor al segundo segmento; NO necesita keyframes y es la técnica de zoom más robusta para el MVP (AutoCut la vende como modo propio) |
+| 3 | **Composiciones Fusion pre-animadas** | hoy · CAMINO PRINCIPAL, probado por AutoSubs en Free | `ImportFusionComp` tiene un bug documentado; workaround verificado: `AddFusionComp()` → `GetFusionCompNameList()` → `LoadFusionCompByName()` → `ImportFusionComp()` → borrar comp dummy. Biblioteca de comps paramétricas (zoom suave, shake, captions animados) |
+| 4 | Plantillas .drfx / Text+ paramétricas | probable (config 100% por script sin verificar) | macros instaladas con animación interna; instanciables vía media pool + `AppendToTimeline` |
+| 5 | Import de timeline con keyframes (FCPXML) | POCO FIABLE - descartado como vía principal | reportes de ~95% de propiedades PTZR mal traducidas en imports complejos; los keyframes a veces llegan pero los valores base no son de fiar; solo como experimento |
+| 6 | Edición del formato .drt | factible para parámetros puntuales | .drt/.drp son ZIP con XML dentro (SM_Project); hay caso real de modificar duraciones de clip y reimportar; último recurso |
+| 7 | Overlay renderizado | hoy (coste render) | el movimiento se cocina fuera (Motion Canvas/Revideo/ffmpeg → PNG con alfa o ProRes 4444) y se importa como clip; para efectos complejos |
 | 8 | Automatización de UI | último recurso | controlar la interfaz de Resolve (computer-use) para lo que ninguna vía anterior cubra |
+
+**Fragilidad a asumir**: Blackmagic eliminó el UIManager de la versión Free en la v19.1 sin anunciarlo (rompió Reactor y todos los scripts con UI), y en Free los scripts solo conectan de forma fiable vía la variable no documentada `app` (`app.GetResolve()`). Conclusión de diseño: encapsular cada workaround en su propia capa y mantener tests de regresión por versión de Resolve.
 
 > Nota: esto es extender la versión Free por sus puntos de extensión legítimos (formatos de import, scripts internos, plantillas). Las funciones exclusivas de Studio (Neural Engine) no se crackean: se sustituyen por equivalentes open source locales, como ya hace el puente.
 
@@ -76,9 +78,10 @@ Transcribir → Empaquetar → Razonar (LLM) → EDL → Aplicar en Resolve → 
 - **Detección de escenas**: `detect_scene_cuts` (ya en el puente) para material sin habla (gameplay, b-roll).
 
 ### 4. Motor de animaciones (la "obra de arte")
-- **Remotion** (`npx create-video@latest`): animaciones como componentes React/CSS renderizadas a vídeo con canal alfa (ProRes 4444 / secuencia PNG). Es el equivalente al parallax en web: código limpio → animación limpia.
+- **Motion Canvas / Revideo** (ambos MIT, motor por defecto): animaciones como código TypeScript renderizadas a vídeo con canal alfa (secuencia PNG / ProRes 4444). Revideo es un fork de Motion Canvas diseñado para pipelines automatizados con render server-side. Es el equivalente al parallax en web: código limpio → animación limpia.
+- **Remotion** (opcional, con aviso): técnicamente excelente, pero su licencia solo es gratis para individuos y empresas de hasta 3 empleados; una empresa que use Vidorq ejecutando Remotion necesitaría su propia Company License. Por eso NO es el motor por defecto de un proyecto open source pensado para empresas.
+- **Macros Fusion .setting parametrizables** (patrón AutoSubs): para captions animados y zoom suave nativos en Resolve. AutoSubs demuestra el patrón completo en Free: macro con Text+, StyledTextFollower, KeyStretcherMod, BezierSpline y XYPath, con la lógica de animación en el campo CustomData.
 - **HyperFrames** (HeyGen): overlays de animación generados por agentes, uno por animación en paralelo.
-- **Plantillas Fusion** (.drfx): para lo que debe vivir nativo en Resolve (Text+ de marca, lower thirds paramétricos).
 - **Manim / PIL**: animaciones matemáticas/diagramas para contenido educativo.
 - Biblioteca de animaciones del usuario: cada animación generada se guarda con nombre + preview + código, para reutilizar y mantener consistencia de marca.
 
@@ -122,7 +125,7 @@ El usuario aprueba la estrategia ANTES de ejecutar (principio: preguntar → con
 | Capa | Tecnología |
 |---|---|
 | Servidor MCP / puente | Python 3.11+ |
-| Motor de animaciones | Node + pnpm + Remotion (React/TS) |
+| Motor de animaciones | Node + pnpm + Motion Canvas / Revideo (MIT) |
 | Procesado de media | ffmpeg, yt-dlp |
 | IA local | faster-whisper, Demucs v4, rembg/BiRefNet, Ollama |
 | IA cloud (BYOK) | Anthropic, Google (Gemini/Veo/Imagen), OpenAI, ElevenLabs |
