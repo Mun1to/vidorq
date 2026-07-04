@@ -1,0 +1,34 @@
+# Secrets - NEVER commit keys
+.env
+.env.*
+*.key
+
+# Dependencies
+node_modules/
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Build output
+dist/
+build/
+out/
+
+# Video working files (heavy, never in git)
+*.mp4
+*.mov
+*.mkv
+*.wav
+*.mp3
+edit/
+renders/
+footage/
+
+# AI models (downloaded on first use)
+models/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.log
