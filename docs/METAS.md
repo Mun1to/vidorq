@@ -7,7 +7,18 @@
 - [x] Nombre: Vidorq.
 - [x] Carpeta + repo público (`vidorq`) + repo privado (`vidorq-core`).
 - [x] Visión, arquitectura, sistema de entrenamiento y recursos documentados.
-- [ ] Decisiones abiertas de arquitectura respondidas por Munir (ver preguntas en Vidorq-Core/ESTRATEGIA.md).
+- [x] Decisiones respondidas por Munir (2026-07-04): interfaz = Claude Code con Resolve abierto en tiempo real; MVP = cortes + zooms + captions; dominio vidorq.com (el .ai se descarta por precio).
+
+## Definición del MVP (decidida 2026-07-04)
+
+Vidorq se usa DESDE Claude Code, **con DaVinci Resolve abierto al lado**: cada acción del puente aparece al instante en el timeline, y el usuario ve a Vidorq editar en tiempo real. El MVP está completo cuando, sobre un vídeo real:
+
+1. **Cortes inteligentes**: silencios, muletillas y momentos flojos fuera; cortes en fronteras de palabra con fades de audio.
+2. **Animaciones cinemáticas con zoom in/out**: énfasis visual sincronizado con el habla.
+3. **Captions profesionales y diferenciadores**: subtítulos animados con el estilo de la marca del usuario, no los genéricos de siempre.
+4. **Todo bien estructurado**: perfil de estilo aplicado, timeline limpio y retocable a mano después.
+
+Equivale a completar los Niveles 1-3. Si la API de Resolve bloquea algo, se busca la vuelta (ver "escalera de técnicas" en [ARQUITECTURA.md](ARQUITECTURA.md)).
 
 ## Nivel 1 — El primer corte mágico
 **Meta: un prompt corta un vídeo real en Resolve Free y el resultado se sostiene.**
@@ -23,6 +34,7 @@
 
 ## Nivel 3 — Animaciones cinematográficas
 **Meta: "añade una tarjeta animada en cada cambio de tema" funciona.**
+- [ ] Zooms cinemáticos: zoom punch en cortes (funciona hoy con la API) + zoom suave/speedramp (vía Fusion comps o import FCPXML, según resultado de la investigación).
 - [ ] Motor Remotion: prompt → componente React → render con alfa → import a Resolve → colocación en timeline.
 - [ ] Biblioteca de animaciones reutilizables por marca.
 - [ ] Detección de cambios de tema en podcasts/entrevistas (el caso de uso ejemplo de la visión).

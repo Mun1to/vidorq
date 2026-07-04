@@ -30,6 +30,23 @@ Esto ya da 162 herramientas sobre Resolve Free: timeline, clips, marcadores, med
 | No se puede editar el interior de nodos Fusion por API | Sin cambiar textos de Text+ complejos | Plantillas Text+ con parámetros publicados + `insert_title`; overlays Remotion para lo avanzado |
 | Free no exporta >4K ni ciertas opciones de render | Techo de calidad de export | 4K H.264/H.265 cubre el 100% de redes sociales (ver RECURSOS.md) |
 
+### Escalera de técnicas para saltarse el límite de keyframes
+
+La API no expone keyframes, pero hay una escalera de técnicas, de más segura a más experimental, para conseguir animación real. Las marcadas "hoy" funcionan ya; las marcadas "verificar" son investigación activa:
+
+| # | Técnica | Estado | Cómo |
+|---|---|---|---|
+| 1 | Propiedades estáticas por clip | hoy | zoom, pan, tilt, rotación vía `set_clip_properties` |
+| 2 | **Zoom punch por segmentación** | hoy | cortar el clip en el punto de énfasis y aplicar zoom estático mayor al segundo segmento; es EL estilo dominante en contenido social y no necesita keyframes |
+| 3 | Composiciones Fusion importadas | probable | `import_fusion_comp_to_clip` carga .comp pre-construidas; DENTRO de Fusion la animación sí existe → biblioteca de comps paramétricas (zoom suave, shake, speedramp) |
+| 4 | Plantillas .drfx / Text+ paramétricas | probable | macros instaladas con animación interna, controladas por parámetros publicados + `insert_title` |
+| 5 | Import de timeline con keyframes | verificar | generar FCPXML/AAF/OTIO fuera con keyframes de transform y usar `import_timeline_from_file`; si Resolve los respeta al importar, se desbloquea TODO |
+| 6 | Edición del formato .drt | verificar | exportar timeline .drt, modificar el archivo, reimportar |
+| 7 | Overlay renderizado | hoy (coste render) | el movimiento se cocina fuera (Remotion/ffmpeg) y se importa como clip; para efectos complejos |
+| 8 | Automatización de UI | último recurso | controlar la interfaz de Resolve (computer-use) para lo que ninguna vía anterior cubra |
+
+> Nota: esto es extender la versión Free por sus puntos de extensión legítimos (formatos de import, scripts internos, plantillas). Las funciones exclusivas de Studio (Neural Engine) no se crackean: se sustituyen por equivalentes open source locales, como ya hace el puente.
+
 ## Componentes del sistema
 
 ### 1. Puente Resolve (existe: `davinci-resolve-mcp`)
