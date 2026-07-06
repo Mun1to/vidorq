@@ -21,17 +21,22 @@ Vidorq se usa DESDE Claude Code, **con DaVinci Resolve abierto al lado**: cada a
 Equivale a completar los Niveles 1-3. Si la API de Resolve bloquea algo, se busca la vuelta (ver "escalera de técnicas" en [ARQUITECTURA.md](ARQUITECTURA.md)).
 
 ## Nivel 1 — El primer corte mágico
-**Meta: un prompt corta un vídeo real en Resolve Free y el resultado se sostiene.**
-- [ ] Puente Resolve integrado (davinci-resolve-mcp como base/submódulo) y estable en Resolve 20.3, con cliente HTTP robusto (lección AutoSubs: evitar el cuelgue con las respuestas Connection: close de Resolve).
-- [ ] Spike técnico: confirmar en Resolve 20.3 Free el workaround de `ImportFusionComp` (comp dummy) con una comp animada simple — es la apuesta central de la animación nativa.
-- [ ] Pipeline transcribir → empaquetar → razonar → EDL → aplicar cortes en timeline.
-- [ ] Demo reproducible: "córtame los silencios y muletillas de este clip" funciona de punta a punta.
+**Meta: un prompt corta un vídeo real y el resultado se sostiene.**
+- [x] Pipeline transcribir → empaquetar → razonar → EDL → aplicar cortes. ✅ 2026-07-06 (backend render directo; vídeo de Luisito 10:43 → 4:26 con cortes limpios y fades de audio).
+- [x] Demo reproducible de punta a punta. ✅ helpers/transcribe.py + vidorq_render.py.
+- [ ] Backend Resolve: mismo EDL → timeline editable vía el puente. BLOQUEADO por el crash de OpenCL de la máquina de dev (ver informe 2026-07-06). Pendiente de arreglar el driver.
+- [ ] Spike `ImportFusionComp` (comp dummy) en Resolve 20.3 Free: depende de que Resolve arranque.
+
+## Nivel 1.5 — Backend directo (LOGRADO, no estaba planeado)
+**Meta emergente: producir el mp4 final sin depender de Resolve.**
+- [x] Motor PyAV + NVENC: cortes + punch zoom + captions en una pasada. ✅ 2026-07-06.
 
 ## Nivel 2 — Subtítulos y estilo propio
 **Meta: el vídeo sale con subtítulos animados en el estilo de la marca del usuario.**
-- [ ] Perfil de estilo v1 (style.md + brand.json + subtitles.json).
+- [x] Captions Hormozi 2-palabras UPPERCASE quemados y sincronizados (Arial Black, contorno+sombra). ✅ 2026-07-06 en el backend directo (PIL overlay).
+- [ ] Perfil de estilo v1 (style.md + brand.json + subtitles.json) — colores/fuente/posición configurables.
 - [ ] Onboarding conversacional (cuestionario de marca).
-- [ ] Captions animados vía macro Fusion parametrizable (patrón AutoSubs). Presets iniciales: Hormozi word-by-word (por defecto) y "Minimalismo Dinámico" (premium, sin ruido), siempre con colores de marca configurables.
+- [ ] Captions ANIMADOS (aparición palabra por palabra): en Resolve vía macro Fusion (patrón AutoSubs); en backend directo vía overlay animado. Preset premium "Minimalismo Dinámico" además del Hormozi.
 
 ## Nivel 3 — Animaciones cinematográficas
 **Meta: "añade una tarjeta animada en cada cambio de tema" funciona.**
