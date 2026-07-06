@@ -50,9 +50,20 @@ PY="C:/proyectos/davinci-resolve-mcp/venv/Scripts/python.exe"   # venv con faste
   (El venv de `davinci-resolve-mcp` ya los tiene salvo que se indique lo contrario.)
 - GPU NVIDIA para NVENC (si no, cambiar `h264_nvenc` por `libx264` en vidorq_render.py).
 
+## Backend Resolve (funciona · 2026-07-07)
+
+`helpers/build_resolve_timeline.py` habla HTTP con el CursorBridge (127.0.0.1:9876) y monta el mismo `edl.json` como **timeline editable** dentro de Resolve:
+- crea el timeline (a 29.97 fps para cuadrar con la fuente),
+- inserta cada keep-segment con `startFrame`/`endFrame` (endpoint `/media/insert`, en orden estricto),
+- aplica punch zoom estático por segmento (`/clip/properties` → ZoomX/ZoomY),
+- pone un marcador por cada pregunta del Q&A (`/marker/add`),
+- guarda (`/project/save`).
+
+Requisito: Resolve abierto con un proyecto y el CursorBridge arrancado (Workspace > Scripts > CursorBridge) una vez. A partir de ahí todo es por API. Verificación: `export_current_frame` desde el bridge (el viewport de Resolve se captura en negro en screenshots normales, pero el frame exportado por Resolve sí es válido).
+
 ## Pendiente (siguientes versiones)
 
-- Backend Resolve: mismo `edl.json` → timeline editable vía el puente MCP.
+- Captions nativos en el timeline de Resolve (macro Fusion, patrón AutoSubs). El backend directo ya los quema; el de Resolve aún no.
 - Captions animados (aparición palabra por palabra) vía macro Fusion o overlay animado.
 - Detección automática de énfasis para colocar los zooms sin autoría manual del EDL.
 - Perfil de estilo por marca (colores, fuente, posición de captions configurables).

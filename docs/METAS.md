@@ -24,8 +24,9 @@ Equivale a completar los Niveles 1-3. Si la API de Resolve bloquea algo, se busc
 **Meta: un prompt corta un vídeo real y el resultado se sostiene.**
 - [x] Pipeline transcribir → empaquetar → razonar → EDL → aplicar cortes. ✅ 2026-07-06 (backend render directo; vídeo de Luisito 10:43 → 4:26 con cortes limpios y fades de audio).
 - [x] Demo reproducible de punta a punta. ✅ helpers/transcribe.py + vidorq_render.py.
-- [ ] Backend Resolve: mismo EDL → timeline editable vía el puente. BLOQUEADO por el crash de OpenCL de la máquina de dev (ver informe 2026-07-06). Pendiente de arreglar el driver.
-- [ ] Spike `ImportFusionComp` (comp dummy) en Resolve 20.3 Free: depende de que Resolve arranque.
+- [x] Backend Resolve: mismo EDL → timeline editable vía el puente. ✅ 2026-07-07. Crash de OpenCL resuelto (reg delete de entradas Intel muertas); CursorBridge conectado; 16 cortes + 6 punch zooms + 16 marcadores por pregunta montados por API y verificados (frame exportado desde Resolve). Helper: skill/helpers/build_resolve_timeline.py.
+- [ ] Captions en el timeline de Resolve (macro Fusion, patrón AutoSubs): el timeline actual tiene cortes+zooms+marcadores; faltan los captions nativos. Siguiente paso.
+- [ ] Spike `ImportFusionComp` (comp dummy) en Resolve 20.3 Free: ahora posible (Resolve arranca).
 
 ## Nivel 1.5 — Backend directo (LOGRADO, no estaba planeado)
 **Meta emergente: producir el mp4 final sin depender de Resolve.**
