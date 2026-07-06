@@ -51,6 +51,15 @@ La API no expone keyframes, pero hay una escalera de técnicas, de más segura a
 
 ## Componentes del sistema
 
+### 0. Dos backends de salida (decisión validada en la 1ª prueba real)
+
+La lógica de edición (transcript → EDL → cortes/zoom/captions) es independiente del "brazo" que la ejecuta. Vidorq tiene por diseño DOS backends intercambiables:
+
+- **Backend Resolve** (`davinci-resolve-mcp`): construye un timeline editable y no destructivo dentro de Resolve. Ideal cuando el usuario quiere retocar a mano después.
+- **Backend render directo** (PyAV + ffmpeg/NVENC → mp4): produce el archivo final sin NLE, igual que video-use. No depende de la frágil API de scripting Free ni del bug de ImportFusionComp, así que es más robusto para el MVP, para batch/servidor/CI, y para usuarios cuyo Resolve no arranque.
+
+El mismo EDL alimenta a los dos. El backend directo se construyó primero porque en la máquina de desarrollo Resolve no arrancaba (fallo de drivers OpenCL del sistema), y demostró ser una red de seguridad valiosa, no un parche.
+
 ### 1. Puente Resolve (existe: `davinci-resolve-mcp`)
 - CursorBridge.py dentro de Resolve + servidor MCP Python fuera.
 - Vidorq lo consume como dependencia/submódulo y le aporta mejoras upstream.
