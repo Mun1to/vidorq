@@ -1,15 +1,19 @@
-"""Vidorq render engine v1 (Resolve-independent).
+"""Vidorq render engine v2 (Resolve-independent).
 
 Reads a source video, an EDL (keep-segments with optional per-segment punch zoom),
 and a caption plan, and produces a finished MP4:
   - smart cuts   : only the EDL keep-segments survive, in order
   - punch zoom   : static center zoom per segment (no keyframes) for emphasis
-  - captions     : Hormozi-style 2-word UPPERCASE chunks, rendered with PIL and
-                   composited as overlays (this PyAV build has no drawtext/libass)
+  - captions     : Hormozi-style 2-word UPPERCASE chunks, written as a per-segment
+                   ASS track and burned in by ffmpeg/libass
   - clean audio  : 30 ms fades at every segment boundary so cuts never pop
 
-This is the same edit logic that will later drive DaVinci Resolve through the
-bridge; here it renders straight to a file with PyAV + NVENC.
+v1 composited captions+zoom frame by frame with PIL/numpy in pure Python
+(~170 ms/frame -> 50+ min for a 10-min video). v2 keeps the exact same edit
+semantics but moves all per-frame work into ffmpeg filters (crop/scale/
+subtitles, all C code) feeding NVENC, one ffmpeg process per EDL segment,
+then a lossless concat. Progress is reported on stdout as
+"PROGRESS <frames_done> <frames_total>" lines for the engine to relay.
 
 Usage:
     python vidorq_render.py <source> <edl.json> <transcript.json> <out.mp4>
@@ -18,17 +22,32 @@ Usage:
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import sys
+from collections import deque
 from fractions import Fraction
 from pathlib import Path
 
 import av
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
 
-FONT_PATH = r"C:\Windows\Fonts\ariblk.ttf"  # Arial Black — bold, high retention
+FONT_FAMILY = "Arial Black"  # bold, high retention
 AUDIO_RATE = 48000
 FADE_MS = 30
+
+# keys ffmpeg -progress writes to stdout; anything else on the merged
+# stdout/stderr stream is kept as the error tail
+PROGRESS_KEYS = ("frame=", "fps=", "stream_", "bitrate=", "total_size=",
+                 "out_time", "dup_frames=", "drop_frames=", "speed=", "progress=")
+
+
+def find_ffmpeg() -> str:
+    exe = shutil.which("ffmpeg")
+    if not exe:
+        raise RuntimeError("ffmpeg not found on PATH; install it (e.g. winget "
+                           "install Gyan.FFmpeg) - Vidorq needs it to render")
+    return exe
 
 
 # --------------------------------------------------------------------------- #
@@ -54,106 +73,156 @@ def build_caption_chunks(transcript: dict, words_per_chunk: int = 2):
     return chunks
 
 
-class CaptionRenderer:
-    """Renders and caches caption overlays as RGBA ndarrays."""
-
-    def __init__(self, w: int, h: int):
-        self.w, self.h = w, h
-        self.font = ImageFont.truetype(FONT_PATH, size=int(h * 0.062))
-        self._cache: dict[str, np.ndarray] = {}
-
-    def overlay(self, text: str) -> np.ndarray:
-        if text in self._cache:
-            return self._cache[text]
-        img = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
-        d = ImageDraw.Draw(img)
-        bbox = d.textbbox((0, 0), text, font=self.font, stroke_width=int(self.h * 0.006))
-        tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-        x = (self.w - tw) // 2 - bbox[0]
-        y = int(self.h * 0.74) - bbox[1]
-        # drop shadow + heavy stroke for legibility over any footage
-        d.text((x, y + 3), text, font=self.font, fill=(0, 0, 0, 190),
-               stroke_width=int(self.h * 0.010), stroke_fill=(0, 0, 0, 190))
-        d.text((x, y), text, font=self.font, fill=(255, 255, 255, 255),
-               stroke_width=int(self.h * 0.006), stroke_fill=(0, 0, 0, 255))
-        arr = np.asarray(img)
-        self._cache[text] = arr
-        return arr
+def ass_time(t: float) -> str:
+    cs = max(0, int(round(t * 100)))
+    h, rem = divmod(cs, 360000)
+    m, rem = divmod(rem, 6000)
+    s, cs = divmod(rem, 100)
+    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
 
-def active_caption(chunks, t: float):
-    for s, e, text in chunks:
-        if s <= t < e:
-            return text
-    return None
+def write_segment_ass(path: Path, chunks, seg_start: float, seg_end: float,
+                      w: int, h: int):
+    """ASS subtitle file for one EDL segment, times shifted to segment-local.
 
-
-def composite(frame_rgb: np.ndarray, overlay_rgba: np.ndarray) -> np.ndarray:
-    a = overlay_rgba[:, :, 3:4].astype(np.float32) / 255.0
-    return (frame_rgb.astype(np.float32) * (1 - a) +
-            overlay_rgba[:, :, :3].astype(np.float32) * a).astype(np.uint8)
-
-
-def apply_zoom(rgb: np.ndarray, zoom: float) -> np.ndarray:
-    if zoom <= 1.001:
-        return rgb
-    h, w, _ = rgb.shape
-    cw, ch = int(w / zoom), int(h / zoom)
-    x0, y0 = (w - cw) // 2, (h - ch) // 2
-    crop = rgb[y0:y0 + ch, x0:x0 + cw]
-    return np.asarray(Image.fromarray(crop).resize((w, h), Image.LANCZOS))
+    Two layers reproduce the v1 PIL look: layer 0 is a soft dark halo (text
+    and thick outline at alpha 190, offset 3 px down), layer 1 is the white
+    text with an opaque black stroke.
+    """
+    em = h * 0.062  # v1 used this as the PIL em size; keep the same visual size
+    # libass (VSFilter-compatible) treats Fontsize as the GDI cell height;
+    # for Arial Black that is 1.411 em (winAscent 2254 + winDescent 634 / 2048)
+    fs = int(em * 1.411)
+    outline = max(1, int(h * 0.006))
+    halo = max(outline, int(h * 0.010))
+    x = w // 2
+    # \pos+an8 anchors at the ascender top; v1 put the ink (cap) top at 0.74h,
+    # so pull up by winAscent-capHeight = (2254-1466)/2048 = 0.385 em
+    y = int(h * 0.74 - em * 0.385)
+    head = (
+        "[Script Info]\n"
+        "ScriptType: v4.00+\n"
+        f"PlayResX: {w}\nPlayResY: {h}\n"
+        "WrapStyle: 2\nScaledBorderAndShadow: yes\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
+        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
+        "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
+        "Alignment, MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: Halo,{FONT_FAMILY},{fs},&H41000000,&H41000000,&H41000000,"
+        "&H41000000,0,0,0,0,100,100,0,0,1," f"{halo},0,8,0,0,0,1\n"
+        f"Style: Main,{FONT_FAMILY},{fs},&H00FFFFFF,&H00FFFFFF,&H00000000,"
+        "&H00000000,0,0,0,0,100,100,0,0,1," f"{outline},0,8,0,0,0,1\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
+        "Effect, Text\n"
+    )
+    lines = [head]
+    for cs_, ce_, text in chunks:
+        s = max(cs_, seg_start) - seg_start
+        e = min(ce_, seg_end) - seg_start
+        if e - s < 0.01:
+            continue
+        text = text.replace("{", "(").replace("}", ")")
+        lines.append(f"Dialogue: 0,{ass_time(s)},{ass_time(e)},Halo,,0,0,0,,"
+                     f"{{\\pos({x},{y + 3})}}{text}\n")
+        lines.append(f"Dialogue: 1,{ass_time(s)},{ass_time(e)},Main,,0,0,0,,"
+                     f"{{\\pos({x},{y})}}{text}\n")
+    path.write_text("".join(lines), encoding="utf-8-sig")
 
 
 # --------------------------------------------------------------------------- #
-# Video pass
+# Video pass (one ffmpeg per EDL segment, then lossless concat)
 # --------------------------------------------------------------------------- #
-def render_video(source, edl, chunks, out_path, do_caps, do_zoom):
+ENCODERS = {
+    "h264_nvenc": ["-c:v", "h264_nvenc", "-rc", "vbr", "-cq", "21",
+                   "-b:v", "12M", "-preset", "p5"],
+    "libx264": ["-c:v", "libx264", "-crf", "21", "-preset", "veryfast"],
+}
+
+
+def run_ffmpeg_progress(cmd, cwd: Path, base: int, total: int):
+    """Run ffmpeg relaying -progress frame counts as global PROGRESS lines."""
+    p = subprocess.Popen(cmd, cwd=str(cwd), stdout=subprocess.PIPE,
+                         stderr=subprocess.STDOUT, text=True,
+                         encoding="utf-8", errors="replace")
+    frames = 0
+    tail = deque(maxlen=15)
+    for line in p.stdout:
+        if line.startswith("frame="):
+            try:
+                frames = int(line.split("=", 1)[1].strip())
+            except ValueError:
+                continue
+            print(f"PROGRESS {min(base + frames, total)} {total}", flush=True)
+        elif line.strip() and not line.startswith(PROGRESS_KEYS):
+            tail.append(line.strip())
+    p.wait()
+    return frames, p.returncode, "\n".join(tail)
+
+
+def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom):
     src = av.open(source)
     vs = src.streams.video[0]
-    w = vs.codec_context.width
-    h = vs.codec_context.height
+    w, h = vs.codec_context.width, vs.codec_context.height
     fps = Fraction(vs.average_rate)
+    src.close()
 
-    oc = av.open(str(out_path), "w")
-    ov = oc.add_stream("h264_nvenc", rate=fps)
-    ov.width, ov.height, ov.pix_fmt = w, h, "yuv420p"
-    ov.codec_context.options = {"rc": "vbr", "cq": "21", "b:v": "12M", "preset": "p5"}
+    total = sum(max(1, round((float(s["end"]) - float(s["start"])) * fps))
+                for s in edl)
+    print(f"PROGRESS 0 {total}", flush=True)
 
-    caps = CaptionRenderer(w, h) if do_caps else None
-    tb = Fraction(1, 1) / fps
-    out_idx = 0
-    frame_dur = 1.0 / float(fps)
-
-    for seg in edl:
+    encoder = "h264_nvenc"
+    seg_files = []
+    done = 0
+    for i, seg in enumerate(edl):
         s, e = float(seg["start"]), float(seg["end"])
         zoom = float(seg.get("zoom", 1.0)) if do_zoom else 1.0
-        src.seek(int(s / vs.time_base), stream=vs, any_frame=False, backward=True)
-        for frame in src.decode(vs):
-            t = float(frame.pts * vs.time_base)
-            if t < s - frame_dur:
-                continue
-            if t >= e:
-                break
-            rgb = frame.to_ndarray(format="rgb24")
-            if zoom > 1.001:
-                rgb = apply_zoom(rgb, zoom)
-            if caps is not None:
-                text = active_caption(chunks, t)
-                if text:
-                    rgb = composite(rgb, caps.overlay(text))
-            of = av.VideoFrame.from_ndarray(rgb, format="rgb24").reformat(format="yuv420p")
-            of.pts = out_idx
-            of.time_base = tb
-            out_idx += 1
-            for pkt in ov.encode(of):
-                oc.mux(pkt)
-    for pkt in ov.encode():
-        oc.mux(pkt)
-    oc.close()
-    src.close()
-    total_s = out_idx / float(fps)
-    print(f"VIDEO_OK: {out_idx} frames, {total_s:.1f}s", flush=True)
-    return total_s
+        vf = []
+        if zoom > 1.001:
+            cw, ch = int(w / zoom) // 2 * 2, int(h / zoom) // 2 * 2
+            x0, y0 = (w - cw) // 2 // 2 * 2, (h - ch) // 2 // 2 * 2
+            vf.append(f"crop={cw}:{ch}:{x0}:{y0}")
+            vf.append(f"scale={w}:{h}:flags=lanczos")
+        if do_caps:
+            write_segment_ass(seg_dir / f"seg_{i:04d}.ass", chunks, s, e, w, h)
+            vf.append(f"subtitles=seg_{i:04d}.ass")
+        seg_name = f"seg_{i:04d}.mp4"
+
+        def cmd_for(enc):
+            c = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                 "-ss", f"{s:.3f}", "-t", f"{e - s:.3f}", "-i", source,
+                 "-an", "-sn"]
+            if vf:
+                c += ["-vf", ",".join(vf)]
+            return c + ENCODERS[enc] + ["-pix_fmt", "yuv420p",
+                                        "-progress", "pipe:1", "-y", seg_name]
+
+        frames, rc, err = run_ffmpeg_progress(cmd_for(encoder), seg_dir, done, total)
+        if rc != 0 and encoder == "h264_nvenc":
+            print(f"NVENC failed ({err[-120:]}), falling back to libx264", flush=True)
+            encoder = "libx264"
+            frames, rc, err = run_ffmpeg_progress(cmd_for(encoder), seg_dir, done, total)
+        if rc != 0:
+            raise RuntimeError(f"ffmpeg failed on segment {i} [{s:.2f}-{e:.2f}]: {err[-300:]}")
+        done += frames
+        seg_files.append(seg_name)
+    print(f"VIDEO_OK: {done} frames, {done / float(fps):.1f}s", flush=True)
+    return seg_files
+
+
+def concat_and_mux(ffmpeg, seg_dir: Path, seg_files, audio_path, out_path):
+    (seg_dir / "concat.txt").write_text(
+        "".join(f"file '{n}'\n" for n in seg_files), encoding="utf-8")
+    r = subprocess.run(
+        [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+         "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", str(audio_path),
+         "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
+         "-movflags", "+faststart", "-y", str(out_path)],
+        cwd=str(seg_dir), capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError("ffmpeg concat failed: " + (r.stderr or "")[-300:])
+    print(f"MUX_OK: {out_path}", flush=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -209,26 +278,6 @@ def render_audio(source, edl, out_path):
     print(f"AUDIO_OK: {len(flat) / AUDIO_RATE:.1f}s", flush=True)
 
 
-def mux(video_path, audio_path, out_path):
-    vin = av.open(str(video_path))
-    ain = av.open(str(audio_path))
-    oc = av.open(str(out_path), "w")
-    ov = oc.add_stream_from_template(vin.streams.video[0])
-    oa = oc.add_stream_from_template(ain.streams.audio[0])
-    for pkt in vin.demux(vin.streams.video[0]):
-        if pkt.dts is None:
-            continue
-        pkt.stream = ov
-        oc.mux(pkt)
-    for pkt in ain.demux(ain.streams.audio[0]):
-        if pkt.dts is None:
-            continue
-        pkt.stream = oa
-        oc.mux(pkt)
-    oc.close(); vin.close(); ain.close()
-    print(f"MUX_OK: {out_path}", flush=True)
-
-
 def main():
     source, edl_path, tr_path, out = sys.argv[1:5]
     do_caps = "--no-captions" not in sys.argv
@@ -237,17 +286,22 @@ def main():
     transcript = json.loads(Path(tr_path).read_text(encoding="utf-8"))
     chunks = build_caption_chunks(transcript) if do_caps else []
 
+    ffmpeg = find_ffmpeg()
     out = Path(out)
-    tmp_v = out.with_name("._v.mp4")
     tmp_a = out.with_name("._a.m4a")
+    seg_dir = out.with_name("._segs")
     keep = sum(float(s["end"]) - float(s["start"]) for s in edl)
     print(f"EDL: {len(edl)} segmentos, {keep:.1f}s de material conservado "
           f"(captions={do_caps}, zoom={do_zoom})", flush=True)
-    render_video(source, edl, chunks, tmp_v, do_caps, do_zoom)
-    render_audio(source, edl, tmp_a)
-    mux(tmp_v, tmp_a, out)
-    tmp_v.unlink(missing_ok=True)
-    tmp_a.unlink(missing_ok=True)
+    seg_dir.mkdir(exist_ok=True)
+    try:
+        seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
+                                 do_caps, do_zoom)
+        render_audio(source, edl, tmp_a)
+        concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out)
+    finally:
+        shutil.rmtree(seg_dir, ignore_errors=True)
+        tmp_a.unlink(missing_ok=True)
     print("DONE", flush=True)
 
 

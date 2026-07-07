@@ -129,19 +129,19 @@ El LLM produce un plan declarativo y auditable (JSON) antes de tocar nada:
 
 El usuario aprueba la estrategia ANTES de ejecutar (principio: preguntar → confirmar → ejecutar).
 
-## Rendimiento del backend directo (hallazgo real, 2026-07-07)
+## Rendimiento del backend directo (resuelto 2026-07-07)
 
-El compositing de captions+zoom en `vidorq_render.py` procesa cada frame en **Python puro** (PIL para el texto + numpy para el alpha blend + Lanczos para el zoom), sin paralelismo. Para un vídeo de ~4:30 (7979 frames a 1080p), esto tarda **más de una hora** en una CPU de escritorio normal — inaceptable para un producto con "EDITAR VÍDEO" de un clic. El cuello de botella NO es la codificación (NVENC por GPU es rápido); es el compositing por frame en el hilo principal de Python.
+**El problema (v1).** El compositing de captions+zoom en `vidorq_render.py` procesaba cada frame en Python puro (PIL para el texto + numpy para el alpha blend + Lanczos para el zoom), monohilo. Medido por etapas a 1080p: decode 7 ms/frame, +`to_ndarray` 11, +zoom Lanczos 54, +composite alpha 141, pipeline completo **167 ms/frame**. El encode NVENC solo aportaba ~26 ms — el 78% del coste era el zoom y el blend en Python. El job real de un clic (preset podcast, 629 s conservados = 18.857 frames) tardaba **~54 minutos**, y `/progress` se quedaba clavado en 65% porque el engine lanzaba el render con `subprocess.run` bloqueante sin leer stdout.
 
-Además, el progreso reportado durante esta fase es un valor fijo (65%) porque no hay instrumentación frame a frame — hay que arreglarlo junto con la velocidad.
+**La solución (v2).** Se descartó paralelizar el bucle Python (multiprocessing) porque no ataca la causa: cada frame seguía pasando por PIL/numpy. En su lugar, todo el trabajo por frame se movió a filtros de ffmpeg (código C):
+- **Captions**: se generan como pista **ASS por segmento** (tiempos desplazados al tiempo local del segmento) y las quema el filtro `subtitles` (libass). Dos capas de diálogo reproducen el look v1 (halo semitransparente desplazado 3 px + texto blanco con trazo negro). Ojo con las métricas: libass interpreta `Fontsize` como altura de celda GDI (en Arial Black, 1.411 em), no como el em de PIL.
+- **Zoom**: `crop` + `scale=flags=lanczos` por segmento (el zoom es estático por segmento, así que es un parámetro del filtro, no trabajo por frame en Python).
+- **Estructura**: un proceso ffmpeg por segmento del EDL (seek de entrada `-ss/-t`, encode `h264_nvenc` con fallback a libx264) y **concat sin recodificar** al final junto al audio. La pasada de audio (fades de 30 ms por frontera, PyAV) no cambió.
+- **Progreso real**: cada ffmpeg corre con `-progress pipe:1`; el renderer emite líneas `PROGRESS <frames_hechos> <total>` por stdout y el engine (`server.py`) las lee en streaming con `Popen` y actualiza `/progress` (65→98%) con el conteo real de frames.
 
-**Vías de arreglo (ordenadas por impacto esperado):**
-1. **Paralelizar por chunks de frames** con `multiprocessing.Pool` (cada proceso decodifica/compone/codifica su tramo; se concatenan al final). El más directo, sin cambiar de tecnología.
-2. **Mover el compositing a filtros de ffmpeg** (`overlay`, `drawtext` si se resuelve libass, o un filtro de vídeo pre-renderizado como pista con alfa) — los filtros de ffmpeg están en C y son órdenes de magnitud más rápidos que un bucle Python por frame.
-3. **Cachear el overlay de captions una vez por chunk de texto** (ya se hace) pero **evitar recompositar frames idénticos de zoom** cuando el segmento no cambia de escala.
-4. Reportar progreso real (frames procesados / total) en vez de un valor fijo, para que la UI no muestre un 65% congelado durante 40+ minutos.
+**Resultado medido (RTX 5060, vídeo de Luisito 10:43 a 1080p30):** el mismo job real pasó de ~54 min a **~80 s de extremo a extremo** (~40x; la fase de vídeo corre a ~300 fps), con el mismo estilo de captions (paridad verificada frame a frame) y sincronía A/V a <2 ms (antes ~100 ms). Un sub-EDL de 30 s pasó de 119 s a 5,9 s (20x).
 
-**Prioridad para la próxima sesión de desarrollo**: sin esto, "MP4 directo" no es viable como experiencia de un clic para vídeos largos.
+**Dependencia nueva**: ffmpeg CLI en el PATH con libass y NVENC (el build full de gyan.dev los trae). La primera ejecución puede tardar unos segundos extra construyendo la caché de fuentes de fontconfig.
 
 ## Stack
 

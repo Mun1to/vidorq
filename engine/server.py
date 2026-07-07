@@ -32,6 +32,7 @@ import sys
 import threading
 import traceback
 import urllib.request
+from collections import deque
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
@@ -49,6 +50,7 @@ _busy = False
 
 QUESTION_RE = re.compile(
     r"^\s*(qu[eé]|c[oó]mo|cu[aá]l|qui[eé]n|por qu[eé]|d[oó]nde|cu[aá]ndo|cu[aá]nt)", re.I)
+PROGRESS_RE = re.compile(r"^PROGRESS (\d+) (\d+)")
 
 
 def set_progress(step, percent, detail="", result="", error=""):
@@ -242,6 +244,30 @@ def output_resolve(video, edl, fps):
 # --------------------------------------------------------------------------- #
 # The job
 # --------------------------------------------------------------------------- #
+def run_render(cmd, out_file, timeout=7200):
+    """Run the renderer relaying its PROGRESS lines to /progress in real time."""
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, encoding="utf-8", errors="replace")
+    killer = threading.Timer(timeout, proc.kill)
+    killer.start()
+    tail = deque(maxlen=25)
+    try:
+        for line in proc.stdout:
+            m = PROGRESS_RE.match(line)
+            if m:
+                done, total = int(m.group(1)), max(1, int(m.group(2)))
+                set_progress("Renderizando (GPU)...",
+                             min(98, 65 + int(33 * done / total)),
+                             f"frame {done} de {total}")
+            elif line.strip():
+                tail.append(line.strip())
+        proc.wait(timeout=60)
+    finally:
+        killer.cancel()
+    if proc.returncode != 0 or not out_file.exists():
+        raise RuntimeError("Fallo renderizando: " + "\n".join(tail)[-400:])
+
+
 def run_job(req):
     global _busy
     try:
@@ -310,9 +336,7 @@ def run_job(req):
                    str(tr_path), str(out_file)]
             if not captions:
                 cmd.append("--no-captions")
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
-            if r.returncode != 0 or not out_file.exists():
-                raise RuntimeError("Fallo renderizando: " + (r.stderr or r.stdout)[-400:])
+            run_render(cmd, out_file)
             result = str(out_file)
 
         set_progress("Listo", 100, result=result)
