@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { apiGet, apiPost, ENGINE, Workspaces } from "./api";
+import Brand from "./Brand";
+import Settings from "./Settings";
+import logo from "./assets/logo.png";
 import "./App.css";
-
-const ENGINE = "http://127.0.0.1:9877";
 
 type Preset = "clean" | "podcast" | "montage";
 type Output = "mp4" | "resolve";
@@ -28,15 +30,15 @@ function App() {
   const [output, setOutput] = useState<Output>("mp4");
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const [apiKey, setApiKey] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [brandOpen, setBrandOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<Progress>({ step: "", percent: 0 });
   const [engineUp, setEngineUp] = useState<boolean | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [ws, setWs] = useState<Workspaces>({ active: "Principal", list: ["Principal"] });
 
-  // Drag & drop nativo de Tauri (da rutas reales de archivo).
-  // En un navegador normal (dev/preview) simplemente no está: se usa el campo de ruta.
+  // Drag & drop nativo de Tauri (rutas reales); en navegador normal se usa el campo de ruta
   useEffect(() => {
     let unsub: (() => void) | undefined;
     (async () => {
@@ -50,31 +52,33 @@ function App() {
             if (p && /\.(mp4|mov|mkv|webm|avi)$/i.test(p)) setVideo(p);
           } else setDragOver(false);
         });
-      } catch { /* fuera de Tauri no hay drag&drop nativo */ }
+      } catch { /* fuera de Tauri */ }
     })();
     return () => { unsub?.(); };
   }, []);
 
-  // Latido del motor local
+  // Latido del motor + workspaces
   useEffect(() => {
     const check = () =>
       fetch(`${ENGINE}/health`).then(() => setEngineUp(true)).catch(() => setEngineUp(false));
     check();
+    apiGet<Workspaces>("/workspaces")
+      .then((w) => { if (w && Array.isArray(w.list)) setWs(w); })
+      .catch(() => {});
     const t = setInterval(check, 4000);
     return () => clearInterval(t);
   }, []);
 
-  // Progreso mientras edita
+  // Progreso
   useEffect(() => {
     if (phase !== "running") return;
     const t = setInterval(async () => {
       try {
-        const r = await fetch(`${ENGINE}/progress`);
-        const p: Progress = await r.json();
+        const p = await apiGet<Progress>("/progress");
         setProgress(p);
         if (p.error) setPhase("error");
         else if (p.percent >= 100 && p.result) setPhase("done");
-      } catch { /* motor ocupado */ }
+      } catch { /* ocupado */ }
     }, 800);
     return () => clearInterval(t);
   }, [phase]);
@@ -86,42 +90,50 @@ function App() {
     setPhase("running");
     setProgress({ step: "Enviando al motor...", percent: 2 });
     try {
-      const r = await fetch(`${ENGINE}/edit`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ video, preset, captions, output, prompt: proOpen ? prompt : "" }),
+      const j = await apiPost<{ ok?: boolean; error?: string }>("/edit", {
+        video, preset, captions, output, prompt: proOpen ? prompt : "",
       });
-      const j = await r.json();
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
-    } catch (e) {
-      setProgress({ step: "", percent: 0, error: "No se pudo hablar con el motor. ¿Está encendido?" }); setPhase("error");
+    } catch {
+      setProgress({ step: "", percent: 0, error: "No se pudo hablar con el motor. ¿Está encendido?" });
+      setPhase("error");
     }
   }
 
-  async function saveKey() {
-    await fetch(`${ENGINE}/config`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ anthropicKey: apiKey }),
-    }).catch(() => {});
-    setSettingsOpen(false);
+  async function switchWs(name: string) {
+    const req = name === "__new__"
+      ? (() => {
+          const n = window.prompt("Nombre del nuevo workspace (una marca o proyecto):");
+          return n ? { create: n, activate: n } : null;
+        })()
+      : { activate: name };
+    if (!req) return;
+    try {
+      const w = await apiPost<Workspaces>("/workspaces", req);
+      if (w && Array.isArray(w.list)) setWs(w);
+    } catch { /* engine antiguo o apagado */ }
   }
 
   return (
     <main className="shell">
       <header className="top">
         <div className="brand">
-          <span className="logo">V</span>
+          <img className="logo-img" src={logo} alt="Vidorq" />
           <div>
             <h1>Vidorq</h1>
             <p>Describe la edición. El resto es nuestro.</p>
           </div>
         </div>
         <div className="top-right">
+          <select className="ws" value={ws.active} onChange={(e) => switchWs(e.target.value)} title="Workspace">
+            {ws.list.map((w) => <option key={w} value={w}>📁 {w}</option>)}
+            <option value="__new__">➕ nuevo workspace...</option>
+          </select>
+          <button className="ghost" onClick={() => setBrandOpen(true)} title="Tu marca">🎨</button>
+          <button className="ghost" onClick={() => setSettingsOpen(true)} title="Ajustes">⚙️</button>
           <span className={`engine ${engineUp ? "ok" : "down"}`}>
             {engineUp === null ? "..." : engineUp ? "motor conectado" : "motor apagado"}
           </span>
-          <button className="ghost" onClick={() => setSettingsOpen(true)} title="Ajustes">⚙️</button>
         </div>
       </header>
 
@@ -151,11 +163,7 @@ function App() {
 
           <section className="presets">
             {PRESETS.map((p) => (
-              <button
-                key={p.id}
-                className={`preset ${preset === p.id ? "sel" : ""}`}
-                onClick={() => setPreset(p.id)}
-              >
+              <button key={p.id} className={`preset ${preset === p.id ? "sel" : ""}`} onClick={() => setPreset(p.id)}>
                 <span className="p-icon">{p.icon}</span>
                 <span className="p-name">{p.name}{p.beta && <em> beta</em>}</span>
                 <span className="p-desc">{p.desc}</span>
@@ -189,15 +197,14 @@ function App() {
 
           {phase === "error" && <div className="error">⚠️ {progress.error}</div>}
 
-          <button className="cta" disabled={!canEdit} onClick={startEdit}>
-            EDITAR VÍDEO
-          </button>
+          <button className="cta" disabled={!canEdit} onClick={startEdit}>EDITAR VÍDEO</button>
           {engineUp === false && (
-            <p className="hint center">El motor local no está encendido. Arráncalo con <code>vidorq-engine</code> o desde la carpeta del proyecto.</p>
+            <p className="hint center">El motor local no está encendido. Arráncalo con <code>engine/start_engine.bat</code>.</p>
           )}
         </>
       ) : (
         <section className="run">
+          <img className="run-logo" src={logo} alt="" />
           <div className="bar"><div className="fill" style={{ width: `${progress.percent}%` }} /></div>
           <h2>{progress.step}</h2>
           {progress.detail && <p className="detail">{progress.detail}</p>}
@@ -213,22 +220,8 @@ function App() {
         </section>
       )}
 
-      {settingsOpen && (
-        <div className="modal-bg" onClick={() => setSettingsOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Ajustes</h2>
-            <label>API key de Anthropic (Modo Pro)</label>
-            <input
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="sk-ant-..."
-            />
-            <p className="hint">Se guarda solo en tu equipo. Sin key, los presets funcionan igual: gratis y en local.</p>
-            <button className="cta" onClick={saveKey}>Guardar</button>
-          </div>
-        </div>
-      )}
+      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
+      {brandOpen && <Brand onClose={() => setBrandOpen(false)} />}
     </main>
   );
 }

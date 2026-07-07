@@ -4,10 +4,17 @@ Zero external dependencies beyond the Vidorq venv (faster-whisper, PyAV, Pillow)
 Pattern borrowed from CursorBridge: stdlib http.server + a worker thread.
 
 Endpoints:
-    GET  /health    -> {"ok": true, "version": ...}
-    GET  /progress  -> {"step", "percent", "detail", "result", "error"}
-    POST /config    -> {"anthropicKey": "..."} saved to %APPDATA%/Vidorq/config.json
-    POST /edit      -> {"video", "preset", "captions", "output", "prompt"} starts a job
+    GET  /health     -> {"ok": true, "version": ...}
+    GET  /progress   -> {"step", "percent", "detail", "result", "error"}
+    GET  /workspaces -> {"active": name, "list": [names]}
+    GET  /profile    -> brand profile of the active workspace
+    POST /workspaces -> {"create": name} | {"activate": name}
+    POST /profile    -> saves brand profile into the active workspace
+    POST /config     -> {"anthropicKey"|"openaiKey"|"geminiKey": ...} -> config.json
+    POST /edit       -> {"video", "preset", "captions", "output", "prompt"} starts a job
+
+Workspaces live in %APPDATA%/Vidorq/workspaces/<name>/ (brand.json + future memory);
+each one is a brand/project with its own style profile.
 
 Presets (no API key needed, fully local):
     clean    keep speech, drop silences/dead air
@@ -54,6 +61,46 @@ def load_config():
         return json.loads(CONFIG.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+# --------------------------------------------------------------------------- #
+# Workspaces (one folder per brand/project)
+# --------------------------------------------------------------------------- #
+WORKSPACES = CONFIG_DIR / "workspaces"
+
+
+def _safe_name(name):
+    return re.sub(r"[^\w\- ]", "", (name or "").strip())[:40] or "Principal"
+
+
+def ws_list():
+    WORKSPACES.mkdir(parents=True, exist_ok=True)
+    names = sorted(p.name for p in WORKSPACES.iterdir() if p.is_dir())
+    if not names:
+        (WORKSPACES / "Principal").mkdir(parents=True, exist_ok=True)
+        names = ["Principal"]
+    active = load_config().get("activeWorkspace", names[0])
+    if active not in names:
+        active = names[0]
+    return {"active": active, "list": names}
+
+
+def ws_dir():
+    d = WORKSPACES / ws_list()["active"]
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def profile_load():
+    try:
+        return json.loads((ws_dir() / "brand.json").read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def profile_save(p):
+    (ws_dir() / "brand.json").write_text(
+        json.dumps(p, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 # --------------------------------------------------------------------------- #
@@ -228,6 +275,10 @@ def run_job(req):
             if not key:
                 raise ValueError("El Modo Pro necesita tu API key de Anthropic (Ajustes)")
             packed = (workdir / "takes_packed.md").read_text(encoding="utf-8")
+            brand = profile_load()
+            if brand:
+                prompt += "\n\nPERFIL DE MARCA DEL USUARIO (respetalo): " + json.dumps(
+                    brand, ensure_ascii=False)
             edl = edl_from_prompt(prompt, packed, key)
         elif preset == "montage":
             edl = edl_montage(video, transcript)
@@ -298,6 +349,10 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/progress":
             with _lock:
                 self._send(dict(_progress))
+        elif self.path == "/workspaces":
+            self._send(ws_list())
+        elif self.path == "/profile":
+            self._send(profile_load())
         else:
             self._send({"error": "not found"}, 404)
 
@@ -313,6 +368,18 @@ class Handler(BaseHTTPRequestHandler):
             cfg = load_config()
             cfg.update({k: v for k, v in body.items() if v})
             CONFIG.write_text(json.dumps(cfg), encoding="utf-8")
+            self._send({"ok": True})
+        elif self.path == "/workspaces":
+            if body.get("create"):
+                (WORKSPACES / _safe_name(body["create"])).mkdir(parents=True, exist_ok=True)
+            if body.get("activate"):
+                cfg = load_config()
+                cfg["activeWorkspace"] = _safe_name(body["activate"])
+                CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+                CONFIG.write_text(json.dumps(cfg), encoding="utf-8")
+            self._send(ws_list())
+        elif self.path == "/profile":
+            profile_save(body)
             self._send({"ok": True})
         elif self.path == "/edit":
             if _busy:

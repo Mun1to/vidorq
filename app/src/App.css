@@ -138,6 +138,42 @@ body {
 .done { display: flex; flex-direction: column; gap: 12px; align-items: center; }
 .result-path { font-size: 12px; color: var(--muted); word-break: break-all; max-width: 560px; }
 
+/* ---------- logo & workspaces ---------- */
+.logo-img { width: 46px; height: 46px; filter: drop-shadow(0 3px 12px rgba(108, 92, 231, .5)); }
+.run-logo { width: 74px; height: 74px; animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.07); opacity: 1; } }
+.ws {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  border-radius: 9px; padding: 7px 10px; font-size: 12px; max-width: 180px; cursor: pointer;
+}
+
+/* ---------- chips / wizard ---------- */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  background: var(--panel2); border: 1px solid var(--line); color: var(--muted);
+  border-radius: 999px; padding: 6px 14px; font-size: 12px; cursor: pointer;
+}
+.chip.sel { background: var(--accent); border-color: var(--accent); color: white; }
+.row2 { display: flex; gap: 16px; align-items: end; }
+.row2 .grow { flex: 1; }
+.row2 input[type="color"] {
+  width: 52px; height: 34px; padding: 2px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--panel2); cursor: pointer;
+}
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.opt.out.inline { display: inline-flex; align-self: start; }
+.modal.wide { width: min(560px, 94vw); max-height: 86vh; overflow-y: auto; }
+.modal textarea {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; color: var(--text); font-size: 13px; min-height: 64px;
+  resize: vertical; font-family: inherit;
+}
+
+/* ---------- vincular agentes ---------- */
+.agent { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.agent-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.agent code { font-size: 11px; color: var(--accent2); word-break: break-all; display: block; }
+
 /* ---------- modal ---------- */
 .modal-bg { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); display: grid; place-items: center; }
 .modal {
