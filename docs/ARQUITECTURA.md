@@ -129,6 +129,20 @@ El LLM produce un plan declarativo y auditable (JSON) antes de tocar nada:
 
 El usuario aprueba la estrategia ANTES de ejecutar (principio: preguntar → confirmar → ejecutar).
 
+## Rendimiento del backend directo (hallazgo real, 2026-07-07)
+
+El compositing de captions+zoom en `vidorq_render.py` procesa cada frame en **Python puro** (PIL para el texto + numpy para el alpha blend + Lanczos para el zoom), sin paralelismo. Para un vídeo de ~4:30 (7979 frames a 1080p), esto tarda **más de una hora** en una CPU de escritorio normal — inaceptable para un producto con "EDITAR VÍDEO" de un clic. El cuello de botella NO es la codificación (NVENC por GPU es rápido); es el compositing por frame en el hilo principal de Python.
+
+Además, el progreso reportado durante esta fase es un valor fijo (65%) porque no hay instrumentación frame a frame — hay que arreglarlo junto con la velocidad.
+
+**Vías de arreglo (ordenadas por impacto esperado):**
+1. **Paralelizar por chunks de frames** con `multiprocessing.Pool` (cada proceso decodifica/compone/codifica su tramo; se concatenan al final). El más directo, sin cambiar de tecnología.
+2. **Mover el compositing a filtros de ffmpeg** (`overlay`, `drawtext` si se resuelve libass, o un filtro de vídeo pre-renderizado como pista con alfa) — los filtros de ffmpeg están en C y son órdenes de magnitud más rápidos que un bucle Python por frame.
+3. **Cachear el overlay de captions una vez por chunk de texto** (ya se hace) pero **evitar recompositar frames idénticos de zoom** cuando el segmento no cambia de escala.
+4. Reportar progreso real (frames procesados / total) en vez de un valor fijo, para que la UI no muestre un 65% congelado durante 40+ minutos.
+
+**Prioridad para la próxima sesión de desarrollo**: sin esto, "MP4 directo" no es viable como experiencia de un clic para vídeos largos.
+
 ## Stack
 
 | Capa | Tecnología |
