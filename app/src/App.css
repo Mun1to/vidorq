@@ -139,7 +139,7 @@ body {
 .result-path { font-size: 12px; color: var(--muted); word-break: break-all; max-width: 560px; }
 
 /* ---------- logo & workspaces ---------- */
-.logo-img { width: 46px; height: 46px; filter: drop-shadow(0 3px 12px rgba(108, 92, 231, .5)); }
+.logo-img { width: 58px; height: 58px; filter: drop-shadow(0 3px 12px rgba(108, 92, 231, .5)); }
 .run-logo { width: 74px; height: 74px; animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.07); opacity: 1; } }
 .ws {
