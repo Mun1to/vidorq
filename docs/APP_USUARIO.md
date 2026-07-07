@@ -44,14 +44,33 @@ vidorq_render.py         → mp4 directo (GPU)
 | `POST /config` | guarda la API key |
 | `POST /edit` | `{video, preset, captions, output, prompt}` → job en hilo |
 
-## Cómo se ejecuta
+## Cómo se abre (2026-07-07: lanzador fácil, siempre actualizado)
 
-- **Desarrollo**: `pnpm --dir app tauri dev` + `engine/start_engine.bat`.
-- **Instalada**: instalador NSIS/MSI generado con `pnpm tauri build`
-  (`app/src-tauri` → target release `bundle/nsis/Vidorq_x64-setup.exe`). Tras instalar,
-  clic derecho en Vidorq → anclar a la barra de tareas.
-- El engine de momento se arranca con `engine/start_engine.bat`; integrarlo como sidecar
-  de Tauri (arranque automático con la app) está en la lista.
+**Acceso directo en el Escritorio: `Vidorq.lnk`** (icono real de la app). Doble clic y
+listo — no hace falta terminal ni comandos.
+
+Por debajo, el acceso directo apunta a `app/Abrir_Vidorq.vbs`, que:
+1. Comprueba si el motor local (puerto 9877) ya está encendido; si no, lo arranca oculto.
+2. Lanza la app con `pnpm tauri dev` (oculto, sin ventana de consola).
+
+**Por qué modo dev y no un instalador**: `tauri dev` compila siempre desde el código
+fuente actual. Así, cada vez que se edite el proyecto (yo o Munir), la próxima vez que
+se abra el acceso directo ya lleva los cambios — no hace falta reinstalar nada. Es el
+equivalente a "se actualiza sola". El primer arranque compila Rust desde cero (~2-4 min
+la primera vez); los siguientes son rápidos porque Cargo cachea el build.
+
+Si algo falla y no se ve nada (el modo silencioso oculta la consola), usar
+`Abrir_Vidorq_debug.bat` (misma carpeta) en su lugar: mismo lanzador pero con consola
+visible para ver el error.
+
+Cuando el producto esté "consistente y funcione bien de verdad" (regla de Munir), se
+generará un instalador de verdad con `pnpm tauri build` → `bundle/nsis/Vidorq_x64-setup.exe`
+(ya se generó una vez como prueba antes del logo/workspaces — quedó desactualizado y
+hay que regenerarlo cuando toque congelar una versión).
+
+Nota técnica: el paquete Rust se renombró de `app` a `vidorq` (2026-07-07) para que el
+proceso/binario se llame `vidorq.exe` y no choque con Vidorq Core (`vidorq-core.exe`)
+en el Administrador de tareas.
 
 ## Pendiente v1.x
 
