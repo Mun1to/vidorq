@@ -1,67 +1,123 @@
-# Metas de Vidorq (niveles tipo videojuego)
+# Metas de Vidorq
 
-> Regla: METAS, no fechas. Cada nivel se desbloquea al completar el anterior.
-> La única presión temporal válida son ventanas externas (convocatorias, releases de terceros), y se anotan como tales.
+> Regla: METAS, no fechas. La única presión temporal válida son ventanas externas
+> (convocatorias, movimientos de terceros), y se anotan como tales.
 
-## Nivel 0 — Fundación ✅
-- [x] Nombre: Vidorq.
-- [x] Carpeta + repo público (`vidorq`) + repo privado (`vidorq-core`).
-- [x] Visión, arquitectura, sistema de entrenamiento y recursos documentados.
-- [x] Decisiones respondidas por Munir (2026-07-04): interfaz = Claude Code con Resolve abierto en tiempo real; MVP = cortes + zooms + captions; dominio vidorq.com (el .ai se descarta por precio).
+## La decisión que ordena todo (2026-07-16)
 
-## Definición del MVP (decidida 2026-07-04)
+**La v0.1 pública de Vidorq es "el agente que edita dentro de Resolve".**
 
-Vidorq se usa DESDE Claude Code, **con DaVinci Resolve abierto al lado**: cada acción del puente aparece al instante en el timeline, y el usuario ve a Vidorq editar en tiempo real. El MVP está completo cuando, sobre un vídeo real:
+No es "el editor que aprende tu estilo" ni "el que saca shorts verticales". Esas dos cosas
+llegan después, y llegan como roadmap visible, no como requisito para publicar.
 
-1. **Cortes inteligentes**: silencios, muletillas y momentos flojos fuera; cortes en fronteras de palabra con fades de audio.
-2. **Animaciones cinemáticas con zoom in/out**: énfasis visual sincronizado con el habla.
-3. **Captions profesionales y diferenciadores**: subtítulos animados con el estilo de la marca del usuario, no los genéricos de siempre.
-4. **Todo bien estructurado**: perfil de estilo aplicado, timeline limpio y retocable a mano después.
+Por qué, tras la investigación de mercado (informe completo en
+`Vidorq-Core/informes/2026-07-15-competencia-diseno-safezones.md`):
 
-Equivale a completar los Niveles 1-3. Si la API de Resolve bloquea algo, se busca la vuelta (ver "escalera de técnicas" en [ARQUITECTURA.md](ARQUITECTURA.md)).
+- **Palmier Pro** (YC S24, GPL-3.0, 10.2k estrellas en 3 meses) es el gemelo conceptual de
+  Vidorq: agente que opera un editor vía MCP local. Valida la categoría entera. Pero es
+  solo macOS 26 Apple Silicon. **Windows + Resolve está libre.**
+- **Cardboard, Mosaic, Martini y Palmier exportan XML hacia Resolve/Premiere. Ninguno vive
+  DENTRO del NLE.** Vidorq es el único con timeline nativo editable en la herramienta que
+  los profesionales ya tienen abierta.
+- Ese es el foso: un competidor no lo copia sin tirar su producto a la basura. El
+  entrenamiento de estilo, en cambio, sí es copiable (Cardboard lo tiene en su roadmap
+  público: "prediction engine como el tab de Cursor"). Se hace porque es nuestro anti-slop,
+  no como reacción a ellos.
 
-## Nivel 1 — El primer corte mágico
-**Meta: un prompt corta un vídeo real y el resultado se sostiene.**
-- [x] Pipeline transcribir → empaquetar → razonar → EDL → aplicar cortes. ✅ 2026-07-06 (backend render directo; vídeo de Luisito 10:43 → 4:26 con cortes limpios y fades de audio).
-- [x] Demo reproducible de punta a punta. ✅ helpers/transcribe.py + vidorq_render.py.
-- [x] Backend Resolve: mismo EDL → timeline editable vía el puente. ✅ 2026-07-07. Crash de OpenCL resuelto (reg delete de entradas Intel muertas); CursorBridge conectado; 16 cortes + 6 punch zooms + 16 marcadores por pregunta montados por API y verificados (frame exportado desde Resolve). Helper: skill/helpers/build_resolve_timeline.py.
-- [ ] Captions en el timeline de Resolve (macro Fusion, patrón AutoSubs): el timeline actual tiene cortes+zooms+marcadores; faltan los captions nativos. Siguiente paso.
-- [ ] Spike `ImportFusionComp` (comp dummy) en Resolve 20.3 Free: ahora posible (Resolve arranca).
+**Analogía-ancla del producto**: "Tu agente de edición, dentro de un NLE de verdad."
+**Contraste de posicionamiento**: "Ellos exportan XML a Resolve. Vidorq vive en Resolve."
 
-## Nivel 1.5 — Backend directo (LOGRADO, no estaba planeado)
-**Meta emergente: producir el mp4 final sin depender de Resolve.**
-- [x] Motor PyAV + NVENC: cortes + punch zoom + captions en una pasada. ✅ 2026-07-06.
+---
 
-## Nivel 2 — Subtítulos y estilo propio
-**Meta: el vídeo sale con subtítulos animados en el estilo de la marca del usuario.**
-- [x] Captions Hormozi 2-palabras UPPERCASE quemados y sincronizados (Arial Black, contorno+sombra). ✅ 2026-07-06 en el backend directo (PIL overlay).
-- [ ] Perfil de estilo v1 (style.md + brand.json + subtitles.json) — colores/fuente/posición configurables.
-- [ ] Onboarding conversacional (cuestionario de marca).
-- [ ] Captions ANIMADOS (aparición palabra por palabra): en Resolve vía macro Fusion (patrón AutoSubs); en backend directo vía overlay animado. Preset premium "Minimalismo Dinámico" además del Hormozi.
+## META A: el único que vive dentro de Resolve
 
-## Nivel 3 — Animaciones cinematográficas
-**Meta: "añade una tarjeta animada en cada cambio de tema" funciona.**
-- [ ] Zooms cinemáticos: zoom punch en cortes (funciona hoy con la API, confirmado) + zoom suave con easing vía comps Fusion pre-animadas (workaround ImportFusionComp; el import FCPXML quedó descartado por poco fiable).
-- [ ] Motor de overlays con Motion Canvas/Revideo (MIT): prompt → componente TypeScript → render con alfa → import a Resolve → colocación en timeline.
-- [ ] Biblioteca de animaciones reutilizables por marca.
-- [ ] Detección de cambios de tema en podcasts/entrevistas (el caso de uso ejemplo de la visión).
+**Hecho cuando**: sobre un vídeo real, un prompt produce en Resolve 21 un timeline editable
+con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en directo.
 
-## Nivel 4 — Entrenamiento de gusto completo
-**Meta: le pasas 3 links de referencia y la siguiente edición se nota entrenada.**
-- [ ] Ingesta de links (yt-dlp) + análisis estructurado de referencia (ritmo, hooks, texto, música).
-- [ ] Destilado de feedback a reglas del perfil (con confirmación).
-- [ ] Caso real: un vídeo de gaming (montage/highlights) editado al estilo de un referente.
+- [ ] Compatibilidad de Resolve 21 con el puente, verificada por API (no de memoria).
+      Precedente: Blackmagic rompe el scripting de la versión Free sin avisar (UIManager 19.1).
+- [ ] Renombrar el script de cara al usuario: "VidorqBridge" en Workspace > Scripts.
+- [ ] Spike `ImportFusionComp` con comp dummy en 21 Free (AddFusionComp,
+      GetFusionCompNameList, LoadFusionCompByName, ImportFusionComp, borrar el dummy).
+- [ ] Captions nativos en el timeline vía macro Fusion (patrón AutoSubs), estilo Hormozi.
+- [ ] Zoom suave con easing vía comp Fusion pre-animada (el punch zoom estático ya funciona).
 
-## Nivel 5 — Release pública v0.1
-**Meta: una persona que no es Munir lo instala y edita su primer vídeo en menos de 30 minutos.**
-- [ ] Instalador/setup guiado (un comando).
-- [ ] Documentación de usuario en inglés.
+**Sesión**: 🎬 Sesión 3 de `Vidorq-Core/SESIONES.md`. Solo está bloqueada por 2 clics de UI.
+
+## META B: existe para alguien
+
+**Hecho cuando**: una persona que no es Munir instala Vidorq y edita su primer vídeo en
+menos de 30 minutos.
+
+- [ ] Auditoría de consistencia de punta a punta (ambas apps, ambos backends).
+- [ ] Instalador real (`pnpm tauri build`). GOTCHA: `cargo clean -p vidorq` tras tocar iconos.
+- [ ] README público en inglés con GIF del flujo real.
+- [ ] Landing con el copy que salió de la investigación: analogía-ancla en el hero,
+      contraste explícito "viven fuera / Vidorq vive dentro", CTA final participativo con
+      prompts de ejemplo (Gaming montage es literalmente nuestra historia), y sección
+      changelog (patrón del ecosistema: changelog = pasado, "próximamente" en bloque aparte).
 - [ ] Vídeo de lanzamiento editado CON Vidorq (dogfooding: la demo es el producto).
-- [ ] Publicación: GitHub + redes (contenido orgánico del ecosistema).
+- [ ] Barrido de seguridad: sin secretos, sin keys, sin rutas personales (regla B).
+- [ ] Levantar la congelación del push público (OK explícito de Munir) + vidorq.com.
 
-## Nivel 6 — Ecosistema
-**Meta: Vidorq se conecta con el resto de herramientas del día a día.**
-- [ ] Generación BYOK: Nano Banana / Veo / ElevenLabs integrados como herramientas opcionales.
-- [ ] Multi-versión por red social (16:9 → 9:16) con recorte inteligente local.
-- [ ] Skill de música: un clic abre un mini-formulario (dónde ocurre el momento, qué emoción transmitir, qué ritmo/energía) y propone ~20 canciones sin copyright acordes al vídeo.
-- [ ] Comunidad: contribuciones externas, plantillas de animación compartidas.
+**Sesión**: 📦 Sesión 5. Depende de META A.
+
+## META C: se nota entrenado
+
+**Hecho cuando**: le pasas 3 links de referencia y la siguiente edición se nota entrenada.
+
+- [ ] Procesar 5-10 vídeos reales elegidos por Munir (ingesta, informe, confirmación).
+- [ ] Calibrar el detector de cortes con material real (luma-diff, umbral 42) contando
+      cortes a mano en un tramo de 1 min.
+- [ ] Cuantificar el coste Gemini por vídeo con el primero, ANTES de procesar el resto.
+- [ ] Destilar la memoria a los presets del editor: que el estilo aprendido cambie el EDL.
+- [ ] Caso real: un montage de gaming editado al estilo de un referente.
+
+**Sesión**: 🧠 Sesión 4. Bloqueada en Munir: hay que elegir los vídeos.
+
+---
+
+## Aparcadero (post v0.1, escrito aquí para que deje de pesar)
+
+Nada de esto entra antes de publicar. Está anotado para no perderlo, no para hacerlo ahora.
+
+- **Reframe 9:16 + safe zones de captions**: van JUNTAS. Ojo, la recomendación del informe
+  ("safe zones ya, es barato") no es ejecutable sola: el motor hace `scale={w}:{h}` del
+  origen, 16:9 entra y 16:9 sale. Vidorq no produce vertical todavía. Las safe zones en sí
+  son cambiar el `0.74` hardcodeado de `write_segment_ass()` por una tabla por plataforma
+  (zona segura universal: rectángulo centrado de 900x1400 en 1080x1920; el bloque empieza
+  en Y≈1200-1300 y nunca baja de 370 px del borde inferior). Datos por plataforma en el §3
+  del informe.
+- **Motor de overlays** con Motion Canvas/Revideo (MIT, no Remotion por licencia).
+- **Workflows de edición reutilizables** tipo mosaic.so (metáfora Zapier/nodos, validada).
+- **Multi-modelo generativo** tipo martini.film (Veo, Kling, Nano Banana en el timeline).
+- **Skill de música** con mini-formulario y librería personal descrita por el usuario.
+- **Descripción por asset + búsqueda semántica del footage** (patrón Cardboard).
+- **Presets de captions con nombre** (referencia: "Stacked", "Word Pop").
+- Detección de cambios de tema en podcasts, biblioteca de animaciones por marca, comunidad.
+
+---
+
+## Ya conseguido
+
+### Fundación
+- Nombre, carpeta, repo público (`vidorq`) y privado (`vidorq-core`), documentación.
+- Investigación técnica (2026-07-04, 253 fuentes) y de mercado (2026-07-15).
+
+### El primer corte mágico
+- Pipeline transcribir, empaquetar, razonar, EDL, aplicar. Vídeo real de Luisito: 10:43 a
+  4:26 con cortes limpios y fades de audio.
+- **Backend Resolve**: el mismo EDL monta un timeline editable vía el puente. 16 cortes,
+  6 punch zooms y 16 marcadores verificados por API. Crash de OpenCL resuelto por el camino.
+- **Backend directo** (no estaba planeado): mp4 final sin Resolve. Cortes, punch zoom y
+  captions en una pasada.
+- **Rendimiento**: el compositing pasó de PIL/numpy frame a frame (más de 1h) a filtros
+  ffmpeg con progreso real. Falta medir la cifra en una prueba end-to-end.
+
+### Producto
+- Dos apps de escritorio (Tauri + React): Vidorq (producto, engine 9877) y Vidorq Core
+  (privada, engine 9878). Lanzadores en el escritorio, modo dev que se actualiza solo.
+- Captions Hormozi quemados y sincronizados, presets, Modo Pro BYOK, workspaces, wizard de
+  marca, ajustes multi-IA (Claude Code, Codex, Cursor, OpenCode, Antigravity).
+- Identidad visual: anillo violeta con puntos, neuronas al play azul. Un asset para logo e icono.
+- Landing one-page con parallax en `web/`.
