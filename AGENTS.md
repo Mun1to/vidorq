@@ -15,6 +15,8 @@
 9. **Munir dicta por voz** (VoCript): interpretar la intención, no lo literal; preguntar ante ambigüedad.
 10. **Metas, no fechas**: el roadmap se organiza por niveles tipo videojuego (ver `docs/METAS.md`). Nunca proponer fechas internas.
 11. **Cerrar tareas con entidad explicando**: qué se hizo, cómo, y 2-3 preguntas de seguimiento para que Munir aprenda.
+12. **Confirmar la intención antes de ejecutar** (regla I, jul-2026): en tareas con entidad, decir qué se ha entendido y qué se asume; ante varias interpretaciones, preguntar en vez de elegir en silencio; empezar solo al estar seguro (ahorra errores y tokens).
+13. **Simplicidad primero, cambios quirúrgicos** (regla J, jul-2026): código mínimo que resuelva el problema, nada especulativo; tocar solo lo que la tarea pide, sin "mejorar" código adyacente ni refactorizar lo que no está roto; nada está terminado sin verificarlo contra el objetivo.
 
 ## Contexto imprescindible del proyecto
 
