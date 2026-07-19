@@ -92,6 +92,22 @@ Nada de esto entra antes de publicar. Está anotado para no perderlo, no para ha
 - **Workflows de edición reutilizables** tipo mosaic.so (metáfora Zapier/nodos, validada).
 - **Multi-modelo generativo** tipo martini.film (Veo, Kling, Nano Banana en el timeline).
 - **Skill de música** con mini-formulario y librería personal descrita por el usuario.
+- **Sonido inteligente (nota 2026-07-18):** presets de SFX profesionales + una sección de
+  edición de sonido por prompts (mismo patrón que el resto de Vidorq). Fuentes de SFX
+  gratuitas: Freesound, Pixabay, Zapsplat. Referencia de UX: "Botanica v4" (Gumroad, de
+  pago: 520+ SFX + extensión de Premiere con preview, pitch/reverse y drop al timeline en
+  un clic; en Vidorq ese flujo se haría vía el puente de Resolve). Complementa el skill de
+  música de arriba.
+- **Que el agente "vea" el vídeo: skill claude-video (`/watch`, gratis, OSS).** Descarga
+  con yt-dlp, extrae frames adaptativos + transcripción con timestamps y se los pasa a
+  Claude. Repo: bradautomates/claude-video (alternativa: alexlarcheveque/claude-watch).
+  **Decisión 2026-07-16: NO va al pipeline de ingesta de META C.** Motivo: `core_engine.py`
+  ya hace yt-dlp + sampleo de frames + transcripción + análisis multimodal, y su análisis
+  va por Gemini BYOK (coste medible en la cuenta de Munir, se destila a memoria).
+  claude-video mete los frames en el CONTEXTO de la sesión de Claude Code → gasta cuota de
+  SESIÓN (el mismo patrón que fundió la cuota el 2026-07-04 y el 2026-07-15). Meter 5-100
+  vídeos de referencia por ahí = repetir ese error. Uso legítimo PUNTUAL (no en pipeline):
+  que la sesión madre "vea" UN vídeo para razonar en vivo sobre él, consciente del coste.
 - **Descripción por asset + búsqueda semántica del footage** (patrón Cardboard).
 - **Presets de captions con nombre** (referencia: "Stacked", "Word Pop").
 - Detección de cambios de tema en podcasts, biblioteca de animaciones por marca, comunidad.
