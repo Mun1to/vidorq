@@ -17,6 +17,8 @@
 11. **Cerrar tareas con entidad explicando**: qué se hizo, cómo, y 2-3 preguntas de seguimiento para que Munir aprenda.
 12. **Confirmar la intención antes de ejecutar** (regla I, jul-2026): en tareas con entidad, decir qué se ha entendido y qué se asume; ante varias interpretaciones, preguntar en vez de elegir en silencio; empezar solo al estar seguro (ahorra errores y tokens).
 13. **Simplicidad primero, cambios quirúrgicos** (regla J, jul-2026): código mínimo que resuelva el problema, nada especulativo; tocar solo lo que la tarea pide, sin "mejorar" código adyacente ni refactorizar lo que no está roto; nada está terminado sin verificarlo contra el objetivo.
+14. **Arranque estructurado, primero el plano** (regla K, jul-2026): antes de programar un proyecto nuevo (o de ordenar uno a medias), investigar el stack en vez de copiarlo por inercia (2-3 opciones con pros/contras), encuadrar con preguntas, decidir con criterio, montar los cimientos (`AGENTS.md`, `README`, `docs/METAS.md`, carpetas) y dejar el mapa a la vista (qué es, con qué, cómo, metas por orden con la próxima acción); no programar hasta que el plano esté claro.
+15. **Cerrar en una frase** (regla L, jul-2026): al terminar algo con entidad, primera línea = una frase de lo hecho sin muletillas ("bueno", "básicamente"), debajo los pasos siguientes (1-3), y el detalle largo solo después y si aporta (refina la regla C/11).
 
 ## Contexto imprescindible del proyecto
 
@@ -34,3 +36,7 @@
 - Windows 11 Pro, RTX 5060 8GB VRAM, 32GB RAM.
 - 42 modelos Ollama locales en `C:\proyectos\Stashai` (OLLAMA_MODELS).
 - DaVinci Resolve 20.3 (versión gratuita, NO Studio).
+
+## froede (edición visual de webs)
+
+Munir edita las webs de sus proyectos en localhost con **froede** (`C:\proyectos\froede`): extensión de navegador + companion local que escriben los cambios DIRECTAMENTE en los archivos fuente. Si aparecen diffs sin commit con `style={{ ... }}` inline nuevos, atributos `style="..."`/`href`/`alt`/`title` cambiados o textos editados, seguramente son ediciones intencionales de Munir hechas con froede: acéptalas y consérvalas, NO las reviertas ni las "normalices" (p. ej. moverlas a clases CSS) salvo que él lo pida. Notas: `data-froede-loc` solo existe en el DOM en dev (nunca llega a los archivos); `.froede-token` es un secreto local que debe estar en `.gitignore` y jamás commitearse. Regla completa: `C:\proyectos\Reglas_de_los_proyectos.md` (regla M).
