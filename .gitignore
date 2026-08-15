@@ -42,3 +42,6 @@ FEEDBACK.md
 MARKETING.md
 **/AGENTS.md
 **/CLAUDE.md
+GEMINI.md
+.github/copilot-instructions.md
+.cursor/rules/contexto.mdc
