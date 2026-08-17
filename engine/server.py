@@ -416,6 +416,9 @@ def run_job(req):
 # --------------------------------------------------------------------------- #
 # HTTP plumbing
 # --------------------------------------------------------------------------- #
+_server = None
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # quiet
         pass
@@ -488,6 +491,12 @@ class Handler(BaseHTTPRequestHandler):
             set_progress(tr("preparing"), 3)
             threading.Thread(target=run_job, args=(body,), daemon=True).start()
             self._send({"ok": True})
+        elif self.path == "/shutdown":
+            # Resolve starts the engine with no console window, so there has to be
+            # a way to stop it that is not the task manager.
+            self._send({"ok": True})
+            if _server:
+                threading.Thread(target=_server.shutdown, daemon=True).start()
         else:
             self._send({"error": "not found"}, 404)
 
@@ -512,7 +521,9 @@ if __name__ == "__main__":
     try:
         # Threaded: /resolve asks the bridge three questions, and a single-threaded
         # server would freeze the app's health poll while it waits.
-        ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+        _server = ThreadingHTTPServer((HOST, PORT), Handler)
+        _server.serve_forever()
+        print("[VidorqEngine] Parado.")
     except KeyboardInterrupt:
         print("[VidorqEngine] Parado.")
     except OSError as e:
