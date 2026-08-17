@@ -49,6 +49,7 @@ BRIDGE = "http://127.0.0.1:9876"
 # them, so the engine borrows them instead of keeping a second copy.
 sys.path.insert(0, str(HELPERS))
 import captions as cap  # noqa: E402
+import resolve_captions  # noqa: E402
 
 _lock = threading.Lock()
 _progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": ""}
@@ -70,6 +71,9 @@ TEXT = {
         "building": "Montando timeline en Resolve...",
         "done": "Listo",
         "timeline_made": "Timeline 'Vidorq_%s' creado en Resolve",
+        "captioning": "Poniendo los subtitulos en Resolve...",
+        "captioning_n": "%d subtitulos, uno a uno",
+        "captions_made": "con %d subtitulos editables",
         "cut_report": "%d cortes, %d muletillas fuera, %d tomas repetidas",
     },
     "en": {
@@ -83,6 +87,9 @@ TEXT = {
         "building": "Building the timeline in Resolve...",
         "done": "Done",
         "timeline_made": "Timeline 'Vidorq_%s' created in Resolve",
+        "captioning": "Putting the captions into Resolve...",
+        "captioning_n": "%d captions, one by one",
+        "captions_made": "with %d editable captions",
         "cut_report": "%d cuts, %d filler words out, %d repeated takes",
     },
 }
@@ -391,12 +398,14 @@ def video_shape(path):
         return 30000 / 1001, 1920, 1080
 
 
-def output_resolve(video, edl):
+def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
+                   workdir=None):
     name = Path(video).stem[:40]
-    fps, _w, _h = video_shape(video)
+    fps, width, height = video_shape(video)
+    timeline = f"Vidorq_{name}"
     # import media (idempotent) + timeline + inserts
     bridge_post("/media/import", {"filePaths": [video]})
-    bridge_post("/timeline/create", {"name": f"Vidorq_{name}"})
+    bridge_post("/timeline/create", {"name": timeline})
     record = 0
     for seg in edl:
         sf = round(seg["start"] * fps)
@@ -412,8 +421,48 @@ def output_resolve(video, edl):
         if z > 1.001:
             bridge_post("/clip/properties", {"trackType": "video", "trackIndex": 1,
                                              "clipIndex": i, "properties": {"ZoomX": z, "ZoomY": z}})
+
+    made = tr("timeline_made", name)
+    if captions:
+        # Caption times have to follow the CUT video, not the original, so the
+        # transcript is folded onto the edit before the chunks are built.
+        chunks = cap.build_chunks(retime_transcript(transcript, edl), preset)
+        if chunks:
+            set_progress(tr("captioning"), 85, tr("captioning_n", len(chunks)))
+            out = resolve_captions.build(bridge_post, bridge_get, timeline, chunks,
+                                         preset, workdir or Path(video).parent,
+                                         width, height, fps)
+            made += " " + tr("captions_made", out["captions"])
     bridge_post("/project/save", {})
-    return tr("timeline_made", name)
+    return made
+
+
+def retime_transcript(transcript, edl):
+    """Move the words from source time into edited time.
+
+    Once the dead air is gone every word sits earlier than it did in the source,
+    by the total length of everything cut before it. Words inside a cut are
+    dropped: they are not in the edit any more.
+    """
+    keeps, offset = [], 0.0
+    for seg in edl:
+        s, e = float(seg["start"]), float(seg["end"])
+        keeps.append((s, e, s - offset))
+        offset += e - s
+    segments = []
+    for seg in transcript.get("segments", []):
+        words = []
+        for w in seg.get("words", []):
+            for s, e, shift in keeps:
+                if s <= float(w["s"]) < e:
+                    words.append({"w": w["w"], "s": float(w["s"]) - shift,
+                                  "e": min(float(w["e"]), e) - shift})
+                    break
+        if words:
+            segments.append({"start": words[0]["s"], "end": words[-1]["e"],
+                             "text": " ".join(x["w"].strip() for x in words),
+                             "words": words})
+    return {"duration": offset, "segments": segments}
 
 
 # --------------------------------------------------------------------------- #
@@ -451,6 +500,12 @@ def run_job(req):
         captions = bool(req.get("captions", True))
         output = req.get("output", "mp4")
         prompt = (req.get("prompt") or "").strip()
+        # The look of the captions. An unknown name falls back to the default
+        # instead of failing an edit that has already been transcribed.
+        caption_preset = req.get("captionPreset") or profile_load().get(
+            "captionPreset") or cap.DEFAULT_PRESET
+        if caption_preset not in cap.PRESETS:
+            caption_preset = cap.DEFAULT_PRESET
 
         if not Path(video).is_file():
             raise ValueError(tr("no_video", video))
@@ -506,12 +561,13 @@ def run_job(req):
             if not bridge_status()["bridge"]:
                 raise RuntimeError("No pude hablar con Resolve. Abre Resolve, un proyecto, "
                                    "y Workspace > Scripts > Vidorq")
-            result = output_resolve(video, edl)
+            result = output_resolve(video, edl, transcript, captions, caption_preset,
+                                    workdir)
         else:
             set_progress(tr("rendering"), 65, "Cortes + zooms" + (" + captions" if captions else ""))
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
             cmd = [PYTHON, str(HELPERS / "vidorq_render.py"), video, str(edl_path),
-                   str(tr_path), str(out_file)]
+                   str(tr_path), str(out_file), "--preset", caption_preset]
             if not captions:
                 cmd.append("--no-captions")
             run_render(cmd, out_file)
@@ -565,6 +621,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(profile_load())
         elif self.path == "/resolve":
             self._send(bridge_status())
+        elif self.path.startswith("/captions/presets"):
+            lang = "en" if "lang=en" in self.path else "es"
+            self._send({"default": cap.DEFAULT_PRESET, "list": cap.preset_list(lang)})
         else:
             self._send({"error": "not found"}, 404)
 
