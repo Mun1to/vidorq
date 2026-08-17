@@ -369,8 +369,14 @@ def bridge_status():
 
     /status only says whether the bridge reached Resolve; the project and the
     timeline live behind their own endpoints, so they need their own calls.
+
+    Answering on the port is not enough to call it up. When Resolve dies its
+    script host can outlive it and keep serving, with every Resolve field come
+    back null - measured after a crash. Trusting the port there would light the
+    setup screen green over something that cannot do anything.
     """
-    if bridge_get("/status") is None:
+    status = bridge_get("/status")
+    if not status or not status.get("product"):
         return {"bridge": False, "project": None, "timeline": None}
     project = bridge_get("/project") or {}
     timeline = bridge_get("/timeline") or {}

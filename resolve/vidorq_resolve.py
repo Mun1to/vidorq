@@ -60,8 +60,12 @@ T = {
     "app_open": ("Abriendo la ventana de Vidorq...", "Opening the Vidorq window..."),
     "app_none": ("Sin app instalada, usa la ventana de desarrollo.",
                  "No installed app, use the dev window."),
-    "bridge_up": ("El puente ya estaba en marcha, lo reemplazo.",
-                  "The bridge was already running, replacing it."),
+    "bridge_up": ("El puente ya estaba en marcha, le pido que se aparte.",
+                  "The bridge was already running, asking it to stand down."),
+    "bridge_busy": ("El puente viejo no suelta el puerto 9876. Cierra Resolve del todo "
+                    "y vuelve a abrirlo.",
+                    "The old bridge will not release port 9876. Close Resolve fully and "
+                    "open it again."),
     "bridge_start": ("Arrancando el puente dentro de Resolve...",
                      "Starting the bridge inside Resolve..."),
     "bridge_missing": ("No encuentro el puente: %s", "Cannot find the bridge: %s"),
@@ -209,7 +213,24 @@ elif not os.path.isfile(BRIDGE_SRC):
     say("bridge_missing", BRIDGE_SRC)
 else:
     if alive(BRIDGE + "/status"):
+        # Saying "I will replace it" was not the same as replacing it: the old
+        # bridge kept the port and the new one could not bind, which is exactly
+        # what a Resolve crash leaves behind, because its script host outlives it.
+        # The bridge knows how to stand down, so it gets asked first.
         say("bridge_up")
+        try:
+            req = urllib.request.Request(BRIDGE + "/bridge/shutdown", data=b"{}",
+                                         headers={"Content-Type": "application/json"},
+                                         method="POST")
+            urllib.request.urlopen(req, timeout=5).read()
+        except Exception:
+            pass
+        for _ in range(10):
+            if not alive(BRIDGE + "/status", timeout=1):
+                break
+            time.sleep(0.5)
+        if alive(BRIDGE + "/status", timeout=1):
+            say("bridge_busy")
     say("bridge_start")
     say("ready")
     # The window appearing is feedback enough. Without one, a click that does
