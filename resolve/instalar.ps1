@@ -1,39 +1,50 @@
-# Installs the two Vidorq scripts into DaVinci Resolve's Scripts menu.
+# Installs Vidorq into DaVinci Resolve. One entry in the Scripts menu, once.
 #
-# The bridge itself comes from the davinci-resolve-mcp project; we only rename its
-# user-facing tag so the menu entry reads VidorqBridge instead of CursorBridge.
-# The folder is shared across Resolve versions, so this works for 20.x and 21.
+# What lands in Resolve is a loader that holds no logic and never changes. The
+# code it runs lives in this repo and is pointed at from a config file, so any
+# update to Vidorq reaches Resolve without anyone reinstalling anything.
+#
+# Run it again only if you move the Vidorq folder.
 
 $ErrorActionPreference = "Stop"
 
 $scripts = Join-Path $env:APPDATA "Blackmagic Design\DaVinci Resolve\Support\Fusion\Scripts\Utility"
-$bridgeSource = "C:\proyectos\davinci-resolve-mcp\src\CursorBridge.py"
-$panelSource = Join-Path $PSScriptRoot "VidorqPanel.py"
-
 if (-not (Test-Path $scripts)) {
     throw "No encuentro la carpeta de scripts de Resolve: $scripts"
 }
 
-# Panel
-Copy-Item $panelSource (Join-Path $scripts "VidorqPanel.py") -Force
-Write-Host "VidorqPanel.py instalado"
+$home_ = Split-Path $PSScriptRoot -Parent
+$bridge = "C:\proyectos\davinci-resolve-mcp\src\CursorBridge.py"
+$app = Join-Path $home_ "app\src-tauri\target\release\vidorq.exe"
+# pythonw y no python: el de interfaz grafica no puede abrir una consola ni un parpadeo.
+$python = "C:\proyectos\davinci-resolve-mcp\venv\Scripts\pythonw.exe"
 
-# Bridge, renombrado de cara al usuario
-if (Test-Path $bridgeSource) {
-    (Get-Content $bridgeSource -Raw).Replace("[CursorBridge]", "[VidorqBridge]") |
-        Set-Content (Join-Path $scripts "VidorqBridge.py") -Encoding utf8
-    Write-Host "VidorqBridge.py instalado"
+if (-not (Test-Path $bridge)) {
+    Write-Warning "No encuentro el puente en $bridge; Vidorq no podra hablar con Resolve."
+}
 
-    # La entrada vieja se aparta, no se borra: dos entradas en el menu confunden.
-    $old = Join-Path $scripts "CursorBridge.py"
-    if (Test-Path $old) {
-        Move-Item $old "$old.bak" -Force
-        Write-Host "CursorBridge.py apartado como .bak"
+# 1. El puntero. Es lo unico que sabe donde vive Vidorq.
+$confDir = Join-Path $env:APPDATA "Vidorq"
+if (-not (Test-Path $confDir)) { New-Item -ItemType Directory -Path $confDir | Out-Null }
+$conf = [ordered]@{ home = $home_; bridge = $bridge; app = $app; python = $python }
+# Sin BOM a proposito: Set-Content -Encoding utf8 lo mete y json.load de Python lo rechaza.
+$sinBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText((Join-Path $confDir "resolve.json"), ($conf | ConvertTo-Json), $sinBom)
+Write-Host "Configuracion escrita en $confDir\resolve.json"
+
+# 2. La unica entrada del menu.
+Copy-Item (Join-Path $PSScriptRoot "Vidorq.py") (Join-Path $scripts "Vidorq.py") -Force
+Write-Host "Instalado: Workspace > Scripts > Vidorq"
+
+# 3. Las entradas viejas se apartan, no se borran. Tres Vidorq en el menu confunden.
+foreach ($viejo in "VidorqBridge.py", "VidorqPanel.py", "VidorqProbe.py", "CursorBridge.py") {
+    $ruta = Join-Path $scripts $viejo
+    if (Test-Path $ruta) {
+        Move-Item $ruta "$ruta.bak" -Force
+        Write-Host "Apartado: $viejo"
     }
-} else {
-    Write-Warning "No encuentro el puente en $bridgeSource; solo se instalo el panel."
 }
 
 Write-Host ""
-Write-Host "Listo. En Resolve: Workspace > Scripts > VidorqBridge (una vez por sesion)"
-Write-Host "                   Workspace > Scripts > VidorqPanel  (para editar sin salir)"
+Write-Host "Listo. En Resolve, una sola vez por sesion:  Workspace > Scripts > Vidorq"
+Write-Host "Eso enciende el motor, abre la ventana y deja el puente escuchando."
