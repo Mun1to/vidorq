@@ -86,6 +86,8 @@ TEXT = {
         "srt_made": "Subtitulos guardados en %s",
         "directing": "Leyendo lo que has pedido...",
         "directed": "%s decidio: %s",
+        "no_deps": ("Al motor le falta %s. Lo han arrancado con el Python "
+                    "equivocado: cierralo y usa engine\\start_engine.bat"),
     },
     "en": {
         "busy": "There is already an edit running",
@@ -110,8 +112,30 @@ TEXT = {
         "srt_made": "Captions saved to %s",
         "directing": "Reading what you asked for...",
         "directed": "%s decided: %s",
+        "no_deps": ("The engine is missing %s. It was started with the wrong "
+                    "Python: close it and use engine\\start_engine.bat"),
     },
 }
+
+
+# The engine is stdlib only, but the helpers it shells out to are not, and they
+# run under this same interpreter. Started with the wrong Python it answers
+# /health perfectly and then dies half way through the first job with "No module
+# named av", which reads like a broken video file. So it says so up front.
+NEEDS = ("av", "faster_whisper", "numpy", "PIL")
+
+
+def missing_modules():
+    """Which of the helpers' imports this interpreter cannot satisfy."""
+    import importlib.util
+    out = []
+    for name in NEEDS:
+        try:
+            if importlib.util.find_spec(name) is None:
+                out.append(name)
+        except Exception:
+            out.append(name)
+    return out
 
 
 # The MP4 renderer knows how to draw these; the names are here because the app
@@ -933,7 +957,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            self._send({"ok": True, "version": VERSION, "busy": _busy})
+            self._send({"ok": True, "version": VERSION, "busy": _busy,
+                        "missing": missing_modules()})
         elif self.path == "/progress":
             with _lock:
                 self._send(dict(_progress))
@@ -985,6 +1010,9 @@ class Handler(BaseHTTPRequestHandler):
                 _lang = body["lang"]
             if _busy:
                 return self._send({"error": tr("busy")}, 409)
+            gone = missing_modules()
+            if gone:
+                return self._send({"error": tr("no_deps") % ", ".join(gone)}, 503)
             _busy = True
             set_progress(tr("preparing"), 3)
             threading.Thread(target=run_job, args=(body,), daemon=True).start()
