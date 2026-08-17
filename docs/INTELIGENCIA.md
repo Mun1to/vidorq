@@ -146,6 +146,57 @@ una **pista y no un seguimiento**.
 `smart-reframe` de Resolve Studio). Con eso el recorte por plano ya está resuelto, porque
 la parte de recortar y escalar es trivial; lo que falta es saber dónde está la persona.
 
+## 6. Editar con un prompt (`skill/helpers/director.py`)
+
+Antes el prompt solo decidia los **cortes**, asi que pedir "en vertical estilo short con
+subtitulos animados" daba un video horizontal con lo que estuviera puesto en la interfaz.
+Ahora el prompt decide **formato, subtitulos si o no, estilo, animacion, transicion y tipo
+de corte**, y funciona **sin API key**, con un modelo local.
+
+Tres capas, cada una pisando a la anterior:
+
+1. valores por defecto sensatos,
+2. lo que **juzga** un modelo (que estilo pega con lo que has pedido),
+3. lo que **dice literalmente** el prompt, que gana siempre.
+
+La capa 3 no es pereza, es lo que hace que funcione: preguntarle a un modelo si la palabra
+"vertical" aparece cuesta 13 segundos de GPU y **se midio fallando**, con su propio
+razonamiento diciendo en voz alta *"User asked for vertical, so vertical is appropriate"*
+mientras devolvia `source`. Las reglas de palabras tardan **0,003 s** y no se equivocan en
+lo que esta escrito.
+
+Los **cortes** los intenta el modelo y, si no devuelve tramos usables, manda el motor
+determinista: un modelo que no cuaja no puede costarte la edicion.
+
+### Que modelo dirige, y por que ese
+
+| modelo | veredicto |
+| --- | --- |
+| `qwen3.5:27b` | **HTTP 500**: son 17 GB y la tarjeta tiene 8. Ni carga |
+| `qwen3.5:9b` | acierta, pero **130 s**: razona tanto que se queda sin presupuesto para escribir el JSON |
+| **`llama3.1:8b`** | el que usa: **13 s** y JSON valido a la primera |
+| `granite4.1:3b` | **7 s**, tambien valido. El de respaldo |
+| `qwen2.5:3b` | no devuelve JSON |
+
+Si uno falla se prueba el siguiente, en vez de dar la edicion por perdida.
+
+## 7. Formato de salida (vertical, cuadrado, 4:5)
+
+`ratio` en `/edit`, y en la interfaz. Recorta la imagen a la forma pedida (no deforma ni
+pone barras) y ajusta los subtitulos: en un short caben **10 caracteres por linea** en vez
+de 22, con el texto **del mismo tamano fisico** que en horizontal, que es como se ven los
+shorts de verdad. En Resolve ademas cambia la resolucion del timeline y sube el zoom de los
+clips lo justo para tapar el cuadro (3,16 al pasar de 1920x1080 a 1080x1920).
+
+**El recorte va al centro y NO sigue a la persona.** Esto se ve: en una prueba real el
+sujeto quedaba cortado por el borde derecho en uno de los planos. Por eso hay una barra de
+**recorte manual** (`cropX`), y no una promesa de seguimiento que falla una de cada tres
+veces. La condicion de desbloqueo sigue siendo la de arriba: un detector de personas.
+
+Un aviso medido: para vertical, el estilo de subtitulo se sube a `pop` si el elegido era
+demasiado fino, porque un short se ve en un movil a un brazo de distancia y un `minimal` de
+53 px alli no es un subtitulo, es una nota al pie.
+
 ## Cabos sueltos honestos
 
 - `shots()` tarda **83 s en un vídeo de 10 minutos** porque descodifica todos los
