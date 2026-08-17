@@ -45,6 +45,13 @@ function App() {
   const [capAnims, setCapAnims] = useState<CaptionStyle[]>([]);
   const [capAnim, setCapAnim] = useState("");
   const [animOf, setAnimOf] = useState<Record<string, string>>({});
+  // Mirar el video y traducir cuestan minutos, asi que van apagados de serie.
+  const [seeVideo, setSeeVideo] = useState(false);
+  const [transLang, setTransLang] = useState("");
+  const [burnTrans, setBurnTrans] = useState(false);
+  const [langs, setLangs] = useState<Record<string, string>>({});
+  const [transition, setTransition] = useState("none");
+  const [transitions, setTransitions] = useState<Record<string, string>>({});
   const [output, setOutput] = useState<Output>("mp4");
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -98,6 +105,7 @@ function App() {
     apiGet<{
       default: string; list: CaptionStyle[];
       anims?: CaptionStyle[]; animOf?: Record<string, string>;
+      langs?: Record<string, string>; transitions?: Record<string, string>;
     }>(`/captions/presets?lang=${lang}`)
       .then((c) => {
         if (!c || !Array.isArray(c.list)) return;
@@ -105,6 +113,8 @@ function App() {
         setCapStyle((cur) => (c.list.some((s) => s.id === cur) ? cur : c.default));
         if (Array.isArray(c.anims)) setCapAnims(c.anims);
         if (c.animOf) setAnimOf(c.animOf);
+        if (c.langs) setLangs(c.langs);
+        if (c.transitions) setTransitions(c.transitions);
       })
       .catch(() => {});
   }, [lang]);
@@ -143,6 +153,8 @@ function App() {
       const j = await apiPost<{ ok?: boolean; error?: string }>("/edit", {
         video, preset, captions, output, prompt: proOpen ? prompt : "", lang,
         captionPreset: capStyle, captionAnim: capAnim,
+        vision: seeVideo, translate: transLang, translateCaptions: burnTrans,
+        transition,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
     } catch {
@@ -327,8 +339,20 @@ function App() {
               <span className="box"><IconCheck size={12} className="icon" /></span>
               {t("captions")}
             </button>
+            <button
+              className={`chk ${seeVideo ? "on" : ""}`}
+              onClick={() => setSeeVideo(!seeVideo)}
+              role="switch"
+              aria-checked={seeVideo}
+              title={t("vision.note")}
+            >
+              <span className="box"><IconCheck size={12} className="icon" /></span>
+              {t("vision")}
+            </button>
             <span className="profile-note">{t("workspace")} <b>{ws.active}</b></span>
           </div>
+
+          {seeVideo && <small className="capnote">{t("vision.note")}</small>}
 
           {captions && capStyles.length > 0 && (
             <div className="capstyles">
@@ -369,6 +393,48 @@ function App() {
               ))}
               <small className="capnote">
                 {capAnim ? capAnims.find((a) => a.id === capAnim)?.note : t("captions.anim.ownNote")}
+              </small>
+            </div>
+          )}
+
+          {captions && Object.keys(langs).length > 0 && (
+            <div className="capstyles anims">
+              <span className="caplabel">{t("captions.lang")}</span>
+              <button className={`capstyle ${transLang === "" ? "sel" : ""}`}
+                      onClick={() => { setTransLang(""); setBurnTrans(false); }}>
+                {t("captions.lang.same")}
+              </button>
+              {Object.entries(langs).map(([id, label]) => (
+                <button key={id} className={`capstyle ${transLang === id ? "sel" : ""}`}
+                        onClick={() => setTransLang(id)}>
+                  {label}
+                </button>
+              ))}
+              <small className="capnote">
+                {transLang ? t("captions.lang.note") : t("captions.lang.sameNote")}
+              </small>
+              {transLang && (
+                <button className={`chk ${burnTrans ? "on" : ""}`}
+                        onClick={() => setBurnTrans(!burnTrans)}
+                        role="switch" aria-checked={burnTrans}>
+                  <span className="box"><IconCheck size={12} className="icon" /></span>
+                  {t("captions.lang.burn")}
+                </button>
+              )}
+            </div>
+          )}
+
+          {output === "mp4" && Object.keys(transitions).length > 0 && (
+            <div className="capstyles anims">
+              <span className="caplabel">{t("transition")}</span>
+              {Object.entries(transitions).map(([id, label]) => (
+                <button key={id} className={`capstyle ${transition === id ? "sel" : ""}`}
+                        onClick={() => setTransition(id)}>
+                  {label}
+                </button>
+              ))}
+              <small className="capnote">
+                {transition === "none" ? t("transition.noneNote") : t("transition.note")}
               </small>
             </div>
           )}
