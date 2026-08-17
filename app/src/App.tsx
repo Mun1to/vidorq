@@ -52,6 +52,10 @@ function App() {
   const [langs, setLangs] = useState<Record<string, string>>({});
   const [transition, setTransition] = useState("none");
   const [transitions, setTransitions] = useState<Record<string, string>>({});
+  const [ratio, setRatio] = useState("source");
+  const [ratios, setRatios] = useState<Record<string, string>>({});
+  // El recorte no sigue a la persona (no es fiable), asi que se mueve a mano.
+  const [cropX, setCropX] = useState(0.5);
   const [output, setOutput] = useState<Output>("mp4");
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -106,6 +110,7 @@ function App() {
       default: string; list: CaptionStyle[];
       anims?: CaptionStyle[]; animOf?: Record<string, string>;
       langs?: Record<string, string>; transitions?: Record<string, string>;
+      ratios?: Record<string, string>;
     }>(`/captions/presets?lang=${lang}`)
       .then((c) => {
         if (!c || !Array.isArray(c.list)) return;
@@ -115,6 +120,7 @@ function App() {
         if (c.animOf) setAnimOf(c.animOf);
         if (c.langs) setLangs(c.langs);
         if (c.transitions) setTransitions(c.transitions);
+        if (c.ratios) setRatios(c.ratios);
       })
       .catch(() => {});
   }, [lang]);
@@ -154,7 +160,7 @@ function App() {
         video, preset, captions, output, prompt: proOpen ? prompt : "", lang,
         captionPreset: capStyle, captionAnim: capAnim,
         vision: seeVideo, translate: transLang, translateCaptions: burnTrans,
-        transition,
+        transition, ratio, cropX,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
     } catch {
@@ -420,6 +426,29 @@ function App() {
                   <span className="box"><IconCheck size={12} className="icon" /></span>
                   {t("captions.lang.burn")}
                 </button>
+              )}
+            </div>
+          )}
+
+          {Object.keys(ratios).length > 0 && (
+            <div className="capstyles anims">
+              <span className="caplabel">{t("ratio")}</span>
+              {Object.entries(ratios).map(([id, label]) => (
+                <button key={id} className={`capstyle ${ratio === id ? "sel" : ""}`}
+                        onClick={() => setRatio(id)}>
+                  {label}
+                </button>
+              ))}
+              <small className="capnote">
+                {ratio === "source" ? t("ratio.sourceNote") : t("ratio.note")}
+              </small>
+              {ratio !== "source" && (
+                <label className="cropx">
+                  {t("ratio.crop")}
+                  <input type="range" min={0} max={1} step={0.05} value={cropX}
+                         onChange={(e) => setCropX(parseFloat(e.target.value))} />
+                  <b>{cropX === 0.5 ? t("ratio.center") : `${Math.round(cropX * 100)}%`}</b>
+                </label>
               )}
             </div>
           )}

@@ -20,6 +20,8 @@ Usage:
                             [--no-captions] [--no-zoom] [--preset <name>]
                             [--anim <name>] [--chunks <ready.json>]
                             [--transition <none|dissolve|dip|white|slide|wipe|zoom>]
+                            [--ratio <source|vertical|portrait|square|wide>]
+                            [--crop-x <0..1>]   0 left, 0.5 centre, 1 right
 """
 from __future__ import annotations
 
@@ -83,13 +85,48 @@ def run_ffmpeg_progress(cmd, cwd: Path, base: int, total: int):
     return frames, p.returncode, "\n".join(tail)
 
 
+# Output shapes, as (ratio, width, height). The vertical one is what a short
+# wants; 16:9 keeps whatever the source was.
+RATIOS = {
+    "source": None,
+    "vertical": (9 / 16, 1080, 1920),
+    "portrait": (4 / 5, 1080, 1350),
+    "square": (1.0, 1080, 1080),
+    "wide": (16 / 9, 1920, 1080),
+}
+
+
+def frame_for(ratio, w, h):
+    """The output size for a chosen shape, and the crop that gets there.
+
+    Returns (out_w, out_h, crop_w, crop_h). The crop is the biggest rectangle of
+    the wanted shape that fits inside the source, so nothing is stretched and no
+    bars are added: the picture is cut, which is what a short needs.
+    """
+    spec = RATIOS.get(ratio)
+    if not spec:
+        return w, h, w, h
+    want, ow, oh = spec
+    if abs((w / max(1, h)) - want) < 0.01:
+        return w, h, w, h          # already that shape, leave it alone
+    if (w / max(1, h)) > want:
+        cw, ch = int(round(h * want)), h
+    else:
+        cw, ch = w, int(round(w / want))
+    return ow, oh, cw // 2 * 2, ch // 2 * 2
+
+
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
-                 preset=cap.DEFAULT_PRESET, anim=None):
+                 preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5):
     src = av.open(source)
     vs = src.streams.video[0]
     w, h = vs.codec_context.width, vs.codec_context.height
     fps = Fraction(vs.average_rate)
     src.close()
+    out_w, out_h, crop_w, crop_h = frame_for(ratio, w, h)
+    if (out_w, out_h) != (w, h):
+        print("RATIO: %s -> recorte %dx%d, salida %dx%d" % (ratio, crop_w, crop_h,
+                                                            out_w, out_h), flush=True)
 
     total = sum(max(1, round((float(s["end"]) - float(s["start"])) * fps))
                 for s in edl)
@@ -102,13 +139,27 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
         s, e = float(seg["start"]), float(seg["end"])
         zoom = float(seg.get("zoom", 1.0)) if do_zoom else 1.0
         vf = []
+        # Shape first, then the emphasis zoom, then the captions. The order is
+        # the point: reframing after the captions would crop the words, and
+        # burning them before the resize would soften them.
+        if (crop_w, crop_h) != (w, h):
+            # Per segment if the EDL says so, otherwise whatever the user chose.
+            # There is no automatic subject tracking here on purpose: measured, it
+            # was wrong often enough to put a head outside the frame, and a wrong
+            # guess is worse than a predictable centre. See docs/INTELIGENCIA.md.
+            fx = float(seg.get("frame_x", crop_x))
+            x0 = max(0, min(w - crop_w, int(round((w - crop_w) * fx)))) // 2 * 2
+            y0 = (h - crop_h) // 2 // 2 * 2
+            vf.append(f"crop={crop_w}:{crop_h}:{x0}:{y0}")
         if zoom > 1.001:
-            cw, ch = int(w / zoom) // 2 * 2, int(h / zoom) // 2 * 2
-            x0, y0 = (w - cw) // 2 // 2 * 2, (h - ch) // 2 // 2 * 2
-            vf.append(f"crop={cw}:{ch}:{x0}:{y0}")
-            vf.append(f"scale={w}:{h}:flags=lanczos")
+            zw, zh = int(crop_w / zoom) // 2 * 2, int(crop_h / zoom) // 2 * 2
+            zx, zy = (crop_w - zw) // 2 // 2 * 2, (crop_h - zh) // 2 // 2 * 2
+            vf.append(f"crop={zw}:{zh}:{zx}:{zy}")
+        if vf:
+            vf.append(f"scale={out_w}:{out_h}:flags=lanczos")
         if do_caps:
-            cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, s, e, w, h, preset, anim)
+            cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, s, e, out_w, out_h,
+                       preset, anim)
             vf.append(f"subtitles=seg_{i:04d}.ass")
         seg_name = f"seg_{i:04d}.mp4"
 
@@ -282,6 +333,12 @@ def main():
         anim = sys.argv[sys.argv.index("--anim") + 1]
     # Ready-made chunks win over the transcript: this is how a translation gets
     # burned in, since translated words have no per-word timings to rebuild from.
+    ratio = "source"
+    if "--ratio" in sys.argv:
+        ratio = sys.argv[sys.argv.index("--ratio") + 1]
+    crop_x = 0.5
+    if "--crop-x" in sys.argv:
+        crop_x = max(0.0, min(1.0, float(sys.argv[sys.argv.index("--crop-x") + 1])))
     transition = "none"
     if "--transition" in sys.argv:
         transition = sys.argv[sys.argv.index("--transition") + 1]
@@ -291,7 +348,13 @@ def main():
             Path(sys.argv[sys.argv.index("--chunks") + 1]).read_text(encoding="utf-8"))
     edl = json.loads(Path(edl_path).read_text(encoding="utf-8"))["segments"]
     transcript = json.loads(Path(tr_path).read_text(encoding="utf-8"))
-    chunks = (given_chunks or cap.build_chunks(transcript, preset)) if do_caps else []
+    # The line length depends on the frame it has to fit in, so the output shape
+    # has to be known before the words are grouped.
+    with av.open(source) as _c:
+        _v = _c.streams.video[0]
+        _ow, _oh, _cw, _ch = frame_for(ratio, _v.codec_context.width,
+                                       _v.codec_context.height)
+    chunks = (given_chunks or cap.build_chunks(transcript, preset, _ow, _oh)) if do_caps else []
 
     ffmpeg = find_ffmpeg()
     out = Path(out)
@@ -300,11 +363,11 @@ def main():
     keep = sum(float(s["end"]) - float(s["start"]) for s in edl)
     print(f"EDL: {len(edl)} segmentos, {keep:.1f}s de material conservado "
           f"(captions={do_caps}:{preset}/{anim or 'propia'}, zoom={do_zoom}, "
-          f"transicion={transition})", flush=True)
+          f"transicion={transition}, formato={ratio})", flush=True)
     seg_dir.mkdir(exist_ok=True)
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
-                                 do_caps, do_zoom, preset, anim)
+                                 do_caps, do_zoom, preset, anim, ratio, crop_x)
         render_audio(source, edl, tmp_a)
         concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out, transition)
     finally:

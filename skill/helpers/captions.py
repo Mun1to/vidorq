@@ -317,16 +317,48 @@ def _clean(word):
     return word.strip()
 
 
-def build_chunks(transcript, name=DEFAULT_PRESET):
+def line_ref(w, h):
+    """The dimension a caption's size should be measured against.
+
+    Sizes are written as a fraction of frame height, which silently assumes a
+    wide frame: rotate to 9:16 and the same fraction runs off both edges.
+
+    Two things share the correction, and getting the split wrong is visible. The
+    line also gets fewer characters (see chars_for), so if the size took the
+    whole correction as well the result is tiny text swimming in empty width -
+    measured at 53 px on a 1080 wide frame, which is not a short caption, it is a
+    footnote. Taking the square root leaves the text the same physical size it
+    has in 16:9 and lets the shorter line do the rest, which is how a short
+    actually looks. A 16:9 frame comes out exactly as it did before.
+    """
+    if not w or not h:
+        return h
+    return h * min(1.0, ((w / h) / (16.0 / 9.0)) ** 0.5)
+
+
+def chars_for(limit, w, h):
+    """How many characters actually fit on a line in this frame.
+
+    A vertical frame is narrower, so it holds fewer of them even though the text
+    is the same size relative to the picture.
+    """
+    if not w or not h:
+        return limit
+    return max(6, int(round(limit * min(1.0, (w / max(1.0, h)) / (16.0 / 9.0)) ** 0.5
+                            * (1.0 if w >= h else 0.78))))
+
+
+def build_chunks(transcript, name=DEFAULT_PRESET, w=0, h=0):
     """Group the transcript words into caption chunks in SOURCE time.
 
     Returns [{"start", "end", "text", "words": [{"w", "s", "e"}]}]. The word list
     survives the grouping because the karaoke look needs it; everything else
-    just reads "text".
+    just reads "text". Frame size is optional and only narrows the lines when the
+    frame is not wide.
     """
     p = preset(name)
     per = int(p["words"])
-    limit = int(p["max_chars"])
+    limit = chars_for(int(p["max_chars"]), w, h)
     out = []
 
     for seg in transcript.get("segments", []):
@@ -396,7 +428,7 @@ def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET,
     """
     p = preset(name)
     a = anim(anim_name) or anim(p["anim"]) or ANIMS[DEFAULT_ANIM]
-    em = h * p["size"]
+    em = line_ref(w, h) * p["size"]
     fs = max(8, int(em * 1.411))
     x = w // 2
     y = int(h * (1.0 - p["y"]))
@@ -707,7 +739,9 @@ def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None):
     """
     p = preset(name)
     a = anim(anim_name) or anim(p["anim"]) or ANIMS[DEFAULT_ANIM]
-    size = float(p["size"]) * 1.40  # Text+ Size is a cell height, not a cap height
+    # Text+ Size is a cell height, not a cap height, and it is a fraction of the
+    # frame height - so a vertical frame needs it scaled down to stay on screen.
+    size = float(p["size"]) * 1.40 * (line_ref(w, h) / max(1.0, float(h)))
     y = float(p["y"])
     els = _elements(p)
     anim_tools, wires, extra = _anim_splines(a, dur, size, els)

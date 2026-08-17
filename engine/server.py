@@ -51,6 +51,7 @@ sys.path.insert(0, str(HELPERS))
 import captions as cap  # noqa: E402
 import vision  # noqa: E402
 import translate as tl  # noqa: E402
+import director  # noqa: E402
 import resolve_captions  # noqa: E402
 
 _lock = threading.Lock()
@@ -83,6 +84,8 @@ TEXT = {
         "jumps": ", %d saltos tapados cambiando el encuadre",
         "translating": "Traduciendo los subtitulos a %s...",
         "srt_made": "Subtitulos guardados en %s",
+        "directing": "Leyendo lo que has pedido...",
+        "directed": "%s decidio: %s",
     },
     "en": {
         "busy": "There is already an edit running",
@@ -105,6 +108,8 @@ TEXT = {
         "jumps": ", %d jump cuts hidden by changing the framing",
         "translating": "Translating the captions into %s...",
         "srt_made": "Captions saved to %s",
+        "directing": "Reading what you asked for...",
+        "directed": "%s decided: %s",
     },
 }
 
@@ -117,6 +122,15 @@ TRANSITION_LABELS = {
            "zoom": "Zoom"},
     "en": {"none": "Hard cut", "dissolve": "Dissolve", "dip": "Dip to black",
            "white": "Dip to white", "slide": "Slide", "wipe": "Wipe", "zoom": "Zoom"},
+}
+
+
+# The shapes an edit can come out in. Vertical is the one a short needs.
+RATIO_LABELS = {
+    "es": {"source": "Como el original", "vertical": "Vertical 9:16",
+           "portrait": "Retrato 4:5", "square": "Cuadrado 1:1", "wide": "Horizontal 16:9"},
+    "en": {"source": "As the source", "vertical": "Vertical 9:16",
+           "portrait": "Portrait 4:5", "square": "Square 1:1", "wide": "Wide 16:9"},
 }
 
 
@@ -553,14 +567,46 @@ def video_shape(path):
         return 30000 / 1001, 1920, 1080
 
 
+RATIO_SIZES = {"vertical": (1080, 1920), "portrait": (1080, 1350),
+               "square": (1080, 1080), "wide": (1920, 1080)}
+
+
+def out_frame(ratio, w, h):
+    """The output size for a shape, or the source size when it is not changing."""
+    return RATIO_SIZES.get(ratio) or (w, h)
+
+
+def fill_zoom(w, h, out_w, out_h):
+    """How much to zoom a clip so it fills a differently shaped timeline.
+
+    Resolve fits a mismatched clip inside the frame, which means a wide clip in a
+    vertical timeline arrives with black bars above and below. Scaling by the
+    ratio of the two aspect ratios covers the frame exactly: no bars, and no more
+    cropping than the shape change already forces. From 1920x1080 into 1080x1920
+    that is 3.16.
+    """
+    if not all((w, h, out_w, out_h)) or (out_w, out_h) == (w, h):
+        return 1.0
+    src, dst = w / h, out_w / out_h
+    return max(src / dst, dst / src)
+
+
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
-                   workdir=None, anim="", chunks=None):
+                   workdir=None, anim="", chunks=None, ratio="source"):
     name = Path(video).stem[:40]
     fps, width, height = video_shape(video)
+    out_w, out_h = out_frame(ratio, width, height)
     timeline = f"Vidorq_{name}"
     # import media (idempotent) + timeline + inserts
     bridge_post("/media/import", {"filePaths": [video]})
     bridge_post("/timeline/create", {"name": timeline})
+    if (out_w, out_h) != (width, height):
+        # A vertical timeline holding a wide clip letterboxes it, so the timeline
+        # is reshaped and every clip is zoomed just enough to fill the new frame.
+        bridge_post("/timeline/setting", {"settings": {
+            "useCustomSettings": "1",
+            "timelineResolutionWidth": str(out_w),
+            "timelineResolutionHeight": str(out_h)}})
     record = 0
     for seg in edl:
         sf = round(seg["start"] * fps)
@@ -571,8 +617,9 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
             bridge_post("/marker/add", {"frameId": record, "color": "Yellow",
                                         "name": seg["note"][:40], "note": seg["note"]})
         record += ef - sf + 1
+    fill = fill_zoom(width, height, out_w, out_h)
     for i, seg in enumerate(edl):
-        z = float(seg.get("zoom", 1.0))
+        z = float(seg.get("zoom", 1.0)) * fill
         if z > 1.001:
             bridge_post("/clip/properties", {"trackType": "video", "trackIndex": 1,
                                              "clipIndex": i, "properties": {"ZoomX": z, "ZoomY": z}})
@@ -581,12 +628,13 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     if captions:
         # Caption times have to follow the CUT video, not the original, so the
         # transcript is folded onto the edit before the chunks are built.
-        chunks = chunks or cap.build_chunks(retime_transcript(transcript, edl), preset)
+        chunks = chunks or cap.build_chunks(retime_transcript(transcript, edl), preset,
+                                            out_w, out_h)
         if chunks:
             set_progress(tr("captioning"), 85, tr("captioning_n", len(chunks)))
             out = resolve_captions.build(bridge_post, bridge_get, timeline, chunks,
                                          preset, workdir or Path(video).parent,
-                                         width, height, fps, anim=anim)
+                                         out_w, out_h, fps, anim=anim)
             made += " " + tr("captions_made", out["captions"])
     bridge_post("/project/save", {})
     return made
@@ -655,6 +703,8 @@ def run_job(req):
         captions = bool(req.get("captions", True))
         output = req.get("output", "mp4")
         prompt = (req.get("prompt") or "").strip()
+        ratio = req.get("ratio") or "source"
+        transition = req.get("transition") or "none"
         # The look of the captions. An unknown name falls back to the default
         # instead of failing an edit that has already been transcribed.
         caption_preset = req.get("captionPreset") or profile_load().get(
@@ -669,6 +719,28 @@ def run_job(req):
 
         if not Path(video).is_file():
             raise ValueError(tr("no_video", video))
+
+        # A prompt decides the whole edit, not just the cuts: the shape of the
+        # frame, the caption look, its entrance, the joins. Before this the
+        # prompt could ask for a vertical short and be handed a wide one.
+        plan = None
+        if prompt:
+            set_progress(tr("directing"), 6)
+            plan = director.look(prompt, load_config().get("anthropicKey", ""),
+                                 req.get("directorModel") or None, _lang,
+                                 log=lambda m: set_progress(tr("directing"), 7, m))
+            ratio = plan["ratio"]
+            transition = plan["transition"]
+            captions = plan["captions"]
+            caption_preset = plan["captionPreset"]
+            caption_anim = plan["captionAnim"]
+            preset = plan["cuts"]
+            said = ("dicho por ti: " + ", ".join(plan["said"])) if plan["said"] else ""
+            set_progress(tr("directed", plan["by"] or "el texto",
+                            "%s, %s, %s/%s" % (ratio, "con subtitulos" if captions
+                                               else "sin subtitulos",
+                                               caption_preset, caption_anim or "propia")),
+                         9, plan.get("why") or said)
 
         workdir = Path(video).parent / "edit" / Path(video).stem[:40]
         workdir.mkdir(parents=True, exist_ok=True)
@@ -707,8 +779,6 @@ def run_job(req):
         report = {}
         if prompt:
             key = load_config().get("anthropicKey", "")
-            if not key:
-                raise ValueError("El Modo Pro necesita tu API key de Anthropic (Ajustes)")
             packed = (workdir / "takes_packed.md").read_text(encoding="utf-8")
             if look.get("shots"):
                 # The model reads the video instead of watching it: the visual
@@ -718,7 +788,17 @@ def run_job(req):
             if brand:
                 prompt += "\n\nPERFIL DE MARCA DEL USUARIO (respetalo): " + json.dumps(
                     brand, ensure_ascii=False)
-            edl = edl_from_prompt(prompt, packed, key)
+            edl = director.segments(prompt, packed, key,
+                                    req.get("directorModel") or None,
+                                    log=lambda m: set_progress(tr("deciding"), 52, m))
+            if not edl:
+                # A model that could not produce a usable timeline must not cost
+                # the edit: the deterministic engine is good, and the look the
+                # prompt asked for still applies.
+                set_progress(tr("deciding"), 54, "uso los cortes del motor")
+                edl, report = edl_from_speech(transcript,
+                                              transcript.get("language", _lang),
+                                              track=look.get("track"))
         elif preset == "montage":
             edl, report = edl_montage(video, transcript, track=look.get("track"),
                                       lang=transcript.get("language", _lang))
@@ -748,7 +828,11 @@ def run_job(req):
         translated_chunks = None
         if captions:
             edited = retime_transcript(transcript, edl)
-            base_chunks = cap.build_chunks(edited, caption_preset)
+            # The line length depends on the frame the caption has to fit in, so
+            # a vertical short gets shorter lines than the same edit in 16:9.
+            _sw, _sh = video_shape(video)[1:]
+            _ow, _oh = out_frame(ratio, _sw, _sh)
+            base_chunks = cap.build_chunks(edited, caption_preset, _ow, _oh)
             if base_chunks:
                 src_lang = transcript.get("language") or _lang
                 p_src = workdir / ("subtitulos_%s.srt" % src_lang)
@@ -785,14 +869,18 @@ def run_job(req):
                 raise RuntimeError("No pude hablar con Resolve. Abre Resolve, un proyecto, "
                                    "y Workspace > Scripts > Vidorq")
             result = output_resolve(video, edl, transcript, captions, caption_preset,
-                                    workdir, caption_anim, translated_chunks)
+                                    workdir, caption_anim, translated_chunks, ratio)
         else:
             set_progress(tr("rendering"), 65, "Cortes + zooms" + (" + captions" if captions else ""))
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
             cmd = [PYTHON, str(HELPERS / "vidorq_render.py"), video, str(edl_path),
                    str(tr_path), str(out_file), "--preset", caption_preset]
-            if req.get("transition") and req["transition"] != "none":
-                cmd += ["--transition", str(req["transition"])]
+            if transition and transition != "none":
+                cmd += ["--transition", str(transition)]
+            if ratio and ratio != "source":
+                cmd += ["--ratio", str(ratio)]
+                if abs(float(req.get("cropX", 0.5)) - 0.5) > 0.01:
+                    cmd += ["--crop-x", str(float(req["cropX"]))]
             if caption_anim:
                 cmd += ["--anim", caption_anim]
             if translated_chunks:
@@ -861,7 +949,8 @@ class Handler(BaseHTTPRequestHandler):
                         "anims": cap.anim_list(lang),
                         "animOf": {k: v["anim"] for k, v in cap.PRESETS.items()},
                         "langs": tl.LANGS,
-                        "transitions": TRANSITION_LABELS.get(lang, TRANSITION_LABELS["es"])})
+                        "transitions": TRANSITION_LABELS.get(lang, TRANSITION_LABELS["es"]),
+                        "ratios": RATIO_LABELS.get(lang, RATIO_LABELS["es"])})
         else:
             self._send({"error": "not found"}, 404)
 
