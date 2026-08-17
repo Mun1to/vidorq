@@ -33,7 +33,7 @@ import threading
 import traceback
 import urllib.request
 from collections import deque
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 HOST, PORT = "127.0.0.1", 9877
@@ -422,13 +422,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def _send(self, obj, code=200):
         data = json.dumps(obj).encode()
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.end_headers()
+            self.wfile.write(data)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            # The window closed or the poll timed out mid-answer. Normal, and the
+            # user should not see a stack trace in the console for it.
+            pass
 
     def do_OPTIONS(self):
         self._send({})
@@ -487,6 +492,30 @@ class Handler(BaseHTTPRequestHandler):
             self._send({"error": "not found"}, 404)
 
 
+def already_running():
+    """True if a Vidorq engine is already answering on our port."""
+    try:
+        with urllib.request.urlopen(f"http://{HOST}:{PORT}/health", timeout=1) as r:
+            return bool(json.loads(r.read().decode()).get("ok"))
+    except Exception:
+        return False
+
+
 if __name__ == "__main__":
+    # Launching twice used to end in a stack trace and a console window stuck on
+    # "press any key", which is how people pile up dead windows without knowing why.
+    if already_running():
+        print(f"[VidorqEngine] Ya hay un motor corriendo en http://{HOST}:{PORT}.")
+        print("[VidorqEngine] No hace falta abrir otro. Puedes cerrar esta ventana.")
+        sys.exit(0)
     print(f"[VidorqEngine] v{VERSION} en http://{HOST}:{PORT}  (Ctrl+C para parar)")
-    HTTPServer((HOST, PORT), Handler).serve_forever()
+    try:
+        # Threaded: /resolve asks the bridge three questions, and a single-threaded
+        # server would freeze the app's health poll while it waits.
+        ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+    except KeyboardInterrupt:
+        print("[VidorqEngine] Parado.")
+    except OSError as e:
+        print(f"[VidorqEngine] No pude abrir el puerto {PORT}: {e}")
+        print(f"[VidorqEngine] Mira que no haya otro programa usandolo.")
+        sys.exit(1)
