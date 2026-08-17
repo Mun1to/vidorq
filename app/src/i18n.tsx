@@ -47,6 +47,9 @@ const es = {
   "beta": "BETA",
 
   "captions": "Captions animados",
+  "captions.anim": "Animación",
+  "captions.anim.own": "La del estilo",
+  "captions.anim.ownNote": "Cada estilo trae su propia entrada. Elige otra para cambiarla.",
   "workspace": "Workspace:",
   "pro": "Modo Pro",
   "pro.placeholder": "Describe la edición con tus palabras: \"córtame este podcast y añade una tarjeta en cada cambio de tema...\" (requiere API key en Ajustes)",
@@ -163,6 +166,9 @@ const en: Record<keyof typeof es, string> = {
   "beta": "BETA",
 
   "captions": "Animated captions",
+  "captions.anim": "Animation",
+  "captions.anim.own": "The look's own",
+  "captions.anim.ownNote": "Every look ships with its own entrance. Pick another to change it.",
   "workspace": "Workspace:",
   "pro": "Pro mode",
   "pro.placeholder": "Describe the edit in your own words: \"cut this podcast and add a card on every topic change...\" (needs an API key in Settings)",

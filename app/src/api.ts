@@ -29,5 +29,6 @@ export interface BrandProfile {
   antiReference?: string;
   pace?: number;
   captionPreset?: string;
+  captionAnim?: string;
   hardRules?: string;
 }

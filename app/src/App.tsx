@@ -40,6 +40,11 @@ function App() {
   // asi anadir uno no obliga a tocar la interfaz.
   const [capStyles, setCapStyles] = useState<CaptionStyle[]>([]);
   const [capStyle, setCapStyle] = useState("pop");
+  // El look y el movimiento son dos elecciones, como en CapCut. Vacio = la
+  // animacion con la que viene ese estilo.
+  const [capAnims, setCapAnims] = useState<CaptionStyle[]>([]);
+  const [capAnim, setCapAnim] = useState("");
+  const [animOf, setAnimOf] = useState<Record<string, string>>({});
   const [output, setOutput] = useState<Output>("mp4");
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -90,11 +95,16 @@ function App() {
   // Estilos de caption. Se vuelven a pedir al cambiar de idioma porque las
   // descripciones vienen del motor ya traducidas.
   useEffect(() => {
-    apiGet<{ default: string; list: CaptionStyle[] }>(`/captions/presets?lang=${lang}`)
+    apiGet<{
+      default: string; list: CaptionStyle[];
+      anims?: CaptionStyle[]; animOf?: Record<string, string>;
+    }>(`/captions/presets?lang=${lang}`)
       .then((c) => {
         if (!c || !Array.isArray(c.list)) return;
         setCapStyles(c.list);
         setCapStyle((cur) => (c.list.some((s) => s.id === cur) ? cur : c.default));
+        if (Array.isArray(c.anims)) setCapAnims(c.anims);
+        if (c.animOf) setAnimOf(c.animOf);
       })
       .catch(() => {});
   }, [lang]);
@@ -132,7 +142,7 @@ function App() {
     try {
       const j = await apiPost<{ ok?: boolean; error?: string }>("/edit", {
         video, preset, captions, output, prompt: proOpen ? prompt : "", lang,
-        captionPreset: capStyle,
+        captionPreset: capStyle, captionAnim: capAnim,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
     } catch {
@@ -333,6 +343,33 @@ function App() {
                 </button>
               ))}
               <small className="capnote">{capStyles.find((s) => s.id === capStyle)?.note}</small>
+            </div>
+          )}
+
+          {captions && capAnims.length > 0 && (
+            <div className="capstyles anims">
+              <span className="caplabel">{t("captions.anim")}</span>
+              <button
+                className={`capstyle ${capAnim === "" ? "sel" : ""}`}
+                onClick={() => setCapAnim("")}
+                title={t("captions.anim.own")}
+              >
+                {t("captions.anim.own")}
+                {animOf[capStyle] ? ` · ${capAnims.find((a) => a.id === animOf[capStyle])?.label ?? ""}` : ""}
+              </button>
+              {capAnims.map((a) => (
+                <button
+                  key={a.id}
+                  className={`capstyle ${capAnim === a.id ? "sel" : ""}`}
+                  onClick={() => setCapAnim(a.id)}
+                  title={a.note}
+                >
+                  {a.label}
+                </button>
+              ))}
+              <small className="capnote">
+                {capAnim ? capAnims.find((a) => a.id === capAnim)?.note : t("captions.anim.ownNote")}
+              </small>
             </div>
           )}
 
