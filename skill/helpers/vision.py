@@ -142,9 +142,12 @@ def shots(video, sample_fps=SAMPLE_FPS, log=None):
         # A 4x4 fingerprint of the frame, which is what tells two shots of the
         # same thing apart from two shots of different things later on.
         sig = small.reshape(SIG, THUMB_H // SIG, SIG, THUMB_W // SIG).mean(axis=(1, 3))
+        # The fingerprint stays in the track, as whole numbers to keep the
+        # cached file small: the cut engine needs it to tell a jump cut from a
+        # genuine change of shot, and that decision happens after this runs.
         track.append({"t": round(t, 3), "diff": round(diff, 3),
                       "brightness": round(float(small.mean()) / 255.0, 3),
-                      "sig": [round(v, 1) for v in sig.flatten().tolist()]})
+                      "sig": [int(v) for v in sig.flatten().tolist()]})
         prev = small
     if not track:
         return [], []
@@ -181,8 +184,7 @@ def shots(video, sample_fps=SAMPLE_FPS, log=None):
                     "still": motion < 1.2,
                     "sig": [round(float(v), 1) for v in sig.tolist()]})
     out = _merge_same(out, track, log=log)
-    slim = [{k: v for k, v in p.items() if k != "sig"} for p in track]
-    return out, slim
+    return out, track
 
 
 def _merge_same(shots_, track, log=None):
@@ -217,6 +219,29 @@ def _close(a, b, limit):
     if not sa or not sb:
         return False
     return float(np.abs(np.array(sa) - np.array(sb)).mean()) < limit
+
+
+def sig_at(track, t):
+    """The fingerprint of the picture at a given second, or None."""
+    if not track:
+        return None
+    best = min(track, key=lambda p: abs(p["t"] - t))
+    return best.get("sig")
+
+
+def looks_same(track, t1, t2, limit=SAME_SHOT):
+    """Is the framing at these two moments the same?
+
+    This is what separates a jump cut from a real change of shot: after removing
+    a silence from a locked-off talking head, both sides of the cut show the same
+    thing and the join jumps. After a genuine shot change it does not.
+    """
+    import numpy as np
+    a, b = sig_at(track, t1), sig_at(track, t2)
+    if not a or not b:
+        return False
+    return float(np.abs(np.array(a, dtype="float32")
+                        - np.array(b, dtype="float32")).mean()) < limit
 
 
 def motion_at(track, t):

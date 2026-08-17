@@ -80,6 +80,7 @@ TEXT = {
         "captions_made": "con %d subtitulos editables",
         "cut_report": "%d cortes, %d muletillas fuera, %d tomas repetidas",
         "snapped": ", %d cortes movidos a un momento quieto",
+        "jumps": ", %d saltos tapados cambiando el encuadre",
         "translating": "Traduciendo los subtitulos a %s...",
         "srt_made": "Subtitulos guardados en %s",
     },
@@ -101,6 +102,7 @@ TEXT = {
         "captions_made": "with %d editable captions",
         "cut_report": "%d cuts, %d filler words out, %d repeated takes",
         "snapped": ", %d cuts moved onto a still moment",
+        "jumps": ", %d jump cuts hidden by changing the framing",
         "translating": "Translating the captions into %s...",
         "srt_made": "Captions saved to %s",
     },
@@ -318,8 +320,47 @@ def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=Tru
         seg["zoom"] = 1.0
         seg["note"] = ""
     merged, moved = snap_to_picture(merged, track)
+    merged, hidden = hide_jump_cuts(merged, track)
     return merged, {"takes": dropped, "fillers": fillers, "cuts": len(merged),
-                    "snapped": moved}
+                    "snapped": moved, "jumps": hidden}
+
+
+# How much bigger the framing goes on the far side of a jump cut. Small on
+# purpose: enough that the join stops reading as a glitch, not so much that it
+# announces itself as an effect.
+JUMP_ZOOM = 1.07
+
+
+def hide_jump_cuts(edl, track, zoom=JUMP_ZOOM):
+    """Change the framing across cuts that would otherwise jump.
+
+    This is the difference between a video that was cut and a video that looks
+    edited. Take a silence out of a locked-off talking head and both sides of the
+    join show the same thing from the same place, so the subject teleports. The
+    fix every editor uses is to make the framing different across the cut.
+
+    Only the joins that need it get touched: the fingerprints say whether the two
+    sides look alike, so a genuine change of shot - where the picture already
+    changed - is left exactly as it was. A segment that already carries a zoom
+    for another reason is left alone too.
+    """
+    if not track or len(edl) < 2:
+        return edl, 0
+    fixed = 0
+    for i in range(1, len(edl)):
+        prev, cur = edl[i - 1], edl[i]
+        # Nothing was removed here, so nothing jumps.
+        if cur["start"] - prev["end"] < 0.04:
+            continue
+        if not vision.looks_same(track, prev["end"] - 0.1, cur["start"] + 0.1):
+            continue
+        if float(cur.get("zoom", 1.0)) > 1.001:
+            continue
+        # Alternate, so three joins in a row do not all land on the same framing.
+        cur["zoom"] = 1.0 if float(prev.get("zoom", 1.0)) > 1.001 else zoom
+        if cur["zoom"] > 1.001:
+            fixed += 1
+    return edl, fixed
 
 
 def mark_questions(transcript, edl):
@@ -697,6 +738,8 @@ def run_job(req):
                                 report.get("takes", 0)) + ")"
         if report.get("snapped"):
             detail += tr("snapped", report["snapped"])
+        if report.get("jumps"):
+            detail += tr("jumps", report["jumps"])
         set_progress(tr("decided"), 58, detail)
 
         # 4) Subtitle files. The edited-time transcript is the one that matches
