@@ -1,13 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost, ENGINE, Workspaces } from "./api";
+import { useLang, Key } from "./i18n";
 import Brand from "./Brand";
 import Settings from "./Settings";
+import Guia from "./Guia";
 import logo from "./assets/logo.png";
+import {
+  IconAlert, IconBook, IconBrand, IconCheck, IconChevron, IconClock, IconDrop,
+  IconFilm, IconFolder, IconFolderOpen, IconMic, IconPlay, IconScissors, IconSliders,
+  IconSpark, IconVideo, IconZap,
+} from "./Icons";
 import "./App.css";
 
 type Preset = "clean" | "podcast" | "montage";
 type Output = "mp4" | "resolve";
 type Phase = "idle" | "running" | "done" | "error";
+type View = "edit" | "history";
 
 interface Progress {
   step: string;
@@ -17,13 +25,14 @@ interface Progress {
   error?: string;
 }
 
-const PRESETS: { id: Preset; icon: string; name: string; desc: string; beta?: boolean }[] = [
-  { id: "clean", icon: "✂️", name: "Limpieza", desc: "Corta silencios, muletillas y momentos muertos" },
-  { id: "podcast", icon: "🎙️", name: "Podcast Q&A", desc: "Corta y marca cada pregunta o cambio de tema" },
-  { id: "montage", icon: "🎮", name: "Montage", desc: "Se queda los momentos de más energía", beta: true },
+const PRESETS: { id: Preset; Icon: typeof IconScissors; name: Key; desc: Key; beta?: boolean }[] = [
+  { id: "clean", Icon: IconScissors, name: "preset.clean", desc: "preset.clean.desc" },
+  { id: "podcast", Icon: IconMic, name: "preset.podcast", desc: "preset.podcast.desc" },
+  { id: "montage", Icon: IconZap, name: "preset.montage", desc: "preset.montage.desc", beta: true },
 ];
 
 function App() {
+  const { t, lang, setLang } = useLang();
   const [video, setVideo] = useState<string>("");
   const [preset, setPreset] = useState<Preset>("clean");
   const [captions, setCaptions] = useState(true);
@@ -32,11 +41,16 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
+  // La guia se abre sola la primera vez, para que nadie tenga que adivinar los pasos de Resolve.
+  const [guiaOpen, setGuiaOpen] = useState(() => !localStorage.getItem("vidorq.guiaVista"));
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<Progress>({ step: "", percent: 0 });
   const [engineUp, setEngineUp] = useState<boolean | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [ws, setWs] = useState<Workspaces>({ active: "Principal", list: ["Principal"] });
+  const [wsOpen, setWsOpen] = useState(false);
+  const [view, setView] = useState<View>("edit");
+  const wsRef = useRef<HTMLDivElement>(null);
 
   // Drag & drop nativo de Tauri (rutas reales); en navegador normal se usa el campo de ruta
   useEffect(() => {
@@ -83,27 +97,38 @@ function App() {
     return () => clearInterval(t);
   }, [phase]);
 
+  // Cerrar el desplegable de workspace al pulsar fuera
+  useEffect(() => {
+    if (!wsOpen) return;
+    const away = (e: MouseEvent) => {
+      if (wsRef.current && !wsRef.current.contains(e.target as Node)) setWsOpen(false);
+    };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [wsOpen]);
+
   const fileName = useMemo(() => video.split(/[\\/]/).pop() ?? "", [video]);
   const canEdit = video !== "" && engineUp === true && phase !== "running";
 
   async function startEdit() {
     setPhase("running");
-    setProgress({ step: "Enviando al motor...", percent: 2 });
+    setProgress({ step: t("run.working"), percent: 2 });
     try {
       const j = await apiPost<{ ok?: boolean; error?: string }>("/edit", {
-        video, preset, captions, output, prompt: proOpen ? prompt : "",
+        video, preset, captions, output, prompt: proOpen ? prompt : "", lang,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
     } catch {
-      setProgress({ step: "", percent: 0, error: "No se pudo hablar con el motor. ¿Está encendido?" });
+      setProgress({ step: "", percent: 0, error: t("alert.noEngine") });
       setPhase("error");
     }
   }
 
   async function switchWs(name: string) {
+    setWsOpen(false);
     const req = name === "__new__"
       ? (() => {
-          const n = window.prompt("Nombre del nuevo workspace (una marca o proyecto):");
+          const n = window.prompt(t("ws.prompt"));
           return n ? { create: n, activate: n } : null;
         })()
       : { activate: name };
@@ -111,117 +136,199 @@ function App() {
     try {
       const w = await apiPost<Workspaces>("/workspaces", req);
       if (w && Array.isArray(w.list)) setWs(w);
-    } catch { /* engine antiguo o apagado */ }
+    } catch { /* motor antiguo o apagado */ }
   }
+
+  const working = phase === "running" || phase === "done";
 
   return (
     <main className="shell">
-      <header className="top">
-        <div className="brand">
-          <img className="logo-img" src={logo} alt="Vidorq" />
-          <div>
-            <h1>Vidorq</h1>
-            <p>Describe la edición. El resto es nuestro.</p>
-          </div>
+      <aside className="side">
+        <div className="logo">
+          <img src={logo} alt="" />
+          <b>Vidorq</b>
         </div>
-        <div className="top-right">
-          <select className="ws" value={ws.active} onChange={(e) => switchWs(e.target.value)} title="Workspace">
-            {ws.list.map((w) => <option key={w} value={w}>📁 {w}</option>)}
-            <option value="__new__">➕ nuevo workspace...</option>
-          </select>
-          <button className="ghost" onClick={() => setBrandOpen(true)} title="Tu marca">🎨</button>
-          <button className="ghost" onClick={() => setSettingsOpen(true)} title="Ajustes">⚙️</button>
-          <span className={`engine ${engineUp ? "ok" : "down"}`}>
-            {engineUp === null ? "..." : engineUp ? "motor conectado" : "motor apagado"}
-          </span>
-        </div>
-      </header>
 
-      {phase === "idle" || phase === "error" ? (
-        <>
-          <section className={`drop ${dragOver ? "over" : ""} ${video ? "loaded" : ""}`}>
+        <div className="ws-wrap" ref={wsRef}>
+          <button className="ws-btn" onClick={() => setWsOpen(!wsOpen)}>
+            <IconFolder size={15} className="icon" />
+            {ws.active}
+            <IconChevron size={15} className="icon chev" />
+          </button>
+          {wsOpen && (
+            <div className="ws-menu">
+              {ws.list.map((w) => (
+                <button key={w} className={w === ws.active ? "sel" : ""} onClick={() => switchWs(w)}>
+                  <IconFolder size={14} className="icon" />{w}
+                </button>
+              ))}
+              <button onClick={() => switchWs("__new__")}>
+                <IconFolderOpen size={14} className="icon" />{t("ws.new")}
+              </button>
+            </div>
+          )}
+        </div>
+
+        <nav className="nav">
+          <button className={view === "edit" ? "sel" : ""} onClick={() => setView("edit")}>
+            <IconFilm className="icon" />{t("nav.edit")}
+          </button>
+          <button onClick={() => setBrandOpen(true)}>
+            <IconBrand className="icon" />{t("nav.brand")}
+          </button>
+          <button className={view === "history" ? "sel" : ""} onClick={() => setView("history")}>
+            <IconClock className="icon" />{t("nav.history")}
+          </button>
+          <button onClick={() => setGuiaOpen(true)}>
+            <IconBook className="icon" />{t("nav.guide")}
+          </button>
+          <button onClick={() => setSettingsOpen(true)}>
+            <IconSliders className="icon" />{t("nav.settings")}
+          </button>
+        </nav>
+
+        <div className="side-foot">
+          <div className="lang" role="group" aria-label={t("lang")}>
+            <button className={lang === "es" ? "sel" : ""} onClick={() => setLang("es")}>ES</button>
+            <button className={lang === "en" ? "sel" : ""} onClick={() => setLang("en")}>EN</button>
+          </div>
+          <span className="ver">{t("ver")}</span>
+        </div>
+      </aside>
+
+      {view === "history" ? (
+        <section className="run">
+          <IconClock size={40} className="icon" />
+          <h2>{t("history.title")}</h2>
+          <p className="stepn">{t("history.sub")}</p>
+        </section>
+      ) : working ? (
+        <section className="run">
+          {phase === "running" ? (
+            <>
+              <div className="spin" />
+              <h2>{progress.step || t("run.working")}</h2>
+              <div className="track"><i style={{ width: `${progress.percent}%` }} /></div>
+              <p className="stepn">
+                {progress.detail ? `${progress.detail} · ` : ""}{progress.percent}%
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="done-ic"><IconCheck size={46} className="icon" /></div>
+              <h2>{t("run.done")}</h2>
+              <p className="stepn">
+                {output === "resolve" ? t("run.doneResolve") : t("run.doneMp4")}
+              </p>
+              <div className="path">{progress.result}</div>
+              <div className="run-actions">
+                <button className="cta inline" onClick={() => {
+                  setPhase("idle"); setProgress({ step: "", percent: 0 }); setVideo("");
+                }}>
+                  <IconVideo size={15} className="icon" />{t("run.again")}
+                </button>
+              </div>
+            </>
+          )}
+        </section>
+      ) : (
+        <section className="main">
+          <div className="mhead">
+            <div>
+              <h1>{t("head.title")}</h1>
+              <p>{t("head.sub")}</p>
+            </div>
+            <div className="seg">
+              <button className={output === "mp4" ? "sel" : ""} onClick={() => setOutput("mp4")}>{t("out.mp4")}</button>
+              <button className={output === "resolve" ? "sel" : ""} onClick={() => setOutput("resolve")}>{t("out.resolve")}</button>
+            </div>
+          </div>
+
+          {engineUp === false && (
+            <div className="alert">
+              <IconAlert size={16} className="icon" />
+              <span>{t("alert.engineOff")} <code>engine\start_engine.bat</code></span>
+            </div>
+          )}
+          {phase === "error" && progress.error && (
+            <div className="alert">
+              <IconAlert size={16} className="icon" />
+              <span>{progress.error}</span>
+            </div>
+          )}
+
+          <div className={`drop ${dragOver ? "over" : ""} ${video ? "loaded" : ""}`}>
             {video ? (
               <>
-                <span className="file-icon">🎬</span>
-                <strong>{fileName}</strong>
-                <button className="ghost small" onClick={() => setVideo("")}>cambiar</button>
+                <IconVideo size={22} className="icon" />
+                <b>{fileName}</b>
+                <button className="ghost small" onClick={() => setVideo("")}>{t("drop.change")}</button>
               </>
             ) : (
               <>
-                <span className="file-icon">⬇️</span>
-                <strong>Arrastra tu vídeo aquí</strong>
+                <IconDrop size={22} className="icon" />
+                <b>{t("drop.title")}</b>
+                <small>{t("drop.sub")}</small>
                 <input
                   className="path-input"
-                  placeholder="...o pega la ruta del archivo y pulsa Enter"
+                  placeholder="C:\...\video.mp4"
                   onKeyDown={(e) => {
                     if (e.key === "Enter") setVideo((e.target as HTMLInputElement).value.replace(/^"|"$/g, ""));
                   }}
                 />
               </>
             )}
-          </section>
+          </div>
 
-          <section className="presets">
-            {PRESETS.map((p) => (
-              <button key={p.id} className={`preset ${preset === p.id ? "sel" : ""}`} onClick={() => setPreset(p.id)}>
-                <span className="p-icon">{p.icon}</span>
-                <span className="p-name">{p.name}{p.beta && <em> beta</em>}</span>
-                <span className="p-desc">{p.desc}</span>
+          <div className="presets">
+            {PRESETS.map(({ id, Icon, name, desc, beta }) => (
+              <button key={id} className={`preset ${preset === id ? "sel" : ""}`} onClick={() => setPreset(id)}>
+                <Icon className="icon" />
+                <b>{t(name)}{beta && <span className="tag">{t("beta")}</span>}</b>
+                <small>{t(desc)}</small>
               </button>
             ))}
-          </section>
+          </div>
 
-          <section className="options">
-            <label className="opt">
-              <input type="checkbox" checked={captions} onChange={(e) => setCaptions(e.target.checked)} />
-              <span>Captions animados</span>
-            </label>
-            <div className="opt out">
-              <button className={output === "mp4" ? "sel" : ""} onClick={() => setOutput("mp4")}>MP4 directo</button>
-              <button className={output === "resolve" ? "sel" : ""} onClick={() => setOutput("resolve")}>Timeline en Resolve</button>
-            </div>
-          </section>
+          <div className="optrow">
+            <button
+              className={`chk ${captions ? "on" : ""}`}
+              onClick={() => setCaptions(!captions)}
+              role="switch"
+              aria-checked={captions}
+            >
+              <span className="box"><IconCheck size={12} className="icon" /></span>
+              {t("captions")}
+            </button>
+            <span className="profile-note">{t("workspace")} <b>{ws.active}</b></span>
+          </div>
 
-          <section className={`pro ${proOpen ? "open" : ""}`}>
+          <div className="pro">
             <button className="pro-toggle" onClick={() => setProOpen(!proOpen)}>
-              ✨ Modo Pro {proOpen ? "▲" : "▼"}
+              <IconSpark size={15} className="icon" />
+              {t("pro")}
+              <IconChevron size={15} className={`icon chev ${proOpen ? "up" : ""}`} />
             </button>
             {proOpen && (
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder='Describe la edición con tus palabras: "córtame este podcast y añade una tarjeta en cada cambio de tema..." (requiere API key en Ajustes ⚙️)'
+                placeholder={t("pro.placeholder")}
               />
             )}
-          </section>
+          </div>
 
-          {phase === "error" && <div className="error">⚠️ {progress.error}</div>}
-
-          <button className="cta" disabled={!canEdit} onClick={startEdit}>EDITAR VÍDEO</button>
-          {engineUp === false && (
-            <p className="hint center">El motor local no está encendido. Arráncalo con <code>engine/start_engine.bat</code>.</p>
-          )}
-        </>
-      ) : (
-        <section className="run">
-          <img className="run-logo" src={logo} alt="" />
-          <div className="bar"><div className="fill" style={{ width: `${progress.percent}%` }} /></div>
-          <h2>{progress.step}</h2>
-          {progress.detail && <p className="detail">{progress.detail}</p>}
-          {phase === "done" && (
-            <div className="done">
-              <h2>✅ Listo</h2>
-              <p className="result-path">{progress.result}</p>
-              <button className="cta" onClick={() => { setPhase("idle"); setProgress({ step: "", percent: 0 }); }}>
-                Editar otro vídeo
-              </button>
-            </div>
-          )}
+          <button className="cta" disabled={!canEdit} onClick={startEdit}>
+            <IconPlay size={15} className="icon" />{t("cta.edit")}
+          </button>
         </section>
       )}
 
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       {brandOpen && <Brand onClose={() => setBrandOpen(false)} />}
+      {guiaOpen && (
+        <Guia onClose={() => { localStorage.setItem("vidorq.guiaVista", "1"); setGuiaOpen(false); }} />
+      )}
     </main>
   );
 }

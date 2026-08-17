@@ -1,0 +1,274 @@
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+
+export type Lang = "es" | "en";
+const SUPPORTED: Lang[] = ["es", "en"];
+const KEY = "vidorq-lang";
+
+/** Guardado > idioma del sistema > espanol. Solo adivina en la primera visita. */
+export function detectLang(): Lang {
+  const saved = localStorage.getItem(KEY);
+  if (saved === "es" || saved === "en") return saved;
+  const list = navigator.languages?.length ? navigator.languages : [navigator.language];
+  for (const raw of list) {
+    const base = (raw || "").toLowerCase().split("-")[0] as Lang;
+    if (SUPPORTED.includes(base)) return base;
+  }
+  return "es";
+}
+
+const es = {
+  "nav.edit": "Editar",
+  "nav.brand": "Tu marca",
+  "nav.history": "Historial",
+  "nav.guide": "Empezar con Resolve",
+  "nav.settings": "Ajustes",
+  "ws.new": "Nuevo workspace...",
+  "ws.prompt": "Nombre del nuevo workspace (una marca o proyecto):",
+  "ver": "v0.1 · dentro de Resolve",
+
+  "head.title": "Editar un vídeo",
+  "head.sub": "Describe la edición. El resto es nuestro.",
+  "out.mp4": "MP4 directo",
+  "out.resolve": "Timeline en Resolve",
+
+  "alert.engineOff": "El motor local está apagado. Arráncalo con",
+  "alert.noEngine": "No se pudo hablar con el motor. ¿Está encendido?",
+
+  "drop.title": "Arrastra tu vídeo aquí",
+  "drop.sub": "o pega la ruta del archivo y pulsa Enter",
+  "drop.change": "cambiar",
+
+  "preset.clean": "Limpieza",
+  "preset.clean.desc": "Corta silencios, muletillas y momentos muertos",
+  "preset.podcast": "Podcast Q&A",
+  "preset.podcast.desc": "Corta y marca cada pregunta o cambio de tema",
+  "preset.montage": "Montage",
+  "preset.montage.desc": "Se queda los momentos de más energía",
+  "beta": "BETA",
+
+  "captions": "Captions animados",
+  "workspace": "Workspace:",
+  "pro": "Modo Pro",
+  "pro.placeholder": "Describe la edición con tus palabras: \"córtame este podcast y añade una tarjeta en cada cambio de tema...\" (requiere API key en Ajustes)",
+  "cta.edit": "EDITAR VÍDEO",
+
+  "history.title": "Historial",
+  "history.sub": "Aquí aparecerán tus ediciones anteriores. Todavía no guarda nada.",
+
+  "run.working": "Trabajando",
+  "run.done": "Listo",
+  "run.doneResolve": "Timeline editable en DaVinci Resolve",
+  "run.doneMp4": "Vídeo renderizado",
+  "run.again": "Editar otro vídeo",
+
+  "guide.title": "Empezar con Resolve",
+  "guide.sub": "Tres cosas y ya editas dentro de DaVinci. Esta pantalla comprueba sola si están hechas, así que no tienes que fiarte de nadie.",
+  "guide.check": "comprobar",
+  "guide.checking": "mirando",
+  "guide.s1.title": "El motor de Vidorq está encendido",
+  "guide.s1.ok": "Corriendo en 127.0.0.1:9877. No tienes que hacer nada.",
+  "guide.s1.pending": "Ábrelo con engine\\start_engine.bat. Si abriste Vidorq con su acceso directo del escritorio, se enciende solo.",
+  "guide.s2.title": "DaVinci Resolve abierto con un proyecto",
+  "guide.s2.pending": "Abre Resolve y entra en un proyecto (vale uno nuevo vacío). El puente necesita un proyecto abierto, no basta la pantalla de inicio.",
+  "guide.s2.project": "Proyecto",
+  "guide.s2.timeline": "timeline",
+  "guide.s3.title": "El puente arrancado dentro de Resolve",
+  "guide.s3.ok": "Escuchando en 127.0.0.1:9876.",
+  "guide.s3.pending": "Dentro de Resolve, menú Workspace > Scripts > VidorqBridge. Se queda corriendo hasta que cierres Resolve, así que hay que repetirlo cada vez que lo abras.",
+  "guide.allOk": "Todo listo. Elige Timeline en Resolve como salida y lo verás montarse en directo.",
+  "guide.waiting": "Falta algo de arriba. Se comprueba solo cada pocos segundos.",
+  "guide.close": "Entendido",
+
+  "brand.title": "Tu marca, tu estilo",
+  "brand.sub": "Vidorq usa este perfil para que cada edición sea tuya y de nadie más. Se guarda en el workspace activo.",
+  "brand.name": "¿Cómo se llama tu marca o canal?",
+  "brand.about": "¿Qué haces y para quién?",
+  "brand.about.ph": "Enseño herramientas de IA a emprendedores que empiezan...",
+  "brand.vibes": "¿Qué sensación debe dejar tu contenido?",
+  "brand.pace": "Ritmo de edición",
+  "brand.pace.slow": "documental: planos largos, pocos cortes",
+  "brand.pace.mid": "equilibrado: corta cuando sobra, respira cuando toca",
+  "brand.pace.fast": "hype: cortes secos y muy seguidos",
+  "brand.colors": "Colores de marca",
+  "brand.color1": "Principal",
+  "brand.color2": "Secundario",
+  "brand.caption": "Estilo de captions",
+  "brand.caption.hormozi": "Dos palabras en mayúsculas, muy gordas, con contorno. Retención alta.",
+  "brand.caption.minimal": "Frase completa, fina y discreta. Para contenido más serio.",
+  "brand.refs": "Tres vídeos que te encantaría haber hecho tú",
+  "brand.refs.sub": "Links de YouTube, TikTok o Reels. Son la referencia de tu gusto.",
+  "brand.ref": "referente",
+  "brand.anti": "Anti-referente",
+  "brand.anti.sub": "Un vídeo o estilo al que NO quieres parecerte.",
+  "brand.anti.ph": "link o descripción",
+  "brand.rules": "Reglas duras",
+  "brand.rules.sub": "Cosas que Vidorq no debe hacer jamás con tu contenido.",
+  "brand.rules.ph": "Nunca emojis en subtítulos. Nunca zoom en mi cara.",
+  "brand.save": "Guardar mi estilo",
+
+  "vibe.cercano": "cercano",
+  "vibe.premium": "premium",
+  "vibe.energico": "enérgico",
+  "vibe.calmado": "calmado",
+  "vibe.tecnico": "técnico",
+  "vibe.divertido": "divertido",
+
+  "set.title": "Ajustes",
+  "set.keys": "API keys",
+  "set.agents": "Vincular con tu IA",
+  "set.keys.sub": "Las keys se guardan solo en tu equipo. Sin keys los presets funcionan igual: gratis y en local.",
+  "set.anthropic.sub": "Para el Modo Pro, el que entiende tu prompt.",
+  "set.gemini.sub": "Para analizar vídeos de referencia.",
+  "set.agents.sub": "Vidorq también se usa desde el agente de IA que ya tienes: lee el skill y controla el mismo motor que esta app y el mismo DaVinci Resolve. Copia el comando del tuyo.",
+  "set.save": "Guardar keys",
+  "set.copy": "copiar",
+  "set.copied": "copiado",
+
+  "optional": "opcional",
+  "alternative": "alternativa",
+  "saved": "Guardado",
+  "cancel": "Cancelar",
+  "close": "Cerrar",
+  "lang": "Idioma",
+};
+
+const en: Record<keyof typeof es, string> = {
+  "nav.edit": "Edit",
+  "nav.brand": "Your brand",
+  "nav.history": "History",
+  "nav.guide": "Start with Resolve",
+  "nav.settings": "Settings",
+  "ws.new": "New workspace...",
+  "ws.prompt": "Name of the new workspace (a brand or project):",
+  "ver": "v0.1 · inside Resolve",
+
+  "head.title": "Edit a video",
+  "head.sub": "Describe the edit. We handle the rest.",
+  "out.mp4": "Direct MP4",
+  "out.resolve": "Timeline in Resolve",
+
+  "alert.engineOff": "The local engine is off. Start it with",
+  "alert.noEngine": "Could not reach the engine. Is it running?",
+
+  "drop.title": "Drop your video here",
+  "drop.sub": "or paste the file path and press Enter",
+  "drop.change": "change",
+
+  "preset.clean": "Cleanup",
+  "preset.clean.desc": "Cuts silences, filler words and dead moments",
+  "preset.podcast": "Podcast Q&A",
+  "preset.podcast.desc": "Cuts and marks every question or topic change",
+  "preset.montage": "Montage",
+  "preset.montage.desc": "Keeps only the high energy moments",
+  "beta": "BETA",
+
+  "captions": "Animated captions",
+  "workspace": "Workspace:",
+  "pro": "Pro mode",
+  "pro.placeholder": "Describe the edit in your own words: \"cut this podcast and add a card on every topic change...\" (needs an API key in Settings)",
+  "cta.edit": "EDIT VIDEO",
+
+  "history.title": "History",
+  "history.sub": "Your past edits will show up here. Nothing is stored yet.",
+
+  "run.working": "Working",
+  "run.done": "Done",
+  "run.doneResolve": "Editable timeline in DaVinci Resolve",
+  "run.doneMp4": "Video rendered",
+  "run.again": "Edit another video",
+
+  "guide.title": "Start with Resolve",
+  "guide.sub": "Three things and you are editing inside DaVinci. This screen checks them by itself, so you do not have to take anyone's word for it.",
+  "guide.check": "check",
+  "guide.checking": "checking",
+  "guide.s1.title": "The Vidorq engine is running",
+  "guide.s1.ok": "Running on 127.0.0.1:9877. Nothing to do.",
+  "guide.s1.pending": "Start it with engine\\start_engine.bat. If you opened Vidorq from its desktop shortcut, it starts on its own.",
+  "guide.s2.title": "DaVinci Resolve open with a project",
+  "guide.s2.pending": "Open Resolve and enter a project (an empty new one works). The bridge needs an open project, the start screen is not enough.",
+  "guide.s2.project": "Project",
+  "guide.s2.timeline": "timeline",
+  "guide.s3.title": "The bridge started inside Resolve",
+  "guide.s3.ok": "Listening on 127.0.0.1:9876.",
+  "guide.s3.pending": "Inside Resolve, menu Workspace > Scripts > VidorqBridge. It keeps running until you close Resolve, so you have to do it every time you open it.",
+  "guide.allOk": "All set. Pick Timeline in Resolve as the output and watch it build live.",
+  "guide.waiting": "Something above is missing. This checks itself every few seconds.",
+  "guide.close": "Got it",
+
+  "brand.title": "Your brand, your style",
+  "brand.sub": "Vidorq uses this profile so every edit is yours and nobody else's. It is saved in the active workspace.",
+  "brand.name": "What is your brand or channel called?",
+  "brand.about": "What do you do, and who for?",
+  "brand.about.ph": "I teach AI tools to founders who are just starting...",
+  "brand.vibes": "What feeling should your content leave?",
+  "brand.pace": "Editing pace",
+  "brand.pace.slow": "documentary: long shots, few cuts",
+  "brand.pace.mid": "balanced: cut what is spare, breathe when it fits",
+  "brand.pace.fast": "hype: hard cuts, one after another",
+  "brand.colors": "Brand colors",
+  "brand.color1": "Primary",
+  "brand.color2": "Secondary",
+  "brand.caption": "Caption style",
+  "brand.caption.hormozi": "Two words in caps, very bold, outlined. High retention.",
+  "brand.caption.minimal": "Full sentence, thin and discreet. For more serious content.",
+  "brand.refs": "Three videos you wish you had made",
+  "brand.refs.sub": "YouTube, TikTok or Reels links. They are the reference for your taste.",
+  "brand.ref": "reference",
+  "brand.anti": "Anti-reference",
+  "brand.anti.sub": "A video or style you do NOT want to look like.",
+  "brand.anti.ph": "link or description",
+  "brand.rules": "Hard rules",
+  "brand.rules.sub": "Things Vidorq must never do with your content.",
+  "brand.rules.ph": "Never emojis in subtitles. Never zoom on my face.",
+  "brand.save": "Save my style",
+
+  "vibe.cercano": "warm",
+  "vibe.premium": "premium",
+  "vibe.energico": "energetic",
+  "vibe.calmado": "calm",
+  "vibe.tecnico": "technical",
+  "vibe.divertido": "fun",
+
+  "set.title": "Settings",
+  "set.keys": "API keys",
+  "set.agents": "Connect your AI",
+  "set.keys.sub": "Keys are stored on your machine only. Without keys the presets still work: free and local.",
+  "set.anthropic.sub": "For Pro mode, the one that understands your prompt.",
+  "set.gemini.sub": "To analyse reference videos.",
+  "set.agents.sub": "Vidorq also works from the AI agent you already use: it reads the skill and drives the same engine as this app and the same DaVinci Resolve. Copy the command for yours.",
+  "set.save": "Save keys",
+  "set.copy": "copy",
+  "set.copied": "copied",
+
+  "optional": "optional",
+  "alternative": "alternative",
+  "saved": "Saved",
+  "cancel": "Cancel",
+  "close": "Close",
+  "lang": "Language",
+};
+
+export type Key = keyof typeof es;
+const DICT: Record<Lang, Record<Key, string>> = { es, en };
+
+interface Ctx { lang: Lang; setLang: (l: Lang) => void; t: (k: Key) => string }
+const LangContext = createContext<Ctx>({ lang: "es", setLang: () => {}, t: (k) => es[k] });
+
+export function LangProvider({ children }: { children: ReactNode }) {
+  const [lang, setLangState] = useState<Lang>(detectLang);
+
+  useEffect(() => { document.documentElement.lang = lang; }, [lang]);
+
+  const setLang = (l: Lang) => {
+    localStorage.setItem(KEY, l);   // eleccion explicita: manda para siempre
+    setLangState(l);
+  };
+
+  return (
+    <LangContext.Provider value={{ lang, setLang, t: (k) => DICT[lang][k] }}>
+      {children}
+    </LangContext.Provider>
+  );
+}
+
+export const useLang = () => useContext(LangContext);

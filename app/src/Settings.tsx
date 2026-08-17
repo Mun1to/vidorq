@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { apiPost } from "./api";
+import { useLang } from "./i18n";
+import { IconCheck, IconKey, IconPlug } from "./Icons";
 
 const AGENTS: { name: string; how: string }[] = [
   {
@@ -12,7 +14,7 @@ const AGENTS: { name: string; how: string }[] = [
   },
   {
     name: "Cursor",
-    how: "Añade la carpeta C:\\proyectos\\Vidorq al workspace y pide: \"lee skill/SKILL.md y edita mi video con vidorq\"",
+    how: 'Add C:\\proyectos\\Vidorq to the workspace, then ask: "read skill/SKILL.md and edit my video with vidorq"',
   },
   {
     name: "OpenCode",
@@ -20,11 +22,12 @@ const AGENTS: { name: string; how: string }[] = [
   },
   {
     name: "Antigravity",
-    how: "Abre C:\\proyectos\\Vidorq como proyecto y apunta al agente a skill/SKILL.md",
+    how: "Open C:\\proyectos\\Vidorq as a project and point the agent at skill/SKILL.md",
   },
 ];
 
 export default function Settings({ onClose }: { onClose: () => void }) {
+  const { t } = useLang();
   const [tab, setTab] = useState<"keys" | "agents">("keys");
   const [anthropic, setAnthropic] = useState("");
   const [gemini, setGemini] = useState("");
@@ -47,42 +50,66 @@ export default function Settings({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-        <h2>Ajustes</h2>
-        <div className="opt out inline">
-          <button className={tab === "keys" ? "sel" : ""} onClick={() => setTab("keys")}>🔑 API keys</button>
-          <button className={tab === "agents" ? "sel" : ""} onClick={() => setTab("agents")}>🤖 Vincular con tu IA</button>
+        <div className="modal-head">
+          <h2>{t("set.title")}</h2>
+          <div className="opt out inline">
+            <button className={tab === "keys" ? "sel" : ""} onClick={() => setTab("keys")}>
+              <IconKey size={14} className="icon" />{t("set.keys")}
+            </button>
+            <button className={tab === "agents" ? "sel" : ""} onClick={() => setTab("agents")}>
+              <IconPlug size={14} className="icon" />{t("set.agents")}
+            </button>
+          </div>
         </div>
 
-        {tab === "keys" ? (
-          <>
-            <p className="hint">Las keys se guardan solo en tu equipo. Sin keys, los presets funcionan igual: gratis y en local.</p>
-            <label>Anthropic (Claude) — Modo Pro con prompt</label>
-            <input type="password" value={anthropic} onChange={(e) => setAnthropic(e.target.value)} placeholder="sk-ant-..." />
-            <label>Google (Gemini) — análisis de vídeos de referencia</label>
-            <input type="password" value={gemini} onChange={(e) => setGemini(e.target.value)} placeholder="AIza..." />
-            <label>OpenAI — alternativa</label>
-            <input type="password" value={openai} onChange={(e) => setOpenai(e.target.value)} placeholder="sk-..." />
-            <button className="cta" onClick={save}>{saved ? "✅ Guardado" : "Guardar keys"}</button>
-          </>
-        ) : (
-          <>
-            <p className="hint">
-              Vidorq también se puede usar desde el agente de IA que ya tienes: tu agente lee el skill
-              y controla el mismo motor que esta app (puerto 9877) y DaVinci Resolve. Copia el comando de tu agente:
-            </p>
-            {AGENTS.map((a) => (
-              <div key={a.name} className="agent">
-                <div className="agent-head">
-                  <strong>{a.name}</strong>
-                  <button className="ghost small" onClick={() => copy(a.name, a.how)}>
-                    {copied === a.name ? "✅ copiado" : "copiar"}
-                  </button>
+        <div className="modal-body">
+          {tab === "keys" ? (
+            <>
+              <p className="hint">{t("set.keys.sub")}</p>
+              <section className="field">
+                <label>Anthropic (Claude)</label>
+                <small className="under">{t("set.anthropic.sub")}</small>
+                <input type="password" value={anthropic} onChange={(e) => setAnthropic(e.target.value)}
+                       placeholder="sk-ant-..." />
+              </section>
+              <section className="field">
+                <label>Google (Gemini)</label>
+                <small className="under">{t("set.gemini.sub")}</small>
+                <input type="password" value={gemini} onChange={(e) => setGemini(e.target.value)}
+                       placeholder="AIza..." />
+              </section>
+              <section className="field">
+                <label>OpenAI <span className="opt-tag">{t("alternative")}</span></label>
+                <input type="password" value={openai} onChange={(e) => setOpenai(e.target.value)}
+                       placeholder="sk-..." />
+              </section>
+            </>
+          ) : (
+            <>
+              <p className="hint">{t("set.agents.sub")}</p>
+              {AGENTS.map((a) => (
+                <div key={a.name} className="agent">
+                  <div className="agent-head">
+                    <strong>{a.name}</strong>
+                    <button className="ghost small" onClick={() => copy(a.name, a.how)}>
+                      {copied === a.name ? t("set.copied") : t("set.copy")}
+                    </button>
+                  </div>
+                  <code>{a.how}</code>
                 </div>
-                <code>{a.how}</code>
-              </div>
-            ))}
-          </>
-        )}
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="modal-foot">
+          <button className="ghost" onClick={onClose}>{t("close")}</button>
+          {tab === "keys" && (
+            <button className="cta" onClick={save}>
+              {saved ? <><IconCheck size={15} className="icon" />{t("saved")}</> : t("set.save")}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
