@@ -21,7 +21,8 @@ empaquetados en el mismo preset, lo que escondía la mitad de las opciones: hoy 
 | `to_ass(...)` | el ASS que quema ffmpeg/libass en el MP4 |
 | `to_comp(...)` | la composición Fusion que entra en el timeline de Resolve |
 
-Los 8 presets: `pop`, `punch`, `marker`, `bar`, `glass`, `minimal`, `neon`, `mono`.
+Los 10 estilos: `pop`, `punch`, `marker`, `bar`, `glass`, `minimal`, `neon`, `ember`,
+`halo`, `mono`. Los tres con halo de verdad son `neon`, `ember` y `halo`.
 La app los pide al motor en `GET /captions/presets?lang=es`, así que **añadir uno es
 añadir un diccionario**: la interfaz se entera sola.
 
@@ -80,7 +81,7 @@ ese timeline se **anida** en V2 de la edición real con
 `/media/insert` + `trackIndex: 2` + `recordFrame`, que es una colocación exacta y sin
 ripple. Comprobado que el alfa se respeta: el vídeo de V1 se ve debajo del texto.
 
-Regalo de hacerlo así: cada subtítulo sigue siendo un **Text+ que Munir puede abrir y
+Regalo de hacerlo así: cada subtítulo sigue siendo un **Text+ que puedes abrir y
 editar a mano**, y cambiar de estilo es regenerar el timeline de subtítulos.
 
 ## Los parámetros de Text+ que importan

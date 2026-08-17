@@ -38,15 +38,16 @@ un presupuesto de 120 tokens gasta todo el presupuesto razonando y devuelve `res
 **vacío**, con la descripción perfecta abandonada en el campo `thinking`. Pedirle a Ollama
 `think: false` **no lo desactiva**. Lo que lo arregla es darle **400 tokens**.
 
-**Otra trampa, esta de la máquina de Munir:** la interfaz de Ollama guarda la carpeta de
-modelos en su propio sqlite (`%LOCALAPPDATA%\Ollama\db.sqlite`, tabla `settings`, columna
-`models`) y **pisa la variable `OLLAMA_MODELS`**. La suya apunta a
-`C:\proyectos\Stashai\modelos` y los modelos están en `D:\Stashai\modelos`, así que Ollama
-dice que tiene **cero modelos** teniendo 44. Ya estaba avisado en el `AGENTS.md` de Stashai.
+**Segunda trampa, y esta te la vas a encontrar tú:** si tienes la **aplicación con interfaz**
+de Ollama instalada, guarda la carpeta de modelos en su propia base de datos
+(`%LOCALAPPDATA%\Ollama\db.sqlite`, tabla `settings`, columna `models`) y **pisa la variable
+de entorno `OLLAMA_MODELS`**. El síntoma es inconfundible: `ollama list` sale vacío y la API
+dice `{"models":[]}` aunque tengas los modelos en el disco. Pasó aquí con 44 modelos
+descargados.
 
-Vidorq **no toca esa configuración**: respeta `OLLAMA_HOST`, así que se le puede apuntar a
-otra instancia. Para arreglarlo de verdad hay que cambiar la carpeta de modelos en la app de
-Ollama, y eso lo decide Munir.
+Se arregla cambiando la carpeta **dentro de la app** de Ollama, no con la variable. Vidorq
+no toca esa configuración de nadie: respeta `OLLAMA_HOST`, así que también se le puede
+apuntar a otra instancia que sí vea los modelos.
 
 ## 2. Los cortes, ahora con ojo
 
