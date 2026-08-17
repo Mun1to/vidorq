@@ -244,6 +244,10 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
   width: min(420px, 90vw); display: flex; flex-direction: column;
   box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+  /* El tope va en el modal ENTERO, contando los 24px de aire de .modal-bg.
+     Ponerlo solo en el cuerpo dejaba el pie fuera de pantalla por debajo de
+     590px de alto, que es cualquier ventana pequena. */
+  max-height: min(calc(100vh - 48px), 760px);
 }
 .modal.wide { width: min(540px, 94vw); }
 .modal h2 { font-size: 17px; font-weight: 650; letter-spacing: -.3px; }
@@ -254,7 +258,10 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   display: flex; flex-direction: column; gap: 10px;
 }
 .modal-body {
-  padding: 16px 22px; overflow-y: auto; max-height: min(60vh, 460px);
+  padding: 16px 22px; overflow-y: auto;
+  /* min-height 0 es lo que deja encoger a un hijo flex por debajo de su
+     contenido; sin eso el cuerpo empuja y la barra de scroll no aparece nunca. */
+  flex: 1; min-height: 0;
   display: flex; flex-direction: column; gap: 16px;
 }
 .modal-foot {
@@ -313,7 +320,13 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   border-bottom: 1px solid var(--line-soft); }
 .guide-head > div { flex: 1; display: flex; flex-direction: column; gap: 6px; }
 .guide-head .ghost { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
-.steps { list-style: none; padding: 16px 22px; display: flex; flex-direction: column; gap: 4px; }
+/* La lista es la parte que rueda: la cabecera, el resumen y el boton se quedan
+   siempre a la vista, aunque la ventana sea baja. */
+.steps { list-style: none; padding: 16px 22px; display: flex; flex-direction: column; gap: 4px;
+  overflow-y: auto; flex: 1; min-height: 0; }
+.steps::-webkit-scrollbar { width: 10px; }
+.steps::-webkit-scrollbar-thumb { background: #232b3d; border-radius: 6px; border: 3px solid var(--panel); }
+.steps::-webkit-scrollbar-track { background: transparent; }
 .step { display: flex; gap: 13px; padding: 12px; border-radius: 10px; background: var(--panel2);
   border: 1px solid transparent; }
 .step.ok { border-color: #1e5236; background: #101c16; }
