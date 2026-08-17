@@ -48,6 +48,42 @@ _lock = threading.Lock()
 _progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": ""}
 _busy = False
 
+# El texto que ve el usuario sale de aqui: la interfaz manda su idioma en /edit y el
+# motor responde en ese idioma, para que no se mezclen los dos en la misma pantalla.
+_lang = "es"
+
+TEXT = {
+    "es": {
+        "busy": "Ya hay una edicion en marcha",
+        "no_video": "No encuentro el video: %s",
+        "preparing": "Preparando...",
+        "transcribing": "Transcribiendo (Whisper local)...",
+        "deciding": "Decidiendo los cortes...",
+        "decided": "Cortes decididos",
+        "rendering": "Renderizando (GPU)...",
+        "building": "Montando timeline en Resolve...",
+        "done": "Listo",
+        "timeline_made": "Timeline 'Vidorq_%s' creado en Resolve",
+    },
+    "en": {
+        "busy": "There is already an edit running",
+        "no_video": "Cannot find the video: %s",
+        "preparing": "Getting ready...",
+        "transcribing": "Transcribing (local Whisper)...",
+        "deciding": "Deciding the cuts...",
+        "decided": "Cuts decided",
+        "rendering": "Rendering (GPU)...",
+        "building": "Building the timeline in Resolve...",
+        "done": "Done",
+        "timeline_made": "Timeline 'Vidorq_%s' created in Resolve",
+    },
+}
+
+
+def tr(key, *args):
+    text = TEXT.get(_lang, TEXT["es"]).get(key, key)
+    return text % args if args else text
+
 QUESTION_RE = re.compile(
     r"^\s*(qu[eé]|c[oó]mo|cu[aá]l|qui[eé]n|por qu[eé]|d[oó]nde|cu[aá]ndo|cu[aá]nt)", re.I)
 PROGRESS_RE = re.compile(r"^PROGRESS (\d+) (\d+)")
@@ -217,6 +253,26 @@ def bridge_post(path, body):
         return json.loads(r.read().decode())
 
 
+def bridge_status():
+    """What the guided setup needs to know: is the bridge up, and is a project open?
+
+    The browser cannot ask the bridge directly (no CORS headers there), so the
+    engine asks on its behalf and reports it in one shape.
+    """
+    try:
+        with urllib.request.urlopen(BRIDGE + "/status", timeout=2) as r:
+            data = json.loads(r.read().decode())
+    except Exception:
+        return {"bridge": False, "project": None, "timeline": None}
+    project = data.get("project") or data.get("projectName")
+    if isinstance(project, dict):
+        project = project.get("name")
+    timeline = data.get("timeline") or data.get("timelineName")
+    if isinstance(timeline, dict):
+        timeline = timeline.get("name")
+    return {"bridge": True, "project": project, "timeline": timeline}
+
+
 def output_resolve(video, edl, fps):
     name = Path(video).stem[:40]
     # import media (idempotent) + timeline + inserts
@@ -238,7 +294,7 @@ def output_resolve(video, edl, fps):
             bridge_post("/clip/properties", {"trackType": "video", "trackIndex": 1,
                                              "clipIndex": i, "properties": {"ZoomX": z, "ZoomY": z}})
     bridge_post("/project/save", {})
-    return f"Timeline 'Vidorq_{name}' creado en Resolve"
+    return tr("timeline_made", name)
 
 
 # --------------------------------------------------------------------------- #
@@ -256,7 +312,7 @@ def run_render(cmd, out_file, timeout=7200):
             m = PROGRESS_RE.match(line)
             if m:
                 done, total = int(m.group(1)), max(1, int(m.group(2)))
-                set_progress("Renderizando (GPU)...",
+                set_progress(tr("rendering"),
                              min(98, 65 + int(33 * done / total)),
                              f"frame {done} de {total}")
             elif line.strip():
@@ -278,7 +334,7 @@ def run_job(req):
         prompt = (req.get("prompt") or "").strip()
 
         if not Path(video).is_file():
-            raise ValueError(f"No encuentro el video: {video}")
+            raise ValueError(tr("no_video", video))
 
         workdir = Path(video).parent / "edit" / Path(video).stem[:40]
         workdir.mkdir(parents=True, exist_ok=True)
@@ -286,7 +342,7 @@ def run_job(req):
 
         # 1) Transcribe (reuse cached transcript if present)
         if not tr_path.exists():
-            set_progress("Transcribiendo (Whisper local)...", 10,
+            set_progress(tr("transcribing"), 10,
                          "La primera vez descarga el modelo; puede tardar unos minutos")
             r = subprocess.run([PYTHON, str(HELPERS / "transcribe.py"), video, str(workdir)],
                                capture_output=True, text=True, timeout=3600)
@@ -295,7 +351,7 @@ def run_job(req):
         transcript = json.loads(tr_path.read_text(encoding="utf-8"))
 
         # 2) Build the EDL
-        set_progress("Decidiendo los cortes...", 50)
+        set_progress(tr("deciding"), 50)
         if prompt:
             key = load_config().get("anthropicKey", "")
             if not key:
@@ -317,12 +373,12 @@ def run_job(req):
         edl_path = workdir / "edl.json"
         edl_path.write_text(json.dumps({"segments": edl}, indent=1), encoding="utf-8")
         kept = sum(s["end"] - s["start"] for s in edl)
-        set_progress("Cortes decididos", 58,
+        set_progress(tr("decided"), 58,
                      f"{len(edl)} tramos, {kept:.0f}s conservados de {transcript['duration']:.0f}s")
 
         # 3) Execute on the chosen backend
         if output == "resolve":
-            set_progress("Montando timeline en Resolve...", 65,
+            set_progress(tr("building"), 65,
                          "Necesita Resolve abierto con CursorBridge activo")
             try:
                 result = output_resolve(video, edl, 30000 / 1001)
@@ -330,7 +386,7 @@ def run_job(req):
                 raise RuntimeError("No pude hablar con Resolve. Abre Resolve, un proyecto, "
                                    "y Workspace > Scripts > CursorBridge")
         else:
-            set_progress("Renderizando (GPU)...", 65, "Cortes + zooms" + (" + captions" if captions else ""))
+            set_progress(tr("rendering"), 65, "Cortes + zooms" + (" + captions" if captions else ""))
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
             cmd = [PYTHON, str(HELPERS / "vidorq_render.py"), video, str(edl_path),
                    str(tr_path), str(out_file)]
@@ -339,7 +395,7 @@ def run_job(req):
             run_render(cmd, out_file)
             result = str(out_file)
 
-        set_progress("Listo", 100, result=result)
+        set_progress(tr("done"), 100, result=result)
     except Exception as e:
         traceback.print_exc()
         set_progress("", 0, error=str(e))
@@ -377,6 +433,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send(ws_list())
         elif self.path == "/profile":
             self._send(profile_load())
+        elif self.path == "/resolve":
+            self._send(bridge_status())
         else:
             self._send({"error": "not found"}, 404)
 
@@ -406,10 +464,13 @@ class Handler(BaseHTTPRequestHandler):
             profile_save(body)
             self._send({"ok": True})
         elif self.path == "/edit":
+            global _lang
+            if body.get("lang") in TEXT:
+                _lang = body["lang"]
             if _busy:
-                return self._send({"error": "Ya hay una edicion en marcha"}, 409)
+                return self._send({"error": tr("busy")}, 409)
             _busy = True
-            set_progress("Preparando...", 3)
+            set_progress(tr("preparing"), 3)
             threading.Thread(target=run_job, args=(body,), daemon=True).start()
             self._send({"ok": True})
         else:
