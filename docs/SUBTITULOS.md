@@ -10,6 +10,11 @@ Un preset de caption es **dato**, no código: vive en `skill/helpers/captions.py
 salen las dos salidas de Vidorq, así que el estilo que se elige en la app es el mismo en
 las dos.
 
+**El look y el movimiento son dos elecciones separadas**, como en CapCut. Antes iban
+empaquetados en el mismo preset, lo que escondía la mitad de las opciones: hoy hay
+**10 estilos × 9 animaciones**. Cada estilo trae su animación por defecto (`animOf` en
+`/captions/presets`), y la app puede pedir otra con `captionAnim`.
+
 | función | para qué |
 | --- | --- |
 | `build_chunks(transcript, preset)` | trocea las palabras en subtítulos según el preset |
@@ -93,6 +98,32 @@ El elemento 1 se dibuja delante, así que el orden es relleno, contorno, sombra,
 `Softness<n>` está limitado a 0-1 (Resolve recorta un 2 a 1). `TrackingSpacing` es el
 espaciado entre letras, con 1.0 como normal.
 
+## Glow, desenfoque y animación: qué nodos aguantan dentro del comp
+
+Un comp de título no está limitado al Text+. Probado importando y mirando el fotograma:
+
+| nodo | estado | para qué |
+| --- | --- | --- |
+| `Merge` | funciona | apilar capas dentro del mismo subtítulo |
+| `Glow` (con `Red`/`Green`/`Blue`, `GlowSize`, `Gain`, `Threshold`, `Blend`) | funciona | el halo de verdad de `neon`, `ember` y `halo` |
+| `Blur` (con `XBlurSize` + `LockXY`) | funciona | la animación `focus`, que entra desenfocada |
+| `BezierSpline` sobre cualquier entrada **numérica** | funciona | todas las animaciones |
+| `Background` en modo degradado | **TIRA RESOLVE** | nada, ver abajo |
+| `Angle` de Text+ | acepta el valor y no gira nada | nada |
+
+El glow tiene un tope práctico: con `Gain` por encima de ~2,2 el halo se come las letras y
+el subtítulo deja de leerse. El primer intento (blanco, `Gain` 1,6, sin `Threshold`) salió
+así; con `Threshold` 0,15 y el halo **tintado** el texto se mantiene nítido.
+
+Todas las animaciones son splines sobre entradas **numéricas**, y eso no es pereza: un
+input de tipo punto (`Center`) necesita un tool de camino aparte, así que **no hay
+deslizamiento** de subtítulos. Lo que queda (`pop`, `bounce`, `zoom`, `rise`, `fade`,
+`throb`, `focus`, `ignite`) cubre las entradas que la gente usa de verdad.
+
+En el MP4 no hay nodo Glow, así que el halo se pinta con un contorno del color del glow y
+`\blur` de libass, y `focus` es un `\blur` animado a 0. Las mismas cifras de escala del
+catálogo se replican como `\t`, para que un look se mueva igual en las dos salidas.
+
 ## Lo que NO se puede hacer, dicho claro
 
 **Máquina de escribir: no.** Ni en Resolve ni en el MP4, y se intentó por dos caminos
@@ -105,6 +136,19 @@ distintos:
   transparente, así que tampoco revela la línea palabra a palabra.
 
 Por eso el preset dejó de llamarse `type` y se llama `mono`: promete lo que hace.
+
+**Relleno en degradado: no, y además es peligroso.** Es lo que la tienda se reserva para su
+versión de pago, y se intentó por dos caminos:
+
+1. `Type1 = 1` + `Gradient1` dentro del Text+. Resolve **conserva los dos nombres** al
+   exportar el comp y el texto sigue saliendo blanco: no hace nada.
+2. Un `Background` en modo degradado combinado con el alfa del texto (`Merge` con
+   `Operator = "In"`). **Esto tiró DaVinci Resolve**, con el informe de fallos y todo. El
+   log muestra un bucle de `Main view page is changed to 2` cada 500 ms hasta morir.
+   Lo bueno: guardó el proyecto 0,3 s antes de caer, así que no se perdió nada.
+
+**No reintentar.** Si algún día hace falta degradado, el camino es otro: un `.drfx` con la
+macro ya hecha e instalada en la biblioteca de efectos, no un comp generado.
 
 **Palabra resaltada dentro de una línea: solo en el MP4.** libass sabe barrer un `\kf` del
 color secundario al primario, así que ahí el karaoke es real (se ve la palabra a medio
@@ -136,19 +180,43 @@ ajusta sola al texto.
 
 ## De dónde salieron los estilos
 
-De mirar qué vende [rystal.shop](https://www.rystal.shop/) y quedarse con la idea, no con
-el archivo: TypeFlow (59 USD, animación de texto sin keyframes, se instala como efecto
-`.drfx` de la página Edit y funciona en Free), Background Engine (39), TypeFlow Paper (29),
-y presets sueltos de 6 a 10 USD: One-Click Pop, Liquid Glass, Frosted Glass, Dynamic Bar,
-Easy Highlighter, Title Scroll.
+De mirar ficha por ficha qué vende [rystal.shop](https://www.rystal.shop/) y quedarse con
+la idea, no con el archivo.
 
-Lo que enseña esa tienda es que **el mercado ya paga por esto y que en Free se puede**, y
-que su truco es el mismo que aquí: la animación va dentro de un macro de Fusion, no en
-llamadas a la API. La diferencia de Vidorq no es tener el look, es que **no hay que
-arrastrar nada**: el agente coloca los subtítulos ya sincronizados con la voz.
+| producto | precio | qué es |
+| --- | --- | --- |
+| TypeFlow | 59 USD | animación de texto sin keyframes, efecto `.drfx` de la página Edit, 48 estilos, **funciona en Free** |
+| Background Engine | 39 USD | 13 motores de fondo animado, 80+ presets |
+| TypeFlow Paper | 29 USD | texto recortado en papel |
+| One-Click Pop | 9,99 | **no es de captions**: es un look (glow, viñeta, grano, parpadeo, ondas) |
+| Liquid Glass | 9,99 | cristal con **refracción** del vídeo, sombras interior y exterior, y glow |
+| Frosted Glass | 6,99 | panel que **desenfoca el fondo**, más «edge shine» |
+| Dynamic Bar | 5,99 | barra con posición inicial y final, velocidad, retardo, espejo, invertir |
+| Easy Highlighter | 5,99 | rotulador con **textura**, curva de easing y glow |
+| Title Scroll | 5,99 | texto que se desplaza |
+
+Tres cosas que aprendí de ahí y que cambiaron el código:
+
+1. **El glow es un nodo, no un truco.** Su Liquid Glass expone «Glow: Opacity, Invert Glow,
+   Gain, Glow Size, Threshold, Glow Color», que es literalmente el nodo `Glow` de Fusion con
+   sus entradas publicadas. Eso me dijo dónde mirar, y de ahí salen `neon`, `ember` y `halo`.
+2. **Dónde está la raya de su versión de pago.** TypeFlow Lite regala slide y fade a nivel
+   palabra o línea; el de pago se queda **letra a letra, 48 estilos, zoom/blur/rotate,
+   degradados y contadores**. De esa lista, `focus` (blur) y `zoom` están ya aquí; letra a
+   letra y degradado no se pueden con un comp generado.
+3. **Sus efectos van sobre el CLIP, no sobre un título.** Por eso pueden refractar y
+   desenfocar lo que hay debajo, y Vidorq no: un comp de título no recibe el vídeo. Esa es
+   la condición de desbloqueo del cristal de verdad, y está en el aparcadero.
+
+Lo que enseña la tienda es que **el mercado ya paga por esto y que en Free se puede**, y que
+su truco es el mismo que aquí: la animación vive dentro de Fusion, no en llamadas a la API.
+La diferencia de Vidorq no es tener el look, es que **no hay que arrastrar nada**: el agente
+coloca los subtítulos ya sincronizados con la voz.
 
 Correspondencias: `pop` ← One-Click Pop, `bar` ← Dynamic Bar, `marker` ← Easy Highlighter,
-`glass` ← Frosted/Liquid Glass. `punch`, `neon`, `minimal` y `mono` son de casa.
+`glass` ← Frosted Glass, `neon`/`ember`/`halo` ← el glow de Liquid Glass, `focus` ← el blur
+que TypeFlow cobra. `punch`, `minimal` y `mono` son de casa, y las animaciones (`bounce`,
+`throb`, `zoom`) están calcadas del repertorio de CapCut, que es lo que la gente reconoce.
 
 ## Cómo se prueba
 
@@ -162,6 +230,20 @@ No hay atajo: se pinta y se mira.
 Última comprobación real: vídeo de 22 s, 32 subtítulos con `marker` en el timeline
 `Vidorq_prueba`, V1 con el vídeo (653 fotogramas) y V2 con `Vidorq_prueba_Subs` anidado
 (653 fotogramas). Acentos correctos (`INCÓMODO`, `VÍDEO MÍO`).
+
+## Estado de la verificación
+
+Lo que se ha visto renderizado, y lo que no. Compilar no cuenta.
+
+| qué | MP4 (libass) | Resolve (Fusion) |
+| --- | --- | --- |
+| `pop`, `punch`, `marker`, `bar`, `glass`, `minimal`, `mono` | visto | visto |
+| `neon`, `ember`, `halo` (glow) | **visto** | pendiente, el nodo `Glow` sí se vio funcionando en la prueba suelta |
+| `bounce`, `zoom`, `focus`, `throb` | **visto moviéndose** en dos fotogramas | pendiente |
+| `ignite` | visto | pendiente |
+
+Lo pendiente es porque Resolve se cayó con la prueba del degradado y el puente solo
+vuelve cuando alguien hace clic en `Workspace > Scripts > Vidorq`.
 
 ## Cabos sueltos
 
