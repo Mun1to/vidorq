@@ -39,10 +39,14 @@ un presupuesto de 120 tokens gasta todo el presupuesto razonando y devuelve `res
 `think: false` **no lo desactiva**. Lo que lo arregla es darle **400 tokens**.
 
 **Otra trampa, esta de la máquina de Munir:** la interfaz de Ollama guarda la carpeta de
-modelos en su propio sqlite (`%LOCALAPPDATA%\Ollama\db.sqlite`) y **pisa `OLLAMA_MODELS`.
-La suya apunta a `C:\proyectos\Stashai\modelos` y los modelos están en `D:\Stashai\modelos`,
-así que Ollama dice que tiene **cero modelos**. Vidorq no toca esa configuración: respeta
-`OLLAMA_HOST`, así que se le puede apuntar a otra instancia.
+modelos en su propio sqlite (`%LOCALAPPDATA%\Ollama\db.sqlite`, tabla `settings`, columna
+`models`) y **pisa la variable `OLLAMA_MODELS`**. La suya apunta a
+`C:\proyectos\Stashai\modelos` y los modelos están en `D:\Stashai\modelos`, así que Ollama
+dice que tiene **cero modelos** teniendo 44. Ya estaba avisado en el `AGENTS.md` de Stashai.
+
+Vidorq **no toca esa configuración**: respeta `OLLAMA_HOST`, así que se le puede apuntar a
+otra instancia. Para arreglarlo de verdad hay que cambiar la carpeta de modelos en la app de
+Ollama, y eso lo decide Munir.
 
 ## 2. Los cortes, ahora con ojo
 
