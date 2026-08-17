@@ -253,24 +253,34 @@ def bridge_post(path, body):
         return json.loads(r.read().decode())
 
 
+def bridge_get(path, timeout=2):
+    """One GET to the bridge, or None if it is down or has nothing to say."""
+    try:
+        with urllib.request.urlopen(BRIDGE + path, timeout=timeout) as r:
+            data = json.loads(r.read().decode())
+    except Exception:
+        return None
+    return None if isinstance(data, dict) and data.get("error") else data
+
+
 def bridge_status():
     """What the guided setup needs to know: is the bridge up, and is a project open?
 
     The browser cannot ask the bridge directly (no CORS headers there), so the
     engine asks on its behalf and reports it in one shape.
+
+    /status only says whether the bridge reached Resolve; the project and the
+    timeline live behind their own endpoints, so they need their own calls.
     """
-    try:
-        with urllib.request.urlopen(BRIDGE + "/status", timeout=2) as r:
-            data = json.loads(r.read().decode())
-    except Exception:
+    if bridge_get("/status") is None:
         return {"bridge": False, "project": None, "timeline": None}
-    project = data.get("project") or data.get("projectName")
-    if isinstance(project, dict):
-        project = project.get("name")
-    timeline = data.get("timeline") or data.get("timelineName")
-    if isinstance(timeline, dict):
-        timeline = timeline.get("name")
-    return {"bridge": True, "project": project, "timeline": timeline}
+    project = bridge_get("/project") or {}
+    timeline = bridge_get("/timeline") or {}
+    return {
+        "bridge": True,
+        "project": project.get("name"),
+        "timeline": timeline.get("name"),
+    }
 
 
 def output_resolve(video, edl, fps):
