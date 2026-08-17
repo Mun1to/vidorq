@@ -49,6 +49,7 @@ BRIDGE = "http://127.0.0.1:9876"
 # them, so the engine borrows them instead of keeping a second copy.
 sys.path.insert(0, str(HELPERS))
 import captions as cap  # noqa: E402
+import vision  # noqa: E402
 import resolve_captions  # noqa: E402
 
 _lock = threading.Lock()
@@ -65,6 +66,8 @@ TEXT = {
         "no_video": "No encuentro el video: %s",
         "preparing": "Preparando...",
         "transcribing": "Transcribiendo (Whisper local)...",
+        "watching": "Mirando el video (planos y movimiento)...",
+        "watched": "%d planos vistos%s",
         "deciding": "Decidiendo los cortes...",
         "decided": "Cortes decididos",
         "rendering": "Renderizando (GPU)...",
@@ -75,12 +78,15 @@ TEXT = {
         "captioning_n": "%d subtitulos, uno a uno",
         "captions_made": "con %d subtitulos editables",
         "cut_report": "%d cortes, %d muletillas fuera, %d tomas repetidas",
+        "snapped": ", %d cortes movidos a un momento quieto",
     },
     "en": {
         "busy": "There is already an edit running",
         "no_video": "Cannot find the video: %s",
         "preparing": "Getting ready...",
         "transcribing": "Transcribing (local Whisper)...",
+        "watching": "Watching the video (shots and movement)...",
+        "watched": "%d shots seen%s",
         "deciding": "Deciding the cuts...",
         "decided": "Cuts decided",
         "rendering": "Rendering (GPU)...",
@@ -91,6 +97,7 @@ TEXT = {
         "captioning_n": "%d captions, one by one",
         "captions_made": "with %d editable captions",
         "cut_report": "%d cuts, %d filler words out, %d repeated takes",
+        "snapped": ", %d cuts moved onto a still moment",
     },
 }
 
@@ -216,12 +223,46 @@ def _speech_words(segs, lang):
     return words, removed
 
 
-def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=True):
+def snap_to_picture(edl, track, window=0.30):
+    """Nudge each cut onto the calmest instant near it.
+
+    The audio decides WHERE to cut; the picture decides exactly WHEN. A cut that
+    lands while the camera whips or a hand crosses frame reads as a mistake even
+    with perfect audio, so each boundary slides up to `window` seconds onto the
+    stillest moment nearby. Nothing moves far enough to swallow a word: the
+    window is smaller than the padding around the speech.
+    """
+    if not track or not edl:
+        return edl, 0
+    moved = 0
+    for i, seg in enumerate(edl):
+        for key in ("start", "end"):
+            t = float(seg[key])
+            here = vision.motion_at(track, t)
+            best = vision.quiet_moment(track, t, window)
+            there = vision.motion_at(track, best)
+            # Only move when there is a reason to. On footage that is uniformly
+            # calm the calmest instant is a coin toss, and shifting every cut a
+            # third of a second for nothing is worse than leaving them alone.
+            if here < max(there * 1.8, there + 2.0):
+                continue
+            # Never cross into a neighbour, and never invert the segment.
+            low = edl[i - 1]["end"] if key == "start" and i else 0.0
+            high = edl[i + 1]["start"] if key == "end" and i + 1 < len(edl) else best + 1
+            if low <= best <= high and abs(best - t) > 0.02 and seg["end"] - seg["start"] > 0.5:
+                seg[key] = round(best, 3)
+                moved += 1
+    return edl, moved
+
+
+def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=True,
+                    track=None):
     """Keep the speech, drop the dead air, the fillers and the retries.
 
     Built from word timings rather than whole phrases, which is what makes it
     possible to cut an 'eh' out of a pause without touching the words around it.
-    Returns (edl, report) where report is what the app tells the user it did.
+    With a motion `track` from the vision pass the cuts also avoid landing in the
+    middle of a camera move. Returns (edl, report).
     """
     segs = transcript.get("segments", [])
     if not segs:
@@ -260,7 +301,9 @@ def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=Tru
     for seg in merged:
         seg["zoom"] = 1.0
         seg["note"] = ""
-    return merged, {"takes": dropped, "fillers": fillers, "cuts": len(merged)}
+    merged, moved = snap_to_picture(merged, track)
+    return merged, {"takes": dropped, "fillers": fillers, "cuts": len(merged),
+                    "snapped": moved}
 
 
 def mark_questions(transcript, edl):
@@ -535,7 +578,25 @@ def run_job(req):
                 raise RuntimeError("Fallo transcribiendo: " + (r.stderr or r.stdout)[-400:])
         transcript = json.loads(tr_path.read_text(encoding="utf-8"))
 
-        # 2) Build the EDL
+        # 2) Look at the picture. Optional because it costs minutes on a long
+        #    video, and the cuts still work without it - just deafer.
+        look = {}
+        if req.get("vision"):
+            set_progress(tr("watching"), 35, "Los planos son aritmetica; describirlos "
+                                             "usa un modelo local")
+            try:
+                look = vision.analyse(video, workdir,
+                                      model=req.get("visionModel") or None,
+                                      describe_shots=bool(req.get("visionDescribe", True)),
+                                      log=lambda m: set_progress(tr("watching"), 40, m))
+                set_progress(tr("watched", len(look.get("shots", [])),
+                                " con %s" % look["model"] if look.get("model") else ""), 48)
+            except Exception as e:
+                # A missing model must not lose an edit that is already transcribed.
+                traceback.print_exc()
+                set_progress(tr("watching"), 48, "sin vista: %s" % str(e)[:120])
+
+        # 3) Build the EDL
         set_progress(tr("deciding"), 50)
         report = {}
         if prompt:
@@ -543,6 +604,10 @@ def run_job(req):
             if not key:
                 raise ValueError("El Modo Pro necesita tu API key de Anthropic (Ajustes)")
             packed = (workdir / "takes_packed.md").read_text(encoding="utf-8")
+            if look.get("shots"):
+                # The model reads the video instead of watching it: the visual
+                # track goes in next to the words, in the same shape.
+                packed += "\n\nLO QUE SE VE (plano por plano):\n" + vision.packed(look)
             brand = profile_load()
             if brand:
                 prompt += "\n\nPERFIL DE MARCA DEL USUARIO (respetalo): " + json.dumps(
@@ -551,7 +616,8 @@ def run_job(req):
         elif preset == "montage":
             edl = edl_montage(video, transcript)
         else:
-            edl, report = edl_from_speech(transcript, transcript.get("language", _lang))
+            edl, report = edl_from_speech(transcript, transcript.get("language", _lang),
+                                          track=look.get("track"))
             if preset == "podcast":
                 edl = mark_questions(transcript, edl)
         if not edl:
@@ -563,9 +629,11 @@ def run_job(req):
         if report.get("fillers") or report.get("takes"):
             detail += " (" + tr("cut_report", len(edl), report.get("fillers", 0),
                                 report.get("takes", 0)) + ")"
+        if report.get("snapped"):
+            detail += tr("snapped", report["snapped"])
         set_progress(tr("decided"), 58, detail)
 
-        # 3) Execute on the chosen backend
+        # 4) Execute on the chosen backend
         if output == "resolve":
             set_progress(tr("building"), 65,
                          "Necesita Resolve abierto con CursorBridge activo")

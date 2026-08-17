@@ -48,6 +48,14 @@ VISION_MODELS = ("qwen3-vl:8b", "qwen3.5:9b", "granite3.2-vision:2b",
 SAMPLE_FPS = 6.0
 # Frames are compared this small. Enough to see a cut, cheap enough to be free.
 THUMB_W, THUMB_H = 64, 36
+# Side of the per-frame fingerprint grid used to tell shots apart.
+SIG = 4
+# Two shots whose fingerprints are closer than this are the same thing seen
+# twice, so only one of them is worth asking the model about.
+SAME_SHOT = 9.0
+# Looser than SAME_SHOT: two shots can be worth keeping apart on the timeline
+# and still not be worth two questions to the model.
+ASK_AGAIN = 16.0
 # A shot has to last this long to be worth calling a shot.
 MIN_SHOT_S = 0.45
 # How many frames get sent to the model, whatever the video's length.
@@ -84,8 +92,12 @@ def shots(video, sample_fps=SAMPLE_FPS, log=None):
                                format="gray").to_ndarray().astype("float32")
         t = float(frame.pts * stream.time_base) if frame.pts is not None else i / fps
         diff = 0.0 if prev is None else float(np.abs(small - prev).mean())
+        # An 8x8 fingerprint of the frame, which is what tells two shots of the
+        # same thing apart from two shots of different things later on.
+        sig = small.reshape(SIG, THUMB_H // SIG, SIG, THUMB_W // SIG).mean(axis=(1, 3))
         track.append({"t": round(t, 3), "diff": round(diff, 3),
-                      "brightness": round(float(small.mean()) / 255.0, 3)})
+                      "brightness": round(float(small.mean()) / 255.0, 3),
+                      "sig": [round(v, 1) for v in sig.flatten().tolist()]})
         prev = small
     container.close()
     if not track:
@@ -117,10 +129,48 @@ def shots(video, sample_fps=SAMPLE_FPS, log=None):
             continue
         motion = sum(p["diff"] for p in inside[1:]) / max(1, len(inside) - 1)
         bright = sum(p["brightness"] for p in inside) / len(inside)
+        sig = np.median(np.array([p["sig"] for p in inside], dtype="float32"), axis=0)
         out.append({"start": round(a, 3), "end": round(b, 3),
                     "motion": round(motion, 3), "brightness": round(bright, 3),
-                    "still": motion < 1.2})
-    return out, track
+                    "still": motion < 1.2,
+                    "sig": [round(float(v), 1) for v in sig.tolist()]})
+    out = _merge_same(out, track, log=log)
+    slim = [{k: v for k, v in p.items() if k != "sig"} for p in track]
+    return out, slim
+
+
+def _merge_same(shots_, track, log=None):
+    """Fold together neighbouring shots that show the same thing.
+
+    Handheld footage gets chopped into many boundaries by camera moves alone,
+    and describing six near-identical shots costs six model calls to learn one
+    fact. Comparing fingerprints instead of boundaries collapses them.
+    """
+    if len(shots_) < 2:
+        return shots_
+    import numpy as np
+
+    out, before = [], len(shots_)
+    for shot in shots_:
+        if out and _close(out[-1], shot, SAME_SHOT):
+            prev = out[-1]
+            prev["end"] = shot["end"]
+            prev["motion"] = round((prev["motion"] + shot["motion"]) / 2, 3)
+            prev["still"] = prev["motion"] < 1.2
+            continue
+        out.append(shot)
+    if log and before != len(out):
+        log("%d planos -> %d tras juntar los que son lo mismo" % (before, len(out)))
+    return out
+
+
+def _close(a, b, limit):
+    """Do these two shots look like the same thing?"""
+    import numpy as np
+    sa, sb = a.get("sig"), b.get("sig")
+    if not sa or not sb:
+        return False
+    return float(np.abs(np.array(sa) - np.array(sb)).mean()) < limit
 
 
 def motion_at(track, t):
@@ -293,9 +343,21 @@ def analyse(video, out_dir, model=None, describe_shots=True, log=None):
             if log:
                 log("sin modelo de vision, me quedo con el analisis de movimiento")
         else:
-            # One frame per shot, from its middle, capped so a long video does
-            # not turn into an afternoon.
-            mids = [round((s["start"] + s["end"]) / 2, 2) for s in shot_list]
+            # One frame per shot, from its middle - but only for shots that do
+            # not already look like one already asked about. On handheld footage
+            # a swinging camera invents boundaries, and paying a model ten
+            # seconds to be told "a selfie in a park" for the sixth time is the
+            # waste worth designing out. Capped as well, so a long video never
+            # turns into an afternoon.
+            asked = []
+            mids = []
+            for shot in shot_list:
+                if any(_close(shot, seen, ASK_AGAIN) for seen in asked):
+                    continue
+                asked.append(shot)
+                mids.append(round((shot["start"] + shot["end"]) / 2, 2))
+            if log and len(mids) < len(shot_list):
+                log("%d planos, %d distintos que preguntar" % (len(shot_list), len(mids)))
             if len(mids) > MAX_DESCRIBED:
                 keep = len(mids) / MAX_DESCRIBED
                 mids = [mids[int(i * keep)] for i in range(MAX_DESCRIBED)]
