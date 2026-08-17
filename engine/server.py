@@ -50,6 +50,7 @@ BRIDGE = "http://127.0.0.1:9876"
 sys.path.insert(0, str(HELPERS))
 import captions as cap  # noqa: E402
 import vision  # noqa: E402
+import translate as tl  # noqa: E402
 import resolve_captions  # noqa: E402
 
 _lock = threading.Lock()
@@ -79,6 +80,8 @@ TEXT = {
         "captions_made": "con %d subtitulos editables",
         "cut_report": "%d cortes, %d muletillas fuera, %d tomas repetidas",
         "snapped": ", %d cortes movidos a un momento quieto",
+        "translating": "Traduciendo los subtitulos a %s...",
+        "srt_made": "Subtitulos guardados en %s",
     },
     "en": {
         "busy": "There is already an edit running",
@@ -98,6 +101,8 @@ TEXT = {
         "captions_made": "with %d editable captions",
         "cut_report": "%d cuts, %d filler words out, %d repeated takes",
         "snapped": ", %d cuts moved onto a still moment",
+        "translating": "Translating the captions into %s...",
+        "srt_made": "Captions saved to %s",
     },
 }
 
@@ -448,7 +453,7 @@ def video_shape(path):
 
 
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
-                   workdir=None, anim=""):
+                   workdir=None, anim="", chunks=None):
     name = Path(video).stem[:40]
     fps, width, height = video_shape(video)
     timeline = f"Vidorq_{name}"
@@ -475,7 +480,7 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     if captions:
         # Caption times have to follow the CUT video, not the original, so the
         # transcript is folded onto the edit before the chunks are built.
-        chunks = cap.build_chunks(retime_transcript(transcript, edl), preset)
+        chunks = chunks or cap.build_chunks(retime_transcript(transcript, edl), preset)
         if chunks:
             set_progress(tr("captioning"), 85, tr("captioning_n", len(chunks)))
             out = resolve_captions.build(bridge_post, bridge_get, timeline, chunks,
@@ -633,7 +638,42 @@ def run_job(req):
             detail += tr("snapped", report["snapped"])
         set_progress(tr("decided"), 58, detail)
 
-        # 4) Execute on the chosen backend
+        # 4) Subtitle files. The edited-time transcript is the one that matches
+        #    the cut video, so this is also what a translation must start from.
+        srt_paths = []
+        translated_chunks = None
+        if captions:
+            edited = retime_transcript(transcript, edl)
+            base_chunks = cap.build_chunks(edited, caption_preset)
+            if base_chunks:
+                src_lang = transcript.get("language") or _lang
+                p_src = workdir / ("subtitulos_%s.srt" % src_lang)
+                p_src.write_text(tl.to_srt(base_chunks), encoding="utf-8")
+                srt_paths.append(str(p_src))
+                target = (req.get("translate") or "").strip().lower()
+                if target and target != src_lang:
+                    set_progress(tr("translating", tl.LANGS.get(target, target)), 60)
+                    try:
+                        # Sentences get translated, then re-chunked to the same
+                        # preset. Translating the chunks themselves would hand
+                        # the model two words with no sentence around them.
+                        edited_tr = tl.translate_transcript(
+                            edited, target, req.get("translateModel") or None,
+                            log=lambda m: set_progress(
+                                tr("translating", tl.LANGS.get(target, target)), 62, m))
+                        done = cap.build_chunks(edited_tr, caption_preset)
+                        p_dst = workdir / ("subtitulos_%s.srt" % target)
+                        p_dst.write_text(tl.to_srt(done), encoding="utf-8")
+                        srt_paths.append(str(p_dst))
+                        if req.get("translateCaptions"):
+                            # The captions on screen become the translation.
+                            translated_chunks = done
+                    except Exception as e:
+                        traceback.print_exc()
+                        set_progress(tr("translating", target), 62,
+                                     "sin traducir: %s" % str(e)[:120])
+
+        # 5) Execute on the chosen backend
         if output == "resolve":
             set_progress(tr("building"), 65,
                          "Necesita Resolve abierto con CursorBridge activo")
@@ -641,7 +681,7 @@ def run_job(req):
                 raise RuntimeError("No pude hablar con Resolve. Abre Resolve, un proyecto, "
                                    "y Workspace > Scripts > Vidorq")
             result = output_resolve(video, edl, transcript, captions, caption_preset,
-                                    workdir, caption_anim)
+                                    workdir, caption_anim, translated_chunks)
         else:
             set_progress(tr("rendering"), 65, "Cortes + zooms" + (" + captions" if captions else ""))
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
@@ -649,11 +689,18 @@ def run_job(req):
                    str(tr_path), str(out_file), "--preset", caption_preset]
             if caption_anim:
                 cmd += ["--anim", caption_anim]
+            if translated_chunks:
+                ch_path = workdir / "chunks_traducidos.json"
+                ch_path.write_text(json.dumps(translated_chunks, ensure_ascii=False),
+                                   encoding="utf-8")
+                cmd += ["--chunks", str(ch_path)]
             if not captions:
                 cmd.append("--no-captions")
             run_render(cmd, out_file)
             result = str(out_file)
 
+        if srt_paths:
+            result += "  |  " + tr("srt_made", ", ".join(Path(p).name for p in srt_paths))
         set_progress(tr("done"), 100, result=result)
     except Exception as e:
         traceback.print_exc()

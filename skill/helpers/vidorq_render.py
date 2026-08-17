@@ -18,7 +18,7 @@ then a lossless concat. Progress is reported on stdout as
 Usage:
     python vidorq_render.py <source> <edl.json> <transcript.json> <out.mp4>
                             [--no-captions] [--no-zoom] [--preset <name>]
-                            [--anim <name>]
+                            [--anim <name>] [--chunks <ready.json>]
 """
 from __future__ import annotations
 
@@ -210,9 +210,15 @@ def main():
     anim = None
     if "--anim" in sys.argv:
         anim = sys.argv[sys.argv.index("--anim") + 1]
+    # Ready-made chunks win over the transcript: this is how a translation gets
+    # burned in, since translated words have no per-word timings to rebuild from.
+    given_chunks = None
+    if "--chunks" in sys.argv:
+        given_chunks = json.loads(
+            Path(sys.argv[sys.argv.index("--chunks") + 1]).read_text(encoding="utf-8"))
     edl = json.loads(Path(edl_path).read_text(encoding="utf-8"))["segments"]
     transcript = json.loads(Path(tr_path).read_text(encoding="utf-8"))
-    chunks = cap.build_chunks(transcript, preset) if do_caps else []
+    chunks = (given_chunks or cap.build_chunks(transcript, preset)) if do_caps else []
 
     ffmpeg = find_ffmpeg()
     out = Path(out)
