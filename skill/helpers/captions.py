@@ -47,7 +47,10 @@ import unicodedata
 # outline     : (r, g, b, thickness) or None
 # shadow      : (r, g, b, alpha, dx, dy) or None
 # y           : 0-1 from the bottom of the frame
-# anim        : "pop" | "rise" | "fade" | None
+# anim        : the entrance this look ships with, an id from ANIMS below. The
+#               app can override it, because a look and a movement are two
+#               choices and bundling them was hiding half the options.
+# glow        : (r, g, b, size, gain) halo behind the text, or None
 # panel       : (r, g, b, alpha, padding) plate behind the line, or None
 # word_fx     : None | "karaoke" (the MP4 paints the word being said)
 # accent      : colour the word_fx paints with
@@ -62,7 +65,7 @@ PRESETS = {
         "font": "Arial", "style": "Black", "size": 0.115,
         "fill": (1.0, 1.0, 1.0), "outline": (0, 0, 0, 0.22),
         "shadow": (0, 0, 0, 0.7, 0.004, -0.006),
-        "y": 0.20, "anim": "pop", "panel": None,
+        "y": 0.20, "anim": "pop", "glow": None, "panel": None,
         "word_fx": None, "accent": (1.0, 0.84, 0.0), "tracking": 0.0,
     },
     "punch": {
@@ -73,7 +76,7 @@ PRESETS = {
         "font": "Arial", "style": "Black", "size": 0.145,
         "fill": (1.0, 0.84, 0.0), "outline": (0, 0, 0, 0.26),
         "shadow": (0, 0, 0, 0.75, 0.005, -0.007),
-        "y": 0.22, "anim": "pop", "panel": None,
+        "y": 0.22, "anim": "pop", "glow": None, "panel": None,
         "word_fx": None, "accent": (1.0, 1.0, 1.0), "tracking": 0.02,
     },
     "marker": {
@@ -86,6 +89,7 @@ PRESETS = {
         "font": "Arial", "style": "Black", "size": 0.088,
         "fill": (1.0, 1.0, 1.0), "outline": None, "shadow": None,
         "y": 0.19, "anim": "pop",
+        "glow": None,
         "panel": (0.13, 0.80, 0.45, 1.0, 0.55),
         "word_fx": "karaoke", "accent": (1.0, 0.95, 0.30), "tracking": 0.0,
     },
@@ -97,6 +101,7 @@ PRESETS = {
         "font": "Arial", "style": "Bold", "size": 0.062,
         "fill": (1.0, 1.0, 1.0), "outline": None, "shadow": None,
         "y": 0.16, "anim": "rise",
+        "glow": None,
         "panel": (0.86, 0.16, 0.10, 1.0, 0.55),
         "word_fx": None, "accent": (1.0, 1.0, 1.0), "tracking": 0.01,
     },
@@ -109,6 +114,7 @@ PRESETS = {
         "fill": (1.0, 1.0, 1.0), "outline": None,
         "shadow": (0, 0, 0, 0.45, 0.002, -0.003),
         "y": 0.15, "anim": "rise",
+        "glow": None,
         "panel": (0.02, 0.02, 0.04, 0.60, 0.62),
         "word_fx": None, "accent": (0.45, 0.78, 1.0), "tracking": 0.0,
     },
@@ -120,19 +126,56 @@ PRESETS = {
         "font": "Arial", "style": "Regular", "size": 0.048,
         "fill": (1.0, 1.0, 1.0), "outline": None,
         "shadow": (0, 0, 0, 0.8, 0.002, -0.003),
-        "y": 0.12, "anim": "fade", "panel": None,
+        "y": 0.12, "anim": "fade", "glow": None, "panel": None,
         "word_fx": None, "accent": (1.0, 1.0, 1.0), "tracking": 0.0,
     },
+    # Real halo, not a fat coloured outline pretending to be one: a Fusion Glow
+    # node sits behind the text and gets tinted. Measured working in Free.
     "neon": {
         "label": {"es": "Neon", "en": "Neon"},
-        "note": {"es": "Contorno de color encendido sobre texto blanco. Llama la atencion.",
-                 "en": "Lit colour outline around white text. Loud on purpose."},
+        "note": {"es": "Halo de verdad alrededor del texto, con el nodo Glow de Fusion. "
+                       "Cian encendido sobre blanco.",
+                 "en": "A real halo around the text, from Fusion's Glow node. Lit cyan "
+                       "on white."},
         "words": 2, "max_chars": 20, "upper": True,
-        "font": "Arial", "style": "Black", "size": 0.105,
-        "fill": (1.0, 1.0, 1.0), "outline": (0.65, 0.15, 1.0, 0.20),
-        "shadow": (0.4, 0.0, 0.9, 0.85, 0.0, 0.0),
-        "y": 0.21, "anim": "pop", "panel": None,
+        "font": "Arial", "style": "Black", "size": 0.108,
+        "fill": (1.0, 1.0, 1.0), "outline": (0, 0.35, 0.45, 0.10),
+        "shadow": None,
+        "y": 0.21, "anim": "ignite",
+        "glow": (0.30, 0.90, 1.0, 20.0, 2.1),
+        "panel": None,
         "word_fx": None, "accent": (0.2, 1.0, 0.9), "tracking": 0.01,
+    },
+    "ember": {
+        "label": {"es": "Brasa", "en": "Ember"},
+        "note": {"es": "Halo naranja calido, como una luz detras del texto. Menos grito "
+                       "que el neon.",
+                 "en": "Warm orange halo, like a light behind the text. Less shouty than "
+                       "neon."},
+        "words": 2, "max_chars": 22, "upper": True,
+        "font": "Arial", "style": "Black", "size": 0.112,
+        "fill": (1.0, 0.98, 0.94), "outline": (0.25, 0.08, 0.0, 0.12),
+        "shadow": None,
+        "y": 0.20, "anim": "pop",
+        "glow": (1.0, 0.42, 0.08, 16.0, 1.5),
+        "panel": None,
+        "word_fx": None, "accent": (1.0, 0.8, 0.3), "tracking": 0.0,
+    },
+    "halo": {
+        "label": {"es": "Halo", "en": "Halo"},
+        "note": {"es": "Frase entera con un resplandor calido detras. Elegante, y entra "
+                       "enfocandose.",
+                 "en": "Full line with a warm bloom behind it. Elegant, and it focuses in."},
+        "words": 0, "max_chars": 36, "upper": False,
+        "font": "Arial", "style": "Bold", "size": 0.056,
+        "fill": (1.0, 1.0, 1.0), "outline": None,
+        # A white bloom around white text eats the letters, so this one leans on
+        # a warm tint and a heavier shadow to stay readable at line length.
+        "shadow": (0, 0, 0, 0.85, 0.003, -0.004),
+        "y": 0.13, "anim": "focus",
+        "glow": (1.0, 0.86, 0.52, 6.0, 1.2),
+        "panel": None,
+        "word_fx": None, "accent": (1.0, 1.0, 1.0), "tracking": 0.005,
     },
     # No typewriter here, and not for lack of trying: Text+ ignores its own
     # WriteOnStart/WriteOnEnd when a comp is imported, and libass renders a \k
@@ -148,12 +191,106 @@ PRESETS = {
         "words": 0, "max_chars": 40, "upper": False,
         "font": "Courier New", "style": "Bold", "size": 0.050,
         "fill": (1.0, 1.0, 1.0), "outline": (0, 0, 0, 0.14), "shadow": None,
-        "y": 0.14, "anim": "fade", "panel": None,
+        "y": 0.14, "anim": "fade", "glow": None, "panel": None,
         "word_fx": None, "accent": (1.0, 0.84, 0.0), "tracking": 0.0,
     },
 }
 
 DEFAULT_PRESET = "pop"
+
+# --------------------------------------------------------------------------- #
+# Animations
+# --------------------------------------------------------------------------- #
+# A look and a movement are two separate choices, the way CapCut splits style
+# from animation, so any preset can be asked for with any of these.
+#
+# scale : keyframes as (fraction_of_the_entrance, multiplier_of_the_size).
+#         Everything here is a spline on a NUMBER input, which is the only kind
+#         of animation both renderers can actually deliver: a point input needs
+#         a path tool and Text+ ignores its own WriteOn, so no slide and no
+#         typing. What is left still covers the entrances people use.
+# fade  : True to bring every shading element up from transparent.
+# blur  : starting blur in pixels, focused to 0 (Fusion Blur node / libass \blur).
+# glow  : starting glow size multiplier, for looks that carry a halo.
+ANIMS = {
+    "pop": {
+        "label": {"es": "Pop", "en": "Pop"},
+        "note": {"es": "Entra pequena, se pasa un poco y se asienta.",
+                 "en": "Comes in small, overshoots a little, settles."},
+        "scale": [(0.0, 0.62), (1.0, 1.06), (1.45, 1.0)],
+        "fade": False, "blur": 0.0, "glow": 0.0,
+    },
+    "bounce": {
+        "label": {"es": "Rebote", "en": "Bounce"},
+        "note": {"es": "Muelle de tres tiempos, la de CapCut. La mas energica.",
+                 "en": "Three-beat spring, the CapCut one. The most energetic."},
+        "scale": [(0.0, 0.35), (0.75, 1.14), (1.25, 0.93), (1.7, 1.0)],
+        "fade": False, "blur": 0.0, "glow": 0.0,
+    },
+    "zoom": {
+        "label": {"es": "Zoom", "en": "Zoom"},
+        "note": {"es": "Entra grande y se cierra hasta su tamano. Cinematografica.",
+                 "en": "Starts big and closes down to size. Cinematic."},
+        "scale": [(0.0, 1.38), (1.3, 1.0)],
+        "fade": True, "blur": 0.0, "glow": 0.0,
+    },
+    "rise": {
+        "label": {"es": "Subida", "en": "Rise"},
+        "note": {"es": "Crece un poco mientras aparece. Discreta.",
+                 "en": "Grows slightly as it appears. Discreet."},
+        "scale": [(0.0, 0.93), (1.3, 1.0)],
+        "fade": True, "blur": 0.0, "glow": 0.0,
+    },
+    "fade": {
+        "label": {"es": "Fundido", "en": "Fade"},
+        "note": {"es": "Solo aparece, sin moverse. La mas sobria.",
+                 "en": "It just appears, no movement. The soberest."},
+        "scale": [], "fade": True, "blur": 0.0, "glow": 0.0,
+    },
+    "throb": {
+        "label": {"es": "Latido", "en": "Throb"},
+        "note": {"es": "Da un golpe de tamano en cada palabra, como un enfasis.",
+                 "en": "Punches its size on every word, like an emphasis."},
+        "scale": [(0.0, 1.0), (0.5, 1.09), (1.0, 0.99), (1.5, 1.04), (2.0, 1.0)],
+        "fade": False, "blur": 0.0, "glow": 0.0,
+    },
+    "focus": {
+        "label": {"es": "Enfoque", "en": "Focus"},
+        "note": {"es": "Llega desenfocada y entra en foco. Es el efecto que la tienda "
+                       "vende como premium.",
+                 "en": "Arrives out of focus and snaps sharp. The effect the shop sells "
+                       "as premium."},
+        "scale": [(0.0, 1.04), (1.4, 1.0)],
+        "fade": True, "blur": 15.0, "glow": 0.0,
+    },
+    "ignite": {
+        "label": {"es": "Encendido", "en": "Ignite"},
+        "note": {"es": "El halo se enciende de golpe y baja. Solo se nota en los estilos "
+                       "con glow.",
+                 "en": "The halo flares up and settles. Only shows on looks with a glow."},
+        "scale": [(0.0, 0.72), (0.9, 1.04), (1.4, 1.0)],
+        "fade": False, "blur": 0.0, "glow": 2.4,
+    },
+    "none": {
+        "label": {"es": "Ninguna", "en": "None"},
+        "note": {"es": "Sin animacion. El subtitulo esta y ya.",
+                 "en": "No animation. The caption is just there."},
+        "scale": [], "fade": False, "blur": 0.0, "glow": 0.0,
+    },
+}
+
+DEFAULT_ANIM = "pop"
+
+
+def anim(name):
+    """An animation by name, falling back to the preset's own rather than dying."""
+    return ANIMS.get(name)
+
+
+def anim_list(lang="es"):
+    return [{"id": aid, "label": a["label"].get(lang, a["label"]["en"]),
+             "note": a["note"].get(lang, a["note"]["en"])}
+            for aid, a in ANIMS.items()]
 
 # Enough of a chunk to read, but never a flash frame.
 MIN_CHUNK_S = 0.30
@@ -249,7 +386,8 @@ def ass_time(t):
     return "%d:%02d:%02d.%02d" % (h, m, s, cs)
 
 
-def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET):
+def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET,
+           anim_name=None):
     """Write one ASS file for one EDL segment, times shifted to segment-local.
 
     libass measures Fontsize as the GDI cell height, so the preset's cap-height
@@ -257,6 +395,7 @@ def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET):
     on the size the preset asks for.
     """
     p = preset(name)
+    a = anim(anim_name) or anim(p["anim"]) or ANIMS[DEFAULT_ANIM]
     em = h * p["size"]
     fs = max(8, int(em * 1.411))
     x = w // 2
@@ -281,6 +420,13 @@ def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET):
         line_col = _ass_colour(p["outline"]) if p["outline"] else _ass_colour((0, 0, 0))
         out_w = max(1, int(em * p["outline"][3])) if p["outline"] else 0
         border_style = 1
+    # libass has no glow node, but a thick outline in the glow colour plus lur
+    # is the same picture. It replaces the outline rather than stacking on it,
+    # because two borders cannot both be drawn.
+    if p["glow"] and not p["panel"]:
+        gr, gg, gb, gsize, _gain = p["glow"]
+        line_col = _ass_colour((gr, gg, gb))
+        out_w = max(out_w, int(round(em * 0.10 + gsize * 0.28)))
     back = _ass_colour(p["shadow"][:3], p["shadow"][3]) if p["shadow"] else _ass_colour((0, 0, 0))
 
     # The word looks come from libass itself: it sweeps a \k span from the
@@ -318,24 +464,46 @@ def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET):
         if e - s < 0.01:
             continue
         body = _ass_body(c, p)
-        move = _ass_anim(p, x, y, sh_x, sh_y, h)
+        move = _ass_anim(p, a, x, y, sh_x, sh_y, h)
         lines.append("Dialogue: 0,%s,%s,Vidorq,,0,0,0,,%s%s\n"
                      % (ass_time(s), ass_time(e), move, body))
     path.write_text("".join(lines), encoding="utf-8-sig")
 
 
-def _ass_anim(p, x, y, sh_x, sh_y, h):
-    """Override tags that place the line and give it its entrance."""
+def _ass_anim(p, a, x, y, sh_x, sh_y, h):
+    """Override tags that place the line and give it the chosen entrance.
+
+    The scale keyframes are the same numbers the Fusion side uses, replayed as
+    \\t transforms in milliseconds so a look moves the same way in both outputs.
+    One beat is 70 ms, which is about the two frames Fusion gets.
+    """
+    beat = 70
     tags = "\\pos(%d,%d)" % (x, y)
     if p["shadow"]:
         tags += "\\xshad%.1f\\yshad%.1f" % (sh_x * h, -sh_y * h)
-    if p["anim"] == "pop":
-        # 90 ms overshoot: 70 -> 106 -> 100 per cent.
-        tags += "\\fscx70\\fscy70\\t(0,60,\\fscx106\\fscy106)\\t(60,110,\\fscx100\\fscy100)"
-    elif p["anim"] == "rise":
-        tags += "\\alpha&HFF&\\t(0,90,\\alpha&H00&)"
-    elif p["anim"] == "fade":
-        tags += "\\fad(80,60)"
+
+    # libass has no glow node, so the halo is a blurred edge. Its size follows
+    # the preset's glow size, and ignite flares it before it settles.
+    if p["glow"]:
+        base = 2.0 + p["glow"][3] * 0.20
+        if a["glow"] > 0:
+            tags += "\\blur%.1f\\t(0,%d,\\blur%.1f)\\t(%d,%d,\\blur%.1f)" % (
+                base * 0.3, beat, base * min(a["glow"], 2.0), beat, beat * 2, base)
+        else:
+            tags += "\\blur%.1f" % base
+    if a["blur"] > 0:
+        tags += "\\blur%.1f\\t(0,%d,\\blur0)" % (a["blur"] * 0.6, int(beat * 1.6))
+
+    if a["scale"]:
+        first = a["scale"][0][1] * 100
+        tags += "\\fscx%.0f\\fscy%.0f" % (first, first)
+        prev = 0
+        for at, mult in a["scale"][1:]:
+            ms = max(prev + 20, int(at * beat))
+            tags += "\\t(%d,%d,\\fscx%.0f\\fscy%.0f)" % (prev, ms, mult * 100, mult * 100)
+            prev = ms
+    if a["fade"]:
+        tags += "\\fad(%d,60)" % int(beat * 1.2)
     return "{%s}" % tags
 
 
@@ -399,33 +567,56 @@ def _elements(p):
     return els
 
 
-def _anim_splines(p, dur, size, els):
-    """Entrance animation as splines over the clip's own frames.
+def _anim_splines(a, dur, size, els):
+    """The chosen animation as splines over the clip's own frames.
 
-    Returns (spline_tool_text, {input_name: spline_name}). The frames are
-    clamped to the clip length so a six-frame caption still animates instead of
-    freezing on its opening pose. A fade has to move every element's alpha, not
-    just the fill, or the shadow stays behind while the text arrives.
+    Returns (spline_tool_text, {input_name: spline_name}, extra) where extra
+    carries the blur and glow splines the node chain needs. Frames are clamped
+    to the clip length so a six-frame caption still animates instead of freezing
+    on its opening pose, and no two keys ever land on the same frame.
     """
-    fast = max(2, min(int(round(dur * 0.34)), 7))
-    tools, wires = "", {}
-    anim = p["anim"]
+    # One beat of the entrance. Short captions get a short one so it finishes.
+    beat = max(2, min(int(round(dur * 0.24)), 6))
+    tools, wires, extra = "", {}, {}
 
-    if anim == "pop":
-        tools += _spline("PopSize", [(0, size * 0.62), (fast, size * 1.06),
-                                     (min(dur - 1, fast + 3), size)])
-        wires["Size"] = "PopSize"
-    elif anim == "rise":
-        tools += _spline("RiseSize", [(0, size * 0.93), (fast + 2, size)])
-        wires["Size"] = "RiseSize"
-    if anim in ("rise", "fade"):
+    def keys(pairs, scale=1.0):
+        out = []
+        for at, val in pairs:
+            f = int(round(at * beat))
+            if out and f <= out[-1][0]:
+                f = out[-1][0] + 1
+            if f > dur - 1:
+                if out:
+                    break
+                f = dur - 1
+            out.append((f, val * scale))
+        return out
+
+    if a["scale"]:
+        k = keys(a["scale"], size)
+        if len(k) > 1:
+            tools += _spline("AnimSize", k)
+            wires["Size"] = "AnimSize"
+    if a["fade"]:
         # Every enabled element fades, not just the fill, or the shadow sits
         # there waiting while the text arrives.
         for idx, _shape, _rgb, alpha, _extra in els:
-            sp = "Fade%d" % idx
-            tools += _spline(sp, [(0, 0.0), (max(2, fast - 1), alpha)])
-            wires["Alpha%d" % idx] = sp
-    return tools, wires
+            k = keys([(0.0, 0.0), (0.9, alpha / max(alpha, 1e-6))], alpha)
+            if len(k) > 1:
+                sp = "Fade%d" % idx
+                tools += _spline(sp, k)
+                wires["Alpha%d" % idx] = sp
+    if a["blur"] > 0:
+        k = keys([(0.0, a["blur"]), (1.5, 0.0)])
+        if len(k) > 1:
+            tools += _spline("Focus", k)
+            extra["blur"] = "Focus"
+    if a["glow"] > 0:
+        k = keys([(0.0, 0.0), (0.9, a["glow"]), (1.8, 1.0)])
+        if len(k) > 1:
+            tools += _spline("Ignite", k)
+            extra["glow"] = "Ignite"
+    return tools, wires, extra
 
 
 def _text_inputs(p, chunk, w, h, dur, wires, size, y, els):
@@ -451,9 +642,6 @@ def _text_inputs(p, chunk, w, h, dur, wires, size, y, els):
     ]
     if p["tracking"]:
         lines.append('TrackingSpacing = Input { Value = %.4f, },' % (1.0 + p["tracking"] * 4))
-    if "WriteOnEnd" in wires:
-        lines.append('WriteOnStart = Input { Value = 0, },')
-        lines.append(wired("WriteOnEnd", ""))
 
     for idx, shape, (r, g, b), alpha, extra in els:
         if idx > 1:
@@ -468,18 +656,77 @@ def _text_inputs(p, chunk, w, h, dur, wires, size, y, els):
     return "\n\t\t\t\t".join(x for x in lines if x)
 
 
-def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET):
+def _blur_tool(src, spline, x):
+    """A Blur whose size is driven by a spline, so the text focuses in.
+
+    LockXY keeps the two axes together, which is what reads as an out-of-focus
+    lens rather than a smear.
+    """
+    return ('\t\tSoft = Blur {\n\t\t\tInputs = {\n'
+            '\t\t\t\tInput = Input { SourceOp = "%s", Source = "Output", },\n'
+            '\t\t\t\tLockXY = Input { Value = 1, },\n'
+            '\t\t\t\tXBlurSize = Input { SourceOp = "%s", Source = "Value", },\n'
+            '\t\t\t},\n'
+            '\t\t\tViewInfo = OperatorInfo { Pos = { %d, 49.5 } },\n\t\t},\n'
+            % (src, spline, x))
+
+
+def _glow_tool(src, glow, spline, x):
+    """A tinted Fusion Glow behind the text.
+
+    Threshold keeps the halo off the darker parts so the glyphs stay crisp; a
+    Gain much over 2 blows the letters out and the caption stops being readable.
+    When a spline drives GlowSize it is a multiplier of the preset's size.
+    """
+    r, g, b, size, gain = glow
+    lines = [
+        'Input = Input { SourceOp = "%s", Source = "Output", },' % src,
+        'Gain = Input { Value = %.3f, },' % gain,
+        'Threshold = Input { Value = 0.15, },',
+        'Blend = Input { Value = 1, },',
+        'Red = Input { Value = %.4f, },' % r,
+        'Green = Input { Value = %.4f, },' % g,
+        'Blue = Input { Value = %.4f, },' % b,
+    ]
+    if spline:
+        lines.append('GlowSize = Input { SourceOp = "%s", Source = "Value", },' % spline)
+    else:
+        lines.append('GlowSize = Input { Value = %.2f, },' % size)
+    return ('\t\tShine = Glow {\n\t\t\tInputs = {\n\t\t\t\t%s\n\t\t\t},\n'
+            '\t\t\tViewInfo = OperatorInfo { Pos = { %d, 49.5 } },\n\t\t},\n'
+            % ("\n\t\t\t\t".join(lines), x))
+
+
+def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None):
     """Write the Fusion composition for one caption chunk.
 
     `dur` is the clip length in frames; the entrance is authored against it so a
-    short caption gets a short entrance instead of one that never finishes. The
-    Saver named MediaOut1 is what makes the comp valid as a timeline title.
+    short caption gets a short entrance instead of one that never finishes.
+    `anim_name` overrides the preset's own movement. The Saver named MediaOut1 is
+    what makes the comp valid as a timeline title.
     """
     p = preset(name)
+    a = anim(anim_name) or anim(p["anim"]) or ANIMS[DEFAULT_ANIM]
     size = float(p["size"]) * 1.40  # Text+ Size is a cell height, not a cap height
     y = float(p["y"])
     els = _elements(p)
-    anim_tools, wires = _anim_splines(p, dur, size, els)
+    anim_tools, wires, extra = _anim_splines(a, dur, size, els)
+
+    # Text+ -> optional Blur -> optional Glow -> Saver. Kept as a chain so a
+    # preset that wants neither ends up with exactly the two nodes it needs.
+    chain, out, x = "", "Template", 220
+    if extra.get("blur"):
+        x += 165
+        chain += _blur_tool(out, extra["blur"], x)
+        out = "Soft"
+    if p["glow"]:
+        x += 165
+        if extra.get("glow"):
+            # The ignite spline is written as a multiplier, so it gets baked
+            # against this preset's own glow size here.
+            anim_tools = _rescale_spline(anim_tools, extra["glow"], p["glow"][3])
+        chain += _glow_tool(out, p["glow"], extra.get("glow"), x)
+        out = "Shine"
 
     comp = (
         'Composition {\n'
@@ -490,7 +737,8 @@ def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET):
         '\tHiQ = true,\n'
         '\tCustomData = {\n'
         '\t\tTEMPLATE_ID = "Text+",\n'
-        '\t\tVIDORQ_PRESET = "%s"\n'
+        '\t\tVIDORQ_PRESET = "%s",\n'
+        '\t\tVIDORQ_ANIM = "%s"\n'
         '\t},\n'
         '\tTools = {\n'
         '%s'
@@ -500,20 +748,39 @@ def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET):
         '\t\t\t},\n'
         '\t\t\tViewInfo = OperatorInfo { Pos = { 220, 49.5 } },\n'
         '\t\t},\n'
+        '%s'
         '\t\tMediaOut1 = Saver {\n'
         '\t\t\tInputs = {\n'
         '\t\t\t\tIndex = Input { Value = "0", },\n'
-        '\t\t\t\tInput = Input { SourceOp = "Template", Source = "Output", },\n'
+        '\t\t\t\tInput = Input { SourceOp = "%s", Source = "Output", },\n'
         '\t\t\t},\n'
-        '\t\t\tViewInfo = OperatorInfo { Pos = { 440, 49.5 } },\n'
+        '\t\t\tViewInfo = OperatorInfo { Pos = { %d, 49.5 } },\n'
         '\t\t},\n'
         '\t},\n'
         '}\n'
-        % (max(1, dur - 1), max(1, dur - 1), name, anim_tools,
-           _text_inputs(p, chunk, w, h, dur, wires, size, y, els))
+        % (max(1, dur - 1), max(1, dur - 1), name,
+           anim_name or p["anim"], anim_tools,
+           _text_inputs(p, chunk, w, h, dur, wires, size, y, els),
+           chain, out, x + 165)
     )
     path.write_text(comp, encoding="utf-8")
     return path
+
+
+def _rescale_spline(tools, spline_name, factor):
+    """Multiply one spline's values in place, for the glow-size multiplier."""
+    out, inside = [], False
+    for line in tools.splitlines(True):
+        if line.strip().startswith("%s = BezierSpline" % spline_name):
+            inside = True
+        elif inside and line.strip() == "},":
+            inside = False
+        elif inside and "] = {" in line:
+            head, rest = line.split("] = {", 1)
+            val, tail = rest.split(",", 1)
+            line = "%s] = { %.4f,%s" % (head, float(val) * factor, tail)
+        out.append(line)
+    return "".join(out)
 
 
 # --------------------------------------------------------------------------- #

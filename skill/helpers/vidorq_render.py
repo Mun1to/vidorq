@@ -18,6 +18,7 @@ then a lossless concat. Progress is reported on stdout as
 Usage:
     python vidorq_render.py <source> <edl.json> <transcript.json> <out.mp4>
                             [--no-captions] [--no-zoom] [--preset <name>]
+                            [--anim <name>]
 """
 from __future__ import annotations
 
@@ -82,7 +83,7 @@ def run_ffmpeg_progress(cmd, cwd: Path, base: int, total: int):
 
 
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
-                 preset=cap.DEFAULT_PRESET):
+                 preset=cap.DEFAULT_PRESET, anim=None):
     src = av.open(source)
     vs = src.streams.video[0]
     w, h = vs.codec_context.width, vs.codec_context.height
@@ -106,7 +107,7 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
             vf.append(f"crop={cw}:{ch}:{x0}:{y0}")
             vf.append(f"scale={w}:{h}:flags=lanczos")
         if do_caps:
-            cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, s, e, w, h, preset)
+            cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, s, e, w, h, preset, anim)
             vf.append(f"subtitles=seg_{i:04d}.ass")
         seg_name = f"seg_{i:04d}.mp4"
 
@@ -206,6 +207,9 @@ def main():
     preset = cap.DEFAULT_PRESET
     if "--preset" in sys.argv:
         preset = sys.argv[sys.argv.index("--preset") + 1]
+    anim = None
+    if "--anim" in sys.argv:
+        anim = sys.argv[sys.argv.index("--anim") + 1]
     edl = json.loads(Path(edl_path).read_text(encoding="utf-8"))["segments"]
     transcript = json.loads(Path(tr_path).read_text(encoding="utf-8"))
     chunks = cap.build_chunks(transcript, preset) if do_caps else []
@@ -216,11 +220,11 @@ def main():
     seg_dir = out.with_name("._segs")
     keep = sum(float(s["end"]) - float(s["start"]) for s in edl)
     print(f"EDL: {len(edl)} segmentos, {keep:.1f}s de material conservado "
-          f"(captions={do_caps}:{preset}, zoom={do_zoom})", flush=True)
+          f"(captions={do_caps}:{preset}/{anim or 'propia'}, zoom={do_zoom})", flush=True)
     seg_dir.mkdir(exist_ok=True)
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
-                                 do_caps, do_zoom, preset)
+                                 do_caps, do_zoom, preset, anim)
         render_audio(source, edl, tmp_a)
         concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out)
     finally:
