@@ -127,10 +127,11 @@ Verificado fabricando un clip de **plano congelado** (donde sin esto los dos lad
 corte serían idénticos byte a byte): salieron 4 tramos con zoom `1.00 / 1.07 / 1.00 / 1.07`
 y en el vídeo renderizado se ve el cambio de encuadre a los dos lados del corte.
 
-## Reencuadre vertical 9:16: NO, y esto es lo que falta
+## Seguir a la persona al reencuadrar: NO, y esto es lo que falta
 
-Es lo que vende todo el mundo para shorts, y **no está** porque no supe hacerlo bien. Los
-dos caminos que probé, sobre seis fotogramas reales:
+El **formato** vertical sí está (punto 7). Lo que no está es que el recorte **siga al
+sujeto**, y no está porque no supe hacerlo bien. Los dos caminos que probé, sobre seis
+fotogramas reales:
 
 | método | resultado |
 | --- | --- |
