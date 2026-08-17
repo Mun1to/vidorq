@@ -4,8 +4,8 @@ Reads a source video, an EDL (keep-segments with optional per-segment punch zoom
 and a caption plan, and produces a finished MP4:
   - smart cuts   : only the EDL keep-segments survive, in order
   - punch zoom   : static center zoom per segment (no keyframes) for emphasis
-  - captions     : Hormozi-style 2-word UPPERCASE chunks, written as a per-segment
-                   ASS track and burned in by ffmpeg/libass
+  - captions     : whichever preset from captions.py was asked for, written as a
+                   per-segment ASS track and burned in by ffmpeg/libass
   - clean audio  : 30 ms fades at every segment boundary so cuts never pop
 
 v1 composited captions+zoom frame by frame with PIL/numpy in pure Python
@@ -17,7 +17,7 @@ then a lossless concat. Progress is reported on stdout as
 
 Usage:
     python vidorq_render.py <source> <edl.json> <transcript.json> <out.mp4>
-                            [--no-captions] [--no-zoom]
+                            [--no-captions] [--no-zoom] [--preset <name>]
 """
 from __future__ import annotations
 
@@ -32,7 +32,8 @@ from pathlib import Path
 import av
 import numpy as np
 
-FONT_FAMILY = "Arial Black"  # bold, high retention
+import captions as cap
+
 AUDIO_RATE = 48000
 FADE_MS = 30
 
@@ -48,87 +49,6 @@ def find_ffmpeg() -> str:
         raise RuntimeError("ffmpeg not found on PATH; install it (e.g. winget "
                            "install Gyan.FFmpeg) - Vidorq needs it to render")
     return exe
-
-
-# --------------------------------------------------------------------------- #
-# Captions
-# --------------------------------------------------------------------------- #
-def build_caption_chunks(transcript: dict, words_per_chunk: int = 2):
-    """Flatten transcript words into (start, end, TEXT) chunks in SOURCE time."""
-    chunks = []
-    buf = []
-    for seg in transcript["segments"]:
-        for w in seg.get("words", []):
-            token = w["w"].strip()
-            if not token:
-                continue
-            buf.append(w)
-            if len(buf) >= words_per_chunk:
-                text = " ".join(x["w"].strip() for x in buf).upper()
-                chunks.append((buf[0]["s"], buf[-1]["e"], text))
-                buf = []
-    if buf:
-        text = " ".join(x["w"].strip() for x in buf).upper()
-        chunks.append((buf[0]["s"], buf[-1]["e"], text))
-    return chunks
-
-
-def ass_time(t: float) -> str:
-    cs = max(0, int(round(t * 100)))
-    h, rem = divmod(cs, 360000)
-    m, rem = divmod(rem, 6000)
-    s, cs = divmod(rem, 100)
-    return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
-
-
-def write_segment_ass(path: Path, chunks, seg_start: float, seg_end: float,
-                      w: int, h: int):
-    """ASS subtitle file for one EDL segment, times shifted to segment-local.
-
-    Two layers reproduce the v1 PIL look: layer 0 is a soft dark halo (text
-    and thick outline at alpha 190, offset 3 px down), layer 1 is the white
-    text with an opaque black stroke.
-    """
-    em = h * 0.062  # v1 used this as the PIL em size; keep the same visual size
-    # libass (VSFilter-compatible) treats Fontsize as the GDI cell height;
-    # for Arial Black that is 1.411 em (winAscent 2254 + winDescent 634 / 2048)
-    fs = int(em * 1.411)
-    outline = max(1, int(h * 0.006))
-    halo = max(outline, int(h * 0.010))
-    x = w // 2
-    # \pos+an8 anchors at the ascender top; v1 put the ink (cap) top at 0.74h,
-    # so pull up by winAscent-capHeight = (2254-1466)/2048 = 0.385 em
-    y = int(h * 0.74 - em * 0.385)
-    head = (
-        "[Script Info]\n"
-        "ScriptType: v4.00+\n"
-        f"PlayResX: {w}\nPlayResY: {h}\n"
-        "WrapStyle: 2\nScaledBorderAndShadow: yes\n\n"
-        "[V4+ Styles]\n"
-        "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, "
-        "OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, "
-        "ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, "
-        "Alignment, MarginL, MarginR, MarginV, Encoding\n"
-        f"Style: Halo,{FONT_FAMILY},{fs},&H41000000,&H41000000,&H41000000,"
-        "&H41000000,0,0,0,0,100,100,0,0,1," f"{halo},0,8,0,0,0,1\n"
-        f"Style: Main,{FONT_FAMILY},{fs},&H00FFFFFF,&H00FFFFFF,&H00000000,"
-        "&H00000000,0,0,0,0,100,100,0,0,1," f"{outline},0,8,0,0,0,1\n\n"
-        "[Events]\n"
-        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
-        "Effect, Text\n"
-    )
-    lines = [head]
-    for cs_, ce_, text in chunks:
-        s = max(cs_, seg_start) - seg_start
-        e = min(ce_, seg_end) - seg_start
-        if e - s < 0.01:
-            continue
-        text = text.replace("{", "(").replace("}", ")")
-        lines.append(f"Dialogue: 0,{ass_time(s)},{ass_time(e)},Halo,,0,0,0,,"
-                     f"{{\\pos({x},{y + 3})}}{text}\n")
-        lines.append(f"Dialogue: 1,{ass_time(s)},{ass_time(e)},Main,,0,0,0,,"
-                     f"{{\\pos({x},{y})}}{text}\n")
-    path.write_text("".join(lines), encoding="utf-8-sig")
 
 
 # --------------------------------------------------------------------------- #
@@ -161,7 +81,8 @@ def run_ffmpeg_progress(cmd, cwd: Path, base: int, total: int):
     return frames, p.returncode, "\n".join(tail)
 
 
-def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom):
+def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
+                 preset=cap.DEFAULT_PRESET):
     src = av.open(source)
     vs = src.streams.video[0]
     w, h = vs.codec_context.width, vs.codec_context.height
@@ -185,7 +106,7 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom):
             vf.append(f"crop={cw}:{ch}:{x0}:{y0}")
             vf.append(f"scale={w}:{h}:flags=lanczos")
         if do_caps:
-            write_segment_ass(seg_dir / f"seg_{i:04d}.ass", chunks, s, e, w, h)
+            cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, s, e, w, h, preset)
             vf.append(f"subtitles=seg_{i:04d}.ass")
         seg_name = f"seg_{i:04d}.mp4"
 
@@ -282,9 +203,12 @@ def main():
     source, edl_path, tr_path, out = sys.argv[1:5]
     do_caps = "--no-captions" not in sys.argv
     do_zoom = "--no-zoom" not in sys.argv
+    preset = cap.DEFAULT_PRESET
+    if "--preset" in sys.argv:
+        preset = sys.argv[sys.argv.index("--preset") + 1]
     edl = json.loads(Path(edl_path).read_text(encoding="utf-8"))["segments"]
     transcript = json.loads(Path(tr_path).read_text(encoding="utf-8"))
-    chunks = build_caption_chunks(transcript) if do_caps else []
+    chunks = cap.build_chunks(transcript, preset) if do_caps else []
 
     ffmpeg = find_ffmpeg()
     out = Path(out)
@@ -292,11 +216,11 @@ def main():
     seg_dir = out.with_name("._segs")
     keep = sum(float(s["end"]) - float(s["start"]) for s in edl)
     print(f"EDL: {len(edl)} segmentos, {keep:.1f}s de material conservado "
-          f"(captions={do_caps}, zoom={do_zoom})", flush=True)
+          f"(captions={do_caps}:{preset}, zoom={do_zoom})", flush=True)
     seg_dir.mkdir(exist_ok=True)
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
-                                 do_caps, do_zoom)
+                                 do_caps, do_zoom, preset)
         render_audio(source, edl, tmp_a)
         concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out)
     finally:
