@@ -43,8 +43,15 @@ con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en dire
       que teclear rutas. Comprueba UIManager al arrancar y lo dice en cristiano si la
       versión Free no lo expone. **PENDIENTE DE EJECUTAR por Munir** (Free bloquea el
       scripting externo: solo se lanza desde el menú de Resolve).
-- [ ] Compatibilidad de Resolve 21 con el puente, verificada por API (no de memoria).
-      Precedente: Blackmagic rompe el scripting de la versión Free sin avisar (UIManager 19.1).
+- [x] **Compatibilidad de Resolve 21 verificada por API** (2026-08-17, versión 21.0.4.5 Free).
+      El puente responde `{"connected": true, "product": "DaVinci Resolve", "version": "21.0.4.5"}`
+      y devuelve proyecto y timeline reales. La actualización del instalador no se llevó por
+      delante los scripts, porque viven en `%APPDATA%` y no en la carpeta de la app.
+      Precedente que obligaba a comprobarlo: Blackmagic rompe el scripting de la versión Free
+      sin avisar (UIManager 19.1).
+- [x] **El estado de Resolve que ve la interfaz, arreglado** (2026-08-17): el motor preguntaba
+      el nombre del proyecto a `/status`, que nunca lo trae. Va en `/project` y `/timeline`.
+      El tutorial guiado se quedaba clavado en "no hay proyecto abierto" con uno abierto delante.
 - [ ] Spike `ImportFusionComp` con comp dummy en 21 Free (AddFusionComp,
       GetFusionCompNameList, LoadFusionCompByName, ImportFusionComp, borrar el dummy).
 - [ ] Captions nativos en el timeline vía macro Fusion (patrón AutoSubs), estilo Hormozi.
