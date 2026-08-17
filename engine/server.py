@@ -335,40 +335,89 @@ def mark_questions(transcript, edl):
     return edl
 
 
-def edl_montage(video, transcript):
-    """Beta: keep the highest audio-energy chunks (~top third), min 3s each."""
+def audio_energy(video):
+    """Loudness per second, as {second: rms}, in one pass over the audio."""
     import av
     import numpy as np
-    c = av.open(video)
-    a = c.streams.audio[0]
-    sr = a.codec_context.sample_rate or 48000
-    energy = {}
-    for frame in c.decode(a):
-        t = int(float(frame.pts * a.time_base))
-        arr = frame.to_ndarray().astype("float64")
-        energy[t] = energy.get(t, 0.0) + float((arr ** 2).mean())
-    c.close()
-    if not energy:
-        return edl_from_speech(transcript)[0]
-    times = sorted(energy)
-    vals = sorted(energy.values(), reverse=True)
-    thr = vals[max(0, len(vals) // 3 - 1)]
-    keep, cur = [], None
-    for t in times:
-        if energy[t] >= thr:
-            if cur and t - cur["end"] <= 2:
-                cur["end"] = t + 1
-            else:
-                if cur:
-                    keep.append(cur)
-                cur = {"start": float(t), "end": float(t + 1)}
-    if cur:
-        keep.append(cur)
-    keep = [k for k in keep if k["end"] - k["start"] >= 3]
-    for k in keep:
-        k["zoom"] = 1.0
-        k["note"] = "pico de energia"
-    return keep or edl_from_speech(transcript)[0]
+    out = {}
+    try:
+        c = av.open(video)
+        a = c.streams.audio[0]
+        for frame in c.decode(a):
+            t = int(float(frame.pts * a.time_base)) if frame.pts is not None else 0
+            arr = frame.to_ndarray().astype("float32")
+            out.setdefault(t, []).append(float((arr ** 2).mean()))
+        c.close()
+    except Exception:
+        return {}
+    return {t: float(np.sqrt(np.mean(v))) for t, v in out.items()}
+
+
+def edl_montage(video, transcript, keep_ratio=0.45, track=None, lang="es"):
+    """Keep the best moments, chosen on what is said, how loud it is and how
+    much the picture is doing.
+
+    The first version scored one-second buckets of raw loudness, which is how a
+    montage ends up starting mid-word: a bucket has no idea where a sentence
+    begins. This scores whole spoken segments instead, so every kept moment is a
+    complete thought, and it only ever picks from what survived the cleanup, so
+    the fillers and the retries are already gone.
+    """
+    base, report = edl_from_speech(transcript, lang, track=track)
+    if len(base) < 3:
+        return base, report
+
+    import numpy as np
+    energy = audio_energy(video)
+
+    def loudness(seg):
+        vals = [energy[t] for t in range(int(seg["start"]), int(seg["end"]) + 1)
+                if t in energy]
+        return float(np.mean(vals)) if vals else 0.0
+
+    def movement(seg):
+        if not track:
+            return 0.0
+        vals = [p["diff"] for p in track if seg["start"] <= p["t"] < seg["end"]]
+        return float(np.mean(vals)) if vals else 0.0
+
+    loud = [loudness(s) for s in base]
+    move = [movement(s) for s in base]
+
+    def norm(vals):
+        lo, hi = min(vals), max(vals)
+        return [0.5] * len(vals) if hi - lo < 1e-6 else [(v - lo) / (hi - lo) for v in vals]
+
+    nl, nm = norm(loud), norm(move)
+    # Loudness carries the most, because in a talking video the emphasis is in
+    # the voice; movement is a tiebreaker that favours a shot where something
+    # happens over a static one saying the same thing.
+    score = [0.65 * a + 0.35 * b for a, b in zip(nl, nm)]
+
+    order = sorted(range(len(base)), key=lambda i: score[i], reverse=True)
+    total = sum(s["end"] - s["start"] for s in base)
+    target = total * keep_ratio
+    chosen, got = set(), 0.0
+    for i in order:
+        if got >= target and chosen:
+            break
+        chosen.add(i)
+        got += base[i]["end"] - base[i]["start"]
+
+    keep = []
+    for i in sorted(chosen):
+        seg = dict(base[i])
+        seg["note"] = "momento fuerte"
+        keep.append(seg)
+    # Neighbours that both survived should not be shown as two cuts.
+    joined = []
+    for seg in keep:
+        if joined and seg["start"] - joined[-1]["end"] < 0.12:
+            joined[-1]["end"] = seg["end"]
+        else:
+            joined.append(seg)
+    report = dict(report, cuts=len(joined), kept=round(got, 1), of=round(total, 1))
+    return joined, report
 
 
 def edl_from_prompt(prompt, packed, key):
@@ -630,7 +679,8 @@ def run_job(req):
                     brand, ensure_ascii=False)
             edl = edl_from_prompt(prompt, packed, key)
         elif preset == "montage":
-            edl = edl_montage(video, transcript)
+            edl, report = edl_montage(video, transcript, track=look.get("track"),
+                                      lang=transcript.get("language", _lang))
         else:
             edl, report = edl_from_speech(transcript, transcript.get("language", _lang),
                                           track=look.get("track"))
