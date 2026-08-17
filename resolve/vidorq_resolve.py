@@ -12,11 +12,13 @@ Living in the install folder instead of Resolve's Scripts folder is the point.
 The app updates this file; the menu entry never has to be touched again.
 """
 
+import ctypes
 import json
 import locale
 import os
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 
@@ -28,7 +30,25 @@ CONF = globals().get("VIDORQ_CONF", {})
 HOME = CONF.get("home", "")
 BRIDGE_SRC = CONF.get("bridge", "")
 
-ES = (locale.getdefaultlocale()[0] or "").lower().startswith("es")
+def spanish():
+    """Spanish if the machine is Spanish. No setting to fiddle with.
+
+    Windows answers this without locale.getdefaultlocale(), which is deprecated
+    and prints a warning straight into Resolve's console.
+    """
+    if os.name == "nt":
+        try:
+            # Low 10 bits of the LCID are the primary language; 0x0A is Spanish.
+            return (ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0x3FF) == 0x0A
+        except Exception:
+            pass
+    try:
+        return (locale.getlocale()[0] or "").lower().startswith(("es", "spanish"))
+    except Exception:
+        return False
+
+
+ES = spanish()
 
 T = {
     "engine_up": ("Motor ya encendido.", "Engine already up."),
@@ -49,12 +69,52 @@ T = {
                        "This is not running inside Resolve, so the bridge stays off."),
     "ready": ("Todo listo. Deja Resolve abierto y edita desde la ventana de Vidorq.",
               "All set. Leave Resolve open and edit from the Vidorq window."),
+    "box_title": ("Vidorq listo", "Vidorq is ready"),
 }
+
+
+LOG = os.path.join(os.environ.get("APPDATA", ""), "Vidorq", "ultimo_arranque.log")
+_lines = []
+
+try:
+    # One run, one log. Reading it should never mean guessing which click it was.
+    with open(LOG, "w", encoding="utf-8") as _f:
+        _f.write("")
+except Exception:
+    pass
 
 
 def say(key, *args):
     text = T[key][0] if ES else T[key][1]
-    print("[Vidorq] " + (text % args if args else text))
+    line = "[Vidorq] " + (text % args if args else text)
+    print(line)
+    _lines.append(line)
+    try:
+        with open(LOG, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        pass
+
+
+def notify(title, body):
+    """Say something the user can actually see.
+
+    A click that starts things silently reads as a click that did nothing, and
+    Resolve's console is behind F6 where nobody looks. UIManager is out of reach
+    on the Free edition, so this uses the plain Windows box, on its own thread so
+    it never holds up the bridge behind it.
+    """
+    if os.name != "nt":
+        return
+
+    def show():
+        try:
+            # 0x40 information icon, 0x10000 bring to front
+            ctypes.windll.user32.MessageBoxW(0, body, title, 0x40 | 0x10000)
+        except Exception:
+            pass
+
+    threading.Thread(target=show, daemon=True).start()
 
 
 def alive(url, timeout=1.5):
@@ -106,11 +166,33 @@ else:
 # --------------------------------------------------------------------------- #
 # 2. Window
 # --------------------------------------------------------------------------- #
-app_exe = CONF.get("app", "")
-if app_exe and os.path.isfile(app_exe):
+def find_app():
+    """Where a built Vidorq window might be, best first.
+
+    Searched at click time and not written down at install time, because the app
+    usually gets built after the extension is already in the menu.
+    """
+    seen = [CONF.get("app", "")]
+    target = os.environ.get("CARGO_TARGET_DIR", "")
+    if target:
+        seen.append(os.path.join(target, "release", "Vidorq.exe"))
+    seen.append(os.path.join(HOME, "app", "src-tauri", "target", "release", "Vidorq.exe"))
+    for base in (os.environ.get("LOCALAPPDATA", ""), os.environ.get("PROGRAMFILES", "")):
+        if base:
+            seen.append(os.path.join(base, "Vidorq", "Vidorq.exe"))
+    for path in seen:
+        if path and os.path.isfile(path):
+            return path
+    return ""
+
+
+app_exe = find_app()
+window_opened = False
+if app_exe:
     say("app_open")
     try:
         spawn_hidden(app_exe)
+        window_opened = True
     except Exception as e:
         print("[Vidorq] %s" % e)
 else:
@@ -130,6 +212,10 @@ else:
         say("bridge_up")
     say("bridge_start")
     say("ready")
+    # The window appearing is feedback enough. Without one, a click that does
+    # everything invisibly is indistinguishable from a click that failed.
+    if not window_opened:
+        notify(T["box_title"][0] if ES else T["box_title"][1], "\n".join(_lines))
     with open(BRIDGE_SRC, "r", encoding="utf-8") as f:
         src = f.read()
     # The bridge needs the objects Resolve injected into the stub, and it ends in
