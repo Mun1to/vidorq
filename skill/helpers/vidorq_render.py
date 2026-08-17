@@ -19,6 +19,7 @@ Usage:
     python vidorq_render.py <source> <edl.json> <transcript.json> <out.mp4>
                             [--no-captions] [--no-zoom] [--preset <name>]
                             [--anim <name>] [--chunks <ready.json>]
+                            [--transition <none|dissolve|dip|white|slide|wipe|zoom>]
 """
 from __future__ import annotations
 
@@ -133,15 +134,84 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
     return seg_files
 
 
-def concat_and_mux(ffmpeg, seg_dir: Path, seg_files, audio_path, out_path):
-    (seg_dir / "concat.txt").write_text(
-        "".join(f"file '{n}'\n" for n in seg_files), encoding="utf-8")
-    r = subprocess.run(
-        [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
-         "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", str(audio_path),
-         "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
-         "-movflags", "+faststart", "-y", str(out_path)],
-        cwd=str(seg_dir), capture_output=True, text=True)
+TRANSITIONS = {
+    "none": None,
+    "dissolve": "fade",
+    "dip": "fadeblack",
+    "white": "fadewhite",
+    "slide": "slideleft",
+    "wipe": "wiperight",
+    "zoom": "zoomin",
+}
+
+
+def concat_with_transitions(ffmpeg, seg_dir: Path, seg_files, out_path, kind, dur_s):
+    """Join the segments with a transition instead of a hard cut.
+
+    ffmpeg's xfade takes exactly two inputs, so a chain of them is built, each
+    one starting `dur_s` before its left side ends. A hard cut stays the default
+    because on speech a dissolve smears the words; this is for the montage.
+    """
+    filt = TRANSITIONS.get(kind)
+    if not filt or len(seg_files) < 2:
+        return False
+    lengths = []
+    for name in seg_files:
+        with av.open(str(seg_dir / name)) as c:
+            lengths.append(float(c.duration or 0) / 1_000_000)
+    # A transition cannot be longer than the shots it joins, or it eats them.
+    d = max(0.12, min(dur_s, min(lengths) * 0.4))
+
+    cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin"]
+    for name in seg_files:
+        cmd += ["-i", str(seg_dir / name)]
+    steps, last, offset = [], "0:v", 0.0
+    for i in range(1, len(seg_files)):
+        offset += lengths[i - 1] - d
+        tag = "x%d" % i
+        steps.append("[%s][%d:v]xfade=transition=%s:duration=%.3f:offset=%.3f[%s]"
+                     % (last, i, filt, d, max(0.0, offset), tag))
+        last = tag
+    cmd += ["-filter_complex", ";".join(steps), "-map", "[%s]" % last,
+            "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
+            "-pix_fmt", "yuv420p", "-an", "-y", str(out_path)]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("xfade failed, falling back to hard cuts: %s" % (r.stderr or "")[-200:],
+              flush=True)
+        return False
+    print("XFADE_OK: %s %.2fs x%d" % (kind, d, len(seg_files) - 1), flush=True)
+    return True
+
+
+def concat_and_mux(ffmpeg, seg_dir: Path, seg_files, audio_path, out_path,
+                   transition="none", trans_dur=0.30):
+    """Join the segments and marry the audio back on.
+
+    With a transition the video has to be re-encoded, so it happens once into a
+    temporary file and the audio is muxed onto that. Without one the segments
+    are copied end to end, which is instant and lossless.
+    """
+    joined = None
+    if transition and transition != "none":
+        joined = seg_dir / "_xfade.mp4"
+        if not concat_with_transitions(ffmpeg, seg_dir, seg_files, joined,
+                                       transition, trans_dur):
+            joined = None
+
+    if joined:
+        cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+               "-i", str(joined), "-i", str(audio_path),
+               "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "copy",
+               "-shortest", "-movflags", "+faststart", "-y", str(out_path)]
+    else:
+        (seg_dir / "concat.txt").write_text(
+            "".join(f"file '{n}'\n" for n in seg_files), encoding="utf-8")
+        cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+               "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", str(audio_path),
+               "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
+               "-movflags", "+faststart", "-y", str(out_path)]
+    r = subprocess.run(cmd, cwd=str(seg_dir), capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError("ffmpeg concat failed: " + (r.stderr or "")[-300:])
     print(f"MUX_OK: {out_path}", flush=True)
@@ -212,6 +282,9 @@ def main():
         anim = sys.argv[sys.argv.index("--anim") + 1]
     # Ready-made chunks win over the transcript: this is how a translation gets
     # burned in, since translated words have no per-word timings to rebuild from.
+    transition = "none"
+    if "--transition" in sys.argv:
+        transition = sys.argv[sys.argv.index("--transition") + 1]
     given_chunks = None
     if "--chunks" in sys.argv:
         given_chunks = json.loads(
@@ -226,13 +299,14 @@ def main():
     seg_dir = out.with_name("._segs")
     keep = sum(float(s["end"]) - float(s["start"]) for s in edl)
     print(f"EDL: {len(edl)} segmentos, {keep:.1f}s de material conservado "
-          f"(captions={do_caps}:{preset}/{anim or 'propia'}, zoom={do_zoom})", flush=True)
+          f"(captions={do_caps}:{preset}/{anim or 'propia'}, zoom={do_zoom}, "
+          f"transicion={transition})", flush=True)
     seg_dir.mkdir(exist_ok=True)
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
                                  do_caps, do_zoom, preset, anim)
         render_audio(source, edl, tmp_a)
-        concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out)
+        concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out, transition)
     finally:
         shutil.rmtree(seg_dir, ignore_errors=True)
         tmp_a.unlink(missing_ok=True)

@@ -107,6 +107,17 @@ TEXT = {
 }
 
 
+# The MP4 renderer knows how to draw these; the names are here because the app
+# has to offer them and Resolve cannot do transitions by API at all.
+TRANSITION_LABELS = {
+    "es": {"none": "Corte seco", "dissolve": "Disolvencia", "dip": "Fundido a negro",
+           "white": "Fundido a blanco", "slide": "Deslizamiento", "wipe": "Barrido",
+           "zoom": "Zoom"},
+    "en": {"none": "Hard cut", "dissolve": "Dissolve", "dip": "Dip to black",
+           "white": "Dip to white", "slide": "Slide", "wipe": "Wipe", "zoom": "Zoom"},
+}
+
+
 def tr(key, *args):
     text = TEXT.get(_lang, TEXT["es"]).get(key, key)
     return text % args if args else text
@@ -687,6 +698,8 @@ def run_job(req):
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
             cmd = [PYTHON, str(HELPERS / "vidorq_render.py"), video, str(edl_path),
                    str(tr_path), str(out_file), "--preset", caption_preset]
+            if req.get("transition") and req["transition"] != "none":
+                cmd += ["--transition", str(req["transition"])]
             if caption_anim:
                 cmd += ["--anim", caption_anim]
             if translated_chunks:
@@ -753,7 +766,9 @@ class Handler(BaseHTTPRequestHandler):
             lang = "en" if "lang=en" in self.path else "es"
             self._send({"default": cap.DEFAULT_PRESET, "list": cap.preset_list(lang),
                         "anims": cap.anim_list(lang),
-                        "animOf": {k: v["anim"] for k, v in cap.PRESETS.items()}})
+                        "animOf": {k: v["anim"] for k, v in cap.PRESETS.items()},
+                        "langs": tl.LANGS,
+                        "transitions": TRANSITION_LABELS.get(lang, TRANSITION_LABELS["es"])})
         else:
             self._send({"error": "not found"}, 404)
 
