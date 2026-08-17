@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiGet, apiPost, BrandProfile } from "./api";
+import { apiGet, apiPost, BrandProfile, CaptionStyle } from "./api";
 import { useLang, Key } from "./i18n";
 import { IconCheck } from "./Icons";
 
@@ -13,11 +13,12 @@ const VIBES: { id: string; label: Key }[] = [
   { id: "divertido", label: "vibe.divertido" },
 ];
 
-export default function Brand({ onClose }: { onClose: () => void }) {
+export default function Brand({ onClose, styles }:
+  { onClose: () => void; styles: CaptionStyle[] }) {
   const { t } = useLang();
   const [p, setP] = useState<BrandProfile>({
     vibes: [], references: ["", "", ""], pace: 6,
-    color1: "#6c5ce7", color2: "#2b82f0", captionStyle: "hormozi",
+    color1: "#6c5ce7", color2: "#2b82f0", captionPreset: "pop",
   });
   const [saved, setSaved] = useState(false);
 
@@ -98,14 +99,16 @@ export default function Brand({ onClose }: { onClose: () => void }) {
 
           <section className="field">
             <label>{t("brand.caption")}</label>
-            <div className="opt out inline">
-              <button className={p.captionStyle === "hormozi" ? "sel" : ""}
-                      onClick={() => set("captionStyle", "hormozi")}>Hormozi</button>
-              <button className={p.captionStyle === "minimal" ? "sel" : ""}
-                      onClick={() => set("captionStyle", "minimal")}>Minimal</button>
+            <div className="capstyles">
+              {styles.map((s) => (
+                <button key={s.id} className={`capstyle ${p.captionPreset === s.id ? "sel" : ""}`}
+                        onClick={() => set("captionPreset", s.id)} title={s.note}>
+                  {s.label}
+                </button>
+              ))}
             </div>
             <small className="under">
-              {t(p.captionStyle === "hormozi" ? "brand.caption.hormozi" : "brand.caption.minimal")}
+              {styles.find((s) => s.id === p.captionPreset)?.note ?? ""}
             </small>
           </section>
 

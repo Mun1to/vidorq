@@ -16,6 +16,9 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
 
 export interface Workspaces { active: string; list: string[] }
 
+// Un estilo de caption tal y como lo sirve el motor en /captions/presets.
+export interface CaptionStyle { id: string; label: string; note: string }
+
 export interface BrandProfile {
   brandName?: string;
   about?: string;
@@ -25,6 +28,6 @@ export interface BrandProfile {
   references?: string[];
   antiReference?: string;
   pace?: number;
-  captionStyle?: "hormozi" | "minimal";
+  captionPreset?: string;
   hardRules?: string;
 }

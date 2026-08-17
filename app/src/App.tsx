@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiGet, apiPost, ENGINE, Workspaces } from "./api";
+import { apiGet, apiPost, CaptionStyle, ENGINE, Workspaces } from "./api";
 import { useLang, Key } from "./i18n";
 import Brand from "./Brand";
 import Settings from "./Settings";
@@ -36,6 +36,10 @@ function App() {
   const [video, setVideo] = useState<string>("");
   const [preset, setPreset] = useState<Preset>("clean");
   const [captions, setCaptions] = useState(true);
+  // Los estilos de caption los sirve el motor, que es donde estan definidos:
+  // asi anadir uno no obliga a tocar la interfaz.
+  const [capStyles, setCapStyles] = useState<CaptionStyle[]>([]);
+  const [capStyle, setCapStyle] = useState("pop");
   const [output, setOutput] = useState<Output>("mp4");
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -83,6 +87,18 @@ function App() {
     return () => clearInterval(t);
   }, []);
 
+  // Estilos de caption. Se vuelven a pedir al cambiar de idioma porque las
+  // descripciones vienen del motor ya traducidas.
+  useEffect(() => {
+    apiGet<{ default: string; list: CaptionStyle[] }>(`/captions/presets?lang=${lang}`)
+      .then((c) => {
+        if (!c || !Array.isArray(c.list)) return;
+        setCapStyles(c.list);
+        setCapStyle((cur) => (c.list.some((s) => s.id === cur) ? cur : c.default));
+      })
+      .catch(() => {});
+  }, [lang]);
+
   // Progreso
   useEffect(() => {
     if (phase !== "running") return;
@@ -116,6 +132,7 @@ function App() {
     try {
       const j = await apiPost<{ ok?: boolean; error?: string }>("/edit", {
         video, preset, captions, output, prompt: proOpen ? prompt : "", lang,
+        captionPreset: capStyle,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
     } catch {
@@ -303,6 +320,22 @@ function App() {
             <span className="profile-note">{t("workspace")} <b>{ws.active}</b></span>
           </div>
 
+          {captions && capStyles.length > 0 && (
+            <div className="capstyles">
+              {capStyles.map((s) => (
+                <button
+                  key={s.id}
+                  className={`capstyle ${capStyle === s.id ? "sel" : ""}`}
+                  onClick={() => setCapStyle(s.id)}
+                  title={s.note}
+                >
+                  {s.label}
+                </button>
+              ))}
+              <small className="capnote">{capStyles.find((s) => s.id === capStyle)?.note}</small>
+            </div>
+          )}
+
           <div className="pro">
             <button className="pro-toggle" onClick={() => setProOpen(!proOpen)}>
               <IconSpark size={15} className="icon" />
@@ -325,7 +358,7 @@ function App() {
       )}
 
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
-      {brandOpen && <Brand onClose={() => setBrandOpen(false)} />}
+      {brandOpen && <Brand onClose={() => setBrandOpen(false)} styles={capStyles} />}
       {guiaOpen && (
         <Guia onClose={() => { localStorage.setItem("vidorq.guiaVista", "1"); setGuiaOpen(false); }} />
       )}
