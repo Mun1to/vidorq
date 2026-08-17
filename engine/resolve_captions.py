@@ -84,7 +84,7 @@ def _events(chunks, fps, start_frame):
 
 
 def build(post, get, timeline_name, chunks, preset_name, work_dir,
-          width=1920, height=1080, fps=30.0, log=None):
+          width=1920, height=1080, fps=30.0, log=None, anim=""):
     """Build <timeline_name>_Subs and nest it over V2 of <timeline_name>.
 
     `post` and `get` are the engine's two bridge callers. Returns a summary dict.
@@ -143,13 +143,14 @@ def build(post, get, timeline_name, chunks, preset_name, work_dir,
     for i, (ev, clip) in enumerate(zip(real, clips)):
         dur = max(2, int(clip.get("duration", TITLE_DEFAULT_FRAMES)))
         path = comp_dir / ("cap_%04d.comp" % i)
-        cap.to_comp(path, ev["chunk"], width, height, dur, preset_name)
+        cap.to_comp(path, ev["chunk"], width, height, dur, preset_name, anim or None)
         r = post("/clip/fusion/import", {"trackType": "video", "trackIndex": 1,
                                          "clipIndex": i,
                                          "path": str(path).replace("\\", "/")})
         if r.get("success"):
             done += 1
-    say("%d subtitulos con estilo '%s'" % (done, preset_name))
+    say("%d subtitulos con estilo '%s'%s" % (done, preset_name,
+                                          " y animacion '%s'" % anim if anim else ""))
 
     # 5) Back to the real edit, and drop the caption timeline on top of it.
     if not switch_to(post, get, timeline_name):
@@ -163,4 +164,5 @@ def build(post, get, timeline_name, chunks, preset_name, work_dir,
     if not out.get("success"):
         raise RuntimeError("Los subtitulos existen en '%s' pero no pude anidarlos: %s"
                            % (subs, out))
-    return {"captions": done, "timeline": subs, "preset": preset_name}
+    return {"captions": done, "timeline": subs, "preset": preset_name,
+            "anim": anim or "la del estilo"}

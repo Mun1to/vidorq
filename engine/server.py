@@ -399,7 +399,7 @@ def video_shape(path):
 
 
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
-                   workdir=None):
+                   workdir=None, anim=""):
     name = Path(video).stem[:40]
     fps, width, height = video_shape(video)
     timeline = f"Vidorq_{name}"
@@ -431,7 +431,7 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
             set_progress(tr("captioning"), 85, tr("captioning_n", len(chunks)))
             out = resolve_captions.build(bridge_post, bridge_get, timeline, chunks,
                                          preset, workdir or Path(video).parent,
-                                         width, height, fps)
+                                         width, height, fps, anim=anim)
             made += " " + tr("captions_made", out["captions"])
     bridge_post("/project/save", {})
     return made
@@ -506,6 +506,11 @@ def run_job(req):
             "captionPreset") or cap.DEFAULT_PRESET
         if caption_preset not in cap.PRESETS:
             caption_preset = cap.DEFAULT_PRESET
+        # The movement is a separate choice from the look. Empty means "whatever
+        # this look ships with", which is not the same as the global default.
+        caption_anim = req.get("captionAnim") or profile_load().get("captionAnim") or ""
+        if caption_anim not in cap.ANIMS:
+            caption_anim = ""
 
         if not Path(video).is_file():
             raise ValueError(tr("no_video", video))
@@ -562,12 +567,14 @@ def run_job(req):
                 raise RuntimeError("No pude hablar con Resolve. Abre Resolve, un proyecto, "
                                    "y Workspace > Scripts > Vidorq")
             result = output_resolve(video, edl, transcript, captions, caption_preset,
-                                    workdir)
+                                    workdir, caption_anim)
         else:
             set_progress(tr("rendering"), 65, "Cortes + zooms" + (" + captions" if captions else ""))
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
             cmd = [PYTHON, str(HELPERS / "vidorq_render.py"), video, str(edl_path),
                    str(tr_path), str(out_file), "--preset", caption_preset]
+            if caption_anim:
+                cmd += ["--anim", caption_anim]
             if not captions:
                 cmd.append("--no-captions")
             run_render(cmd, out_file)
@@ -623,7 +630,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(bridge_status())
         elif self.path.startswith("/captions/presets"):
             lang = "en" if "lang=en" in self.path else "es"
-            self._send({"default": cap.DEFAULT_PRESET, "list": cap.preset_list(lang)})
+            self._send({"default": cap.DEFAULT_PRESET, "list": cap.preset_list(lang),
+                        "anims": cap.anim_list(lang),
+                        "animOf": {k: v["anim"] for k, v in cap.PRESETS.items()}})
         else:
             self._send({"error": "not found"}, 404)
 
