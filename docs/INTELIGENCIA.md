@@ -136,16 +136,41 @@ fotogramas reales:
 | método | resultado |
 | --- | --- |
 | centroide de detalle + movimiento (gratis, ya calculado) | 3 aciertos de 6. Un fallo puso el recorte en un **coche aparcado** con el sujeto al otro lado |
-| preguntarle la posición a `qwen3-vl:8b` | mejor donde la heurística fallaba, pero contesta casi siempre «50» y una vez no contestó. 10 s por fotograma |
+| preguntarle la posición a un modelo de visión local | contesta «50» mire lo que mire. Medido abajo |
 
 En una función donde equivocarse significa **dejar la cara fuera del cuadro**, acertar dos
 de cada tres no vale. El dato del centroide se guarda igual en el track como `x`, porque es
 gratis y sirve para ponderar decisiones, pero `subject_x()` avisa en su docstring de que es
 una **pista y no un seguimiento**.
 
-**Condición de desbloqueo:** un detector de personas de verdad (MediaPipe, YOLO o el
-`smart-reframe` de Resolve Studio). Con eso el recorte por plano ya está resuelto, porque
-la parte de recortar y escalar es trivial; lo que falta es saber dónde está la persona.
+### Preguntarle la posición a un modelo de visión no funciona, y está medido
+
+La idea era buena y sale gratis: el modelo de visión ya mira un fotograma por plano, así
+que basta con pedirle también dónde está la persona. **No sirve.** Prueba con dos
+fotogramas del mismo vídeo elegidos justo porque discriminan: en uno la cabeza está al
+**66%** del ancho (un recorte vertical centrado la deja fuera) y en el otro al **45%**
+(centrada). Presupuesto de 1200 tokens, temperatura 0, se pide solo un número:
+
+| modelo | cabeza al 66% | cabeza al 45% |
+| --- | --- | --- |
+| `qwen3-vl:8b` | dice 50 (8 s) | dice 50 (6 s) |
+| `granite3.2-vision:2b` | «aproximadamente el 50%» (10 s) | «aproximadamente el 50%» (3 s) |
+| `moondream:1.8b` | devuelve una caja que no corresponde | otra caja que tampoco |
+
+Los tres dan **la misma respuesta a dos imágenes distintas**, así que no están mirando:
+están diciendo el centro porque es la respuesta segura. Es la debilidad conocida de los
+modelos de lenguaje con visión, que describen bien y **ubican mal**. Además cuesta entre 6
+y 31 segundos por fotograma. **No reintentar con otro prompt**: cambiar la redacción es el
+mismo intento (regla X).
+
+**Condición de desbloqueo:** un detector de caras de verdad, que es un modelo pequeño y
+especializado, no un modelo de lenguaje. La buena noticia es que **el venv del motor ya
+tiene `onnxruntime` instalado**, así que no hace falta añadir ninguna dependencia: solo el
+archivo del modelo (YuNet pesa unos 340 KB). Con la posición resuelta el recorte por plano
+ya está hecho, porque recortar y escalar es lo trivial.
+
+Mientras tanto hay **barra manual `cropX`** en la interfaz, que no adivina pero tampoco
+falla.
 
 ## 6. Editar con un prompt (`skill/helpers/director.py`)
 
