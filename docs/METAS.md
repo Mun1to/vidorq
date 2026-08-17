@@ -38,11 +38,19 @@ con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en dire
       siendo el de `davinci-resolve-mcp`; solo cambia la etiqueta que ve el usuario. La
       entrada vieja se aparta como `.bak` para no tener dos en el menú. Instalador
       reproducible: `resolve/instalar.ps1`.
-- [x] **Panel dentro de Resolve** (2026-07-18): `resolve/VidorqPanel.py`, cliente fino del
-      mismo motor local. Lee los clips del media pool del proyecto abierto, así que no hay
-      que teclear rutas. Comprueba UIManager al arrancar y lo dice en cristiano si la
-      versión Free no lo expone. **PENDIENTE DE EJECUTAR por Munir** (Free bloquea el
-      scripting externo: solo se lanza desde el menú de Resolve).
+- [x] **Una sola entrada en el menú de Resolve** (2026-08-17): `Workspace > Scripts > Vidorq`.
+      Lo que se instala es un cargador sin lógica que lee un puntero y ejecuta el código de la
+      carpeta de instalación, así que **actualizar la app actualiza la extensión** y no hay que
+      reinstalar nada en Resolve nunca más. Un clic enciende el motor (oculto, sin consola),
+      abre la ventana y arranca el puente.
+- [~] **Panel dibujado dentro de Resolve**: APARCADO. `resolve/VidorqPanel.py` existe, pero al
+      lanzarlo la versión Free responde con el cartel de limitación de Studio: **la API de
+      scripting funciona, lo que está capado es dibujar interfaz con UIManager**. Decisión de
+      Munir el 2026-08-17: "trabaja más en el backend". Condición de desbloqueo: que alguien
+      con Studio confirme que el panel se dibuja, o que Blackmagic lo abra en Free.
+      `resolve/VidorqProbe.py` queda en el repo para medir en qué llamada exacta corta.
+- [ ] **Historial de ediciones**: la entrada existe en la barra lateral pero está vacía, porque
+      el motor no guarda nada de las ediciones anteriores. Siguiente pieza obvia del backend.
 - [x] **Compatibilidad de Resolve 21 verificada por API** (2026-08-17, versión 21.0.4.5 Free).
       El puente responde `{"connected": true, "product": "DaVinci Resolve", "version": "21.0.4.5"}`
       y devuelve proyecto y timeline reales. La actualización del instalador no se llevó por
@@ -74,8 +82,15 @@ menos de 30 minutos.
       SmartDefaults: el idioma del sistema decide solo en el primer arranque, la elección
       manual manda para siempre, selector siempre visible. El motor responde en el idioma
       que le manda la interfaz para que no se mezclen los dos en pantalla.
+- [x] **Instalador real** (2026-08-17): `pnpm tauri build` en 3m16s produce
+      `C:\ct\release\vidorq.exe` (8,7 MB) más `Vidorq_0.1.0_x64-setup.exe` y el `.msi`. Ojo, el
+      binario sale en `CARGO_TARGET_DIR`, no en `app/src-tauri/target`. **Sin firmar todavía**:
+      Windows los marca como de origen desconocido. GOTCHA: `cargo clean -p vidorq` tras tocar iconos.
+- [x] **Push público descongelado** (2026-08-17): 14 commits publicados en `Mun1to/vidorq` tras
+      el OK explícito de Munir, con barrido previo de visibilidad y de docs internos.
 - [ ] Auditoría de consistencia de punta a punta (ambas apps, ambos backends).
-- [ ] Instalador real (`pnpm tauri build`). GOTCHA: `cargo clean -p vidorq` tras tocar iconos.
+- [ ] README público reescrito: todavía cuenta la instalación vieja de tres scripts.
+- [ ] Firmar los instaladores para que Windows no los marque como origen desconocido.
 - [ ] README público en inglés con GIF del flujo real.
 - [ ] Landing con el copy que salió de la investigación: analogía-ancla en el hero,
       contraste explícito "viven fuera / Vidorq vive dentro", CTA final participativo con
