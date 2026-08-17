@@ -122,6 +122,51 @@ def _thumbs_pyav(video, sample_fps):
     return out
 
 
+def _interest_x(small, prev):
+    """Where the interesting part of the frame is, horizontally, as 0-1.
+
+    Two things say "look here" without a model: detail and movement. A face and
+    its edges carry far more local contrast than sky or a wall, and whatever is
+    moving is usually the subject. Scoring both per column and taking the
+    weighted centre lands on the person often enough to reframe by, and costs
+    nothing on frames that are already decoded and 64 pixels wide.
+    """
+    import numpy as np
+    detail = np.abs(np.diff(small, axis=1)).sum(axis=0)          # per column
+    detail = np.concatenate([detail, detail[-1:]])
+    score = detail
+    if prev is not None:
+        score = score + np.abs(small - prev).sum(axis=0) * 1.5
+    total = float(score.sum())
+    if total <= 1e-6:
+        return 0.5
+    cols = np.arange(len(score), dtype="float32")
+    return float((score * cols).sum() / total) / max(1, len(score) - 1)
+
+
+def subject_x(track, start, end, default=0.5):
+    """Where the busiest part of the picture sits, for one stretch of video.
+
+    A HINT, not a subject tracker, and the difference matters. Measured against
+    six real frames it agreed with the person's position three times and was
+    badly wrong twice, once putting the centre on a parked car while the speaker
+    stood off to the other side. Detail and movement are simply not the same
+    thing as a face, and a bright background full of edges wins the vote.
+
+    So this is fine for weighting a decision, and NOT enough to crop a vertical
+    video by: getting that wrong puts someone's head outside the frame. Doing
+    that properly needs an actual person detector. See docs/INTELIGENCIA.md.
+
+    The median, not the mean: one frame where an arm swings past the lens should
+    not drag the whole shot sideways.
+    """
+    import numpy as np
+    xs = [p["x"] for p in track if start <= p["t"] < end and "x" in p]
+    if not xs:
+        return default
+    return float(np.median(np.array(xs, dtype="float32")))
+
+
 def shots(video, sample_fps=SAMPLE_FPS, log=None):
     """Where the picture changes, and how alive it is in between.
 
@@ -147,6 +192,7 @@ def shots(video, sample_fps=SAMPLE_FPS, log=None):
         # genuine change of shot, and that decision happens after this runs.
         track.append({"t": round(t, 3), "diff": round(diff, 3),
                       "brightness": round(float(small.mean()) / 255.0, 3),
+                      "x": round(_interest_x(small, prev), 3),
                       "sig": [int(v) for v in sig.flatten().tolist()]})
         prev = small
     if not track:

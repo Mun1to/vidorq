@@ -112,6 +112,40 @@ renderizar 1075 fotogramas         ~30 s   (NVENC)
 La vista y la traducción son **opcionales** (`vision`, `translate` en `/edit`), porque en un
 vídeo de una hora la parte del modelo se va a minutos y no todo el mundo la quiere siempre.
 
+## 5. Tapar los jump cuts
+
+Lo que más separa un vídeo cortado de un vídeo **editado**. Si quitas un silencio de un
+plano fijo, los dos lados del corte enseñan lo mismo desde el mismo sitio y el sujeto
+teletransporta. La solución de cualquier montador es cambiar el encuadre a través del
+corte, y eso es lo que hace ahora: **zoom 1.07 alternado** en los cortes que lo necesitan.
+
+Y solo en los que lo necesitan: las firmas dicen si los dos lados se parecen, así que un
+**cambio de plano de verdad se deja intacto**. Alterna, para que tres cortes seguidos no
+acaben todos con el mismo encuadre.
+
+Verificado fabricando un clip de **plano congelado** (donde sin esto los dos lados del
+corte serían idénticos byte a byte): salieron 4 tramos con zoom `1.00 / 1.07 / 1.00 / 1.07`
+y en el vídeo renderizado se ve el cambio de encuadre a los dos lados del corte.
+
+## Reencuadre vertical 9:16: NO, y esto es lo que falta
+
+Es lo que vende todo el mundo para shorts, y **no está** porque no supe hacerlo bien. Los
+dos caminos que probé, sobre seis fotogramas reales:
+
+| método | resultado |
+| --- | --- |
+| centroide de detalle + movimiento (gratis, ya calculado) | 3 aciertos de 6. Un fallo puso el recorte en un **coche aparcado** con el sujeto al otro lado |
+| preguntarle la posición a `qwen3-vl:8b` | mejor donde la heurística fallaba, pero contesta casi siempre «50» y una vez no contestó. 10 s por fotograma |
+
+En una función donde equivocarse significa **dejar la cara fuera del cuadro**, acertar dos
+de cada tres no vale. El dato del centroide se guarda igual en el track como `x`, porque es
+gratis y sirve para ponderar decisiones, pero `subject_x()` avisa en su docstring de que es
+una **pista y no un seguimiento**.
+
+**Condición de desbloqueo:** un detector de personas de verdad (MediaPipe, YOLO o el
+`smart-reframe` de Resolve Studio). Con eso el recorte por plano ya está resuelto, porque
+la parte de recortar y escalar es trivial; lo que falta es saber dónde está la persona.
+
 ## Cabos sueltos honestos
 
 - `shots()` tarda **83 s en un vídeo de 10 minutos** porque descodifica todos los
