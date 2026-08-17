@@ -24,6 +24,7 @@ Prompt mode (Modo Pro) uses the Anthropic API with the user's own key.
 """
 from __future__ import annotations
 
+import difflib
 import json
 import os
 import re
@@ -43,6 +44,11 @@ PYTHON = sys.executable
 CONFIG_DIR = Path(os.environ.get("APPDATA", ".")) / "Vidorq"
 CONFIG = CONFIG_DIR / "config.json"
 BRIDGE = "http://127.0.0.1:9876"
+
+# The caption presets and the filler-word lists live with the renderers that use
+# them, so the engine borrows them instead of keeping a second copy.
+sys.path.insert(0, str(HELPERS))
+import captions as cap  # noqa: E402
 
 _lock = threading.Lock()
 _progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": ""}
@@ -64,6 +70,7 @@ TEXT = {
         "building": "Montando timeline en Resolve...",
         "done": "Listo",
         "timeline_made": "Timeline 'Vidorq_%s' creado en Resolve",
+        "cut_report": "%d cortes, %d muletillas fuera, %d tomas repetidas",
     },
     "en": {
         "busy": "There is already an edit running",
@@ -76,6 +83,7 @@ TEXT = {
         "building": "Building the timeline in Resolve...",
         "done": "Done",
         "timeline_made": "Timeline 'Vidorq_%s' created in Resolve",
+        "cut_report": "%d cuts, %d filler words out, %d repeated takes",
     },
 }
 
@@ -144,25 +152,108 @@ def profile_save(p):
 # --------------------------------------------------------------------------- #
 # EDL builders (deterministic presets — no LLM required)
 # --------------------------------------------------------------------------- #
-def edl_from_speech(transcript, max_gap=0.6, pad=0.15):
-    """Keep spoken segments; merge when the gap is tiny; drop dead air."""
-    segs = transcript["segments"]
+# A cut shorter than this is a flash, not an edit.
+MIN_KEEP_S = 0.45
+# How isolated a filler has to be before cutting it is safe. Below this the word
+# is glued to the speech around it and removing it leaves an audible click.
+FILLER_ISLAND_S = 0.12
+# Two takes of the same sentence look like this much of the same text.
+TAKE_SAME = 0.82
+
+
+def _norm(text):
+    """Text reduced to what matters when comparing two takes."""
+    return re.sub(r"[^\w\s]", "", cap.strip_accents((text or "").lower())).strip()
+
+
+def drop_repeated_takes(transcript, threshold=TAKE_SAME):
+    """Drop all but the last attempt when a sentence is said twice in a row.
+
+    People restart sentences constantly, and the last take is nearly always the
+    keeper. Only neighbours are compared, so a phrase that legitimately comes
+    back later in the video survives.
+    """
+    segs = transcript.get("segments", [])
+    keep, dropped = [], 0
+    for seg in segs:
+        if keep:
+            a, b = _norm(keep[-1].get("text", "")), _norm(seg.get("text", ""))
+            if a and b and difflib.SequenceMatcher(None, a, b).ratio() >= threshold:
+                keep[-1] = seg     # the later take wins
+                dropped += 1
+                continue
+        keep.append(seg)
+    return keep, dropped
+
+
+def _speech_words(segs, lang):
+    """Every spoken word worth keeping, fillers on their own island removed.
+
+    Returns (words, fillers_removed). A segment without word timings falls back
+    to one entry covering the whole segment, so an older transcript still cuts.
+    """
+    words, removed = [], 0
+    for seg in segs:
+        ws = [w for w in seg.get("words", []) if (w.get("w") or "").strip()]
+        if not ws:
+            words.append({"s": float(seg["start"]), "e": float(seg["end"])})
+            continue
+        for i, w in enumerate(ws):
+            if cap.is_filler(w["w"], lang):
+                before = float(w["s"]) - float(ws[i - 1]["e"]) if i else FILLER_ISLAND_S
+                after = float(ws[i + 1]["s"]) - float(w["e"]) if i + 1 < len(ws) else FILLER_ISLAND_S
+                if before >= FILLER_ISLAND_S or after >= FILLER_ISLAND_S:
+                    removed += 1
+                    continue
+            words.append({"s": float(w["s"]), "e": float(w["e"])})
+    return words, removed
+
+
+def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=True):
+    """Keep the speech, drop the dead air, the fillers and the retries.
+
+    Built from word timings rather than whole phrases, which is what makes it
+    possible to cut an 'eh' out of a pause without touching the words around it.
+    Returns (edl, report) where report is what the app tells the user it did.
+    """
+    segs = transcript.get("segments", [])
     if not segs:
-        return []
+        return [], {}
+    dropped = 0
+    if drop_takes:
+        segs, dropped = drop_repeated_takes(transcript)
+    words, fillers = _speech_words(segs, lang)
+    if not words:
+        return [], {}
+
     out = []
-    cur = {"start": max(0.0, segs[0]["start"] - pad), "end": segs[0]["end"]}
-    for s in segs[1:]:
-        if s["start"] - cur["end"] <= max_gap:
-            cur["end"] = s["end"]
+    cur = {"start": max(0.0, words[0]["s"] - pad), "end": words[0]["e"]}
+    for w in words[1:]:
+        if w["s"] - cur["end"] <= max_gap:
+            cur["end"] = max(cur["end"], w["e"])
         else:
             out.append(cur)
-            cur = {"start": max(0.0, s["start"] - pad), "end": s["end"]}
+            cur = {"start": max(0.0, w["s"] - pad), "end": w["e"]}
     out.append(cur)
+
+    # Pad the tail, then fold away anything too short to read as a shot. Folding
+    # into the previous keep is better than dropping it: the words survive.
+    duration = float(transcript.get("duration") or 0) or out[-1]["end"] + pad
+    merged = []
     for seg in out:
-        seg["end"] += pad
+        seg["end"] = min(seg["end"] + pad, duration)
+        if merged and (seg["end"] - seg["start"] < MIN_KEEP_S
+                       or seg["start"] - merged[-1]["end"] <= 0):
+            merged[-1]["end"] = max(merged[-1]["end"], seg["end"])
+        else:
+            merged.append(seg)
+    if len(merged) > 1 and merged[0]["end"] - merged[0]["start"] < MIN_KEEP_S:
+        merged[1]["start"] = merged[0]["start"]
+        merged.pop(0)
+    for seg in merged:
         seg["zoom"] = 1.0
         seg["note"] = ""
-    return out
+    return merged, {"takes": dropped, "fillers": fillers, "cuts": len(merged)}
 
 
 def mark_questions(transcript, edl):
@@ -192,7 +283,7 @@ def edl_montage(video, transcript):
         energy[t] = energy.get(t, 0.0) + float((arr ** 2).mean())
     c.close()
     if not energy:
-        return edl_from_speech(transcript)
+        return edl_from_speech(transcript)[0]
     times = sorted(energy)
     vals = sorted(energy.values(), reverse=True)
     thr = vals[max(0, len(vals) // 3 - 1)]
@@ -211,7 +302,7 @@ def edl_montage(video, transcript):
     for k in keep:
         k["zoom"] = 1.0
         k["note"] = "pico de energia"
-    return keep or edl_from_speech(transcript)
+    return keep or edl_from_speech(transcript)[0]
 
 
 def edl_from_prompt(prompt, packed, key):
@@ -283,8 +374,26 @@ def bridge_status():
     }
 
 
-def output_resolve(video, edl, fps):
+def video_shape(path):
+    """(fps, width, height) of the source, read from the file itself.
+
+    Worth reading rather than assuming: at a hardcoded 29.97 a 24 or 60 fps clip
+    has every single cut land on the wrong frame, and the error grows along the
+    timeline.
+    """
+    try:
+        import av
+        with av.open(path) as c:
+            v = c.streams.video[0]
+            fps = float(v.average_rate or v.base_rate or 30)
+            return fps, int(v.codec_context.width), int(v.codec_context.height)
+    except Exception:
+        return 30000 / 1001, 1920, 1080
+
+
+def output_resolve(video, edl):
     name = Path(video).stem[:40]
+    fps, _w, _h = video_shape(video)
     # import media (idempotent) + timeline + inserts
     bridge_post("/media/import", {"filePaths": [video]})
     bridge_post("/timeline/create", {"name": f"Vidorq_{name}"})
@@ -362,6 +471,7 @@ def run_job(req):
 
         # 2) Build the EDL
         set_progress(tr("deciding"), 50)
+        report = {}
         if prompt:
             key = load_config().get("anthropicKey", "")
             if not key:
@@ -375,7 +485,7 @@ def run_job(req):
         elif preset == "montage":
             edl = edl_montage(video, transcript)
         else:
-            edl = edl_from_speech(transcript)
+            edl, report = edl_from_speech(transcript, transcript.get("language", _lang))
             if preset == "podcast":
                 edl = mark_questions(transcript, edl)
         if not edl:
@@ -383,18 +493,20 @@ def run_job(req):
         edl_path = workdir / "edl.json"
         edl_path.write_text(json.dumps({"segments": edl}, indent=1), encoding="utf-8")
         kept = sum(s["end"] - s["start"] for s in edl)
-        set_progress(tr("decided"), 58,
-                     f"{len(edl)} tramos, {kept:.0f}s conservados de {transcript['duration']:.0f}s")
+        detail = f"{len(edl)} tramos, {kept:.0f}s conservados de {transcript['duration']:.0f}s"
+        if report.get("fillers") or report.get("takes"):
+            detail += " (" + tr("cut_report", len(edl), report.get("fillers", 0),
+                                report.get("takes", 0)) + ")"
+        set_progress(tr("decided"), 58, detail)
 
         # 3) Execute on the chosen backend
         if output == "resolve":
             set_progress(tr("building"), 65,
                          "Necesita Resolve abierto con CursorBridge activo")
-            try:
-                result = output_resolve(video, edl, 30000 / 1001)
-            except Exception:
+            if not bridge_status()["bridge"]:
                 raise RuntimeError("No pude hablar con Resolve. Abre Resolve, un proyecto, "
-                                   "y Workspace > Scripts > CursorBridge")
+                                   "y Workspace > Scripts > Vidorq")
+            result = output_resolve(video, edl)
         else:
             set_progress(tr("rendering"), 65, "Cortes + zooms" + (" + captions" if captions else ""))
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
