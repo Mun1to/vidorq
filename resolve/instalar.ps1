@@ -15,7 +15,6 @@ if (-not (Test-Path $scripts)) {
 
 $home_ = Split-Path $PSScriptRoot -Parent
 $bridge = "C:\proyectos\davinci-resolve-mcp\src\CursorBridge.py"
-$app = Join-Path $home_ "app\src-tauri\target\release\vidorq.exe"
 # pythonw y no python: el de interfaz grafica no puede abrir una consola ni un parpadeo.
 $python = "C:\proyectos\davinci-resolve-mcp\venv\Scripts\pythonw.exe"
 
@@ -26,7 +25,9 @@ if (-not (Test-Path $bridge)) {
 # 1. El puntero. Es lo unico que sabe donde vive Vidorq.
 $confDir = Join-Path $env:APPDATA "Vidorq"
 if (-not (Test-Path $confDir)) { New-Item -ItemType Directory -Path $confDir | Out-Null }
-$conf = [ordered]@{ home = $home_; bridge = $bridge; app = $app; python = $python }
+# Sin la ruta de la app a proposito: se busca al hacer clic, porque normalmente
+# se compila despues de que la extension ya este en el menu.
+$conf = [ordered]@{ home = $home_; bridge = $bridge; python = $python }
 # Sin BOM a proposito: Set-Content -Encoding utf8 lo mete y json.load de Python lo rechaza.
 $sinBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText((Join-Path $confDir "resolve.json"), ($conf | ConvertTo-Json), $sinBom)
