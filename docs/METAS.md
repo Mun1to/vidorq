@@ -34,9 +34,17 @@ Por qué, tras la investigación de mercado (informe completo en
 **Hecho cuando**: sobre un vídeo real, un prompt produce en Resolve 21 un timeline editable
 con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en directo.
 
+- [x] **Renombrado a "VidorqBridge"** en Workspace > Scripts (2026-07-18). El puente sigue
+      siendo el de `davinci-resolve-mcp`; solo cambia la etiqueta que ve el usuario. La
+      entrada vieja se aparta como `.bak` para no tener dos en el menú. Instalador
+      reproducible: `resolve/instalar.ps1`.
+- [x] **Panel dentro de Resolve** (2026-07-18): `resolve/VidorqPanel.py`, cliente fino del
+      mismo motor local. Lee los clips del media pool del proyecto abierto, así que no hay
+      que teclear rutas. Comprueba UIManager al arrancar y lo dice en cristiano si la
+      versión Free no lo expone. **PENDIENTE DE EJECUTAR por Munir** (Free bloquea el
+      scripting externo: solo se lanza desde el menú de Resolve).
 - [ ] Compatibilidad de Resolve 21 con el puente, verificada por API (no de memoria).
       Precedente: Blackmagic rompe el scripting de la versión Free sin avisar (UIManager 19.1).
-- [ ] Renombrar el script de cara al usuario: "VidorqBridge" en Workspace > Scripts.
 - [ ] Spike `ImportFusionComp` con comp dummy en 21 Free (AddFusionComp,
       GetFusionCompNameList, LoadFusionCompByName, ImportFusionComp, borrar el dummy).
 - [ ] Captions nativos en el timeline vía macro Fusion (patrón AutoSubs), estilo Hormozi.
@@ -49,6 +57,16 @@ con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en dire
 **Hecho cuando**: una persona que no es Munir instala Vidorq y edita su primer vídeo en
 menos de 30 minutos.
 
+- [x] **Interfaz rediseñada** (2026-07-18): barra lateral fija, iconos de trazo propios en vez
+      de emojis del sistema, un violeta plano sin degradados, y modales con cabecera y pie
+      fijos que ya no se salen de la ventana.
+- [x] **Tutorial guiado** (2026-07-18): "Empezar con Resolve" no explica los pasos, los
+      COMPRUEBA (motor, proyecto abierto, puente) contra el endpoint `/resolve` del motor.
+      Se abre solo la primera vez.
+- [x] **Español e inglés** (2026-07-18): interfaz, motor y panel de Resolve. Reglas del skill
+      SmartDefaults: el idioma del sistema decide solo en el primer arranque, la elección
+      manual manda para siempre, selector siempre visible. El motor responde en el idioma
+      que le manda la interfaz para que no se mezclen los dos en pantalla.
 - [ ] Auditoría de consistencia de punta a punta (ambas apps, ambos backends).
 - [ ] Instalador real (`pnpm tauri build`). GOTCHA: `cargo clean -p vidorq` tras tocar iconos.
 - [ ] README público en inglés con GIF del flujo real.
