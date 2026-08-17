@@ -25,10 +25,12 @@ Esto ya da 162 herramientas sobre Resolve Free: timeline, clips, marcadores, med
 
 | Limitación | Consecuencia | Solución de Vidorq |
 |---|---|---|
-| No se pueden animar keyframes por API | Imposible "animar" clips desde código | Animaciones renderizadas fuera (Remotion) como vídeo con canal alfa, importadas como media |
+| No se pueden animar keyframes **con una llamada** | No se puede pedir "anima esto" | RESUELTO en la práctica: el `.comp` se escribe con sus splines dentro y `ImportFusionComp` las conserva. Medido en 21.0.4.5 Free, ver `docs/SUBTITULOS.md` |
 | No se pueden añadir transiciones por API | Sin cortinillas automáticas | Plantillas Fusion (.drfx/.setting) instaladas + macros; o transiciones "cocinadas" en el overlay |
-| No se puede editar el interior de nodos Fusion por API | Sin cambiar textos de Text+ complejos | Plantillas Text+ con parámetros publicados + `insert_title`; overlays Remotion para lo avanzado |
+| No se puede editar el interior de nodos Fusion por API | No se puede tocar un Text+ ya puesto | Se esquiva sin editarlo: el comp se genera ya con el texto y el estilo dentro, y se importa encima |
+| Un título insertado cae siempre en V1 y hace ripple | Insertar subtítulos destroza una edición montada | Los subtítulos van en su propio timeline, anidado en V2 con `recordFrame`. Bloquear o apagar V1 NO desvía la inserción (medido) |
 | Free no exporta >4K ni ciertas opciones de render | Techo de calidad de export | 4K H.264/H.265 cubre el 100% de redes sociales (ver RECURSOS.md) |
+| Text+ ignora `WriteOnStart`/`WriteOnEnd` al importar un comp | Sin efecto máquina de escribir | Ninguna: se quitó la promesa. Los dos caminos probados están en `docs/SUBTITULOS.md` |
 
 ### Escalera de técnicas para saltarse el límite de keyframes
 
@@ -38,7 +40,7 @@ La API no expone keyframes, pero hay una escalera de técnicas, de más segura a
 |---|---|---|---|
 | 1 | Propiedades estáticas por clip | hoy | zoom, pan, tilt, rotación vía `set_clip_properties` |
 | 2 | **Zoom punch por segmentación** | hoy · confirmado por investigación | cortar el clip en el punto de énfasis y aplicar zoom estático mayor al segundo segmento; NO necesita keyframes y es la técnica de zoom más robusta para el MVP (AutoCut la vende como modo propio) |
-| 3 | **Composiciones Fusion pre-animadas** | hoy · CAMINO PRINCIPAL, probado por AutoSubs en Free | `ImportFusionComp` tiene un bug documentado; workaround verificado: `AddFusionComp()` → `GetFusionCompNameList()` → `LoadFusionCompByName()` → `ImportFusionComp()` → borrar comp dummy. Biblioteca de comps paramétricas (zoom suave, shake, captions animados) |
+| 3 | **Composiciones Fusion pre-animadas** | **hoy · EN USO y verificado a mano en 21.0.4.5 Free (ago-2026)** | `ImportFusionComp` sobre un Text+ recién insertado funciona directo, sin el baile de `AddFusionComp` → `LoadFusionCompByName` → borrar dummy que se documentó antes; lo único obligatorio es **ruta absoluta**. Ya implementado en `skill/helpers/captions.py` + `engine/resolve_captions.py` |
 | 4 | Plantillas .drfx / Text+ paramétricas | probable (config 100% por script sin verificar) | macros instaladas con animación interna; instanciables vía media pool + `AppendToTimeline` |
 | 5 | Import de timeline con keyframes (FCPXML) | POCO FIABLE - descartado como vía principal | reportes de ~95% de propiedades PTZR mal traducidas en imports complejos; los keyframes a veces llegan pero los valores base no son de fiar; solo como experimento |
 | 6 | Edición del formato .drt | factible para parámetros puntuales | .drt/.drp son ZIP con XML dentro (SM_Project); hay caso real de modificar duraciones de clip y reimportar; último recurso |
