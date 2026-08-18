@@ -105,6 +105,7 @@ Sobre un recorte de 40 s con voz y cámara en mano:
 transcribir (Whisper small, CPU)   ~40 s
 mirar (planos + movimiento)         3,5 s
 describir 7 fotogramas             ~50 s
+buscar la cara en 4 cortes          0,3 s  (12 fotogramas a ~20 ms)
 traducir 10 frases                 ~16 s   (la primera incluye cargar el modelo)
 renderizar 1075 fotogramas         ~30 s   (NVENC)
 ```
@@ -127,21 +128,55 @@ Verificado fabricando un clip de **plano congelado** (donde sin esto los dos lad
 corte serían idénticos byte a byte): salieron 4 tramos con zoom `1.00 / 1.07 / 1.00 / 1.07`
 y en el vídeo renderizado se ve el cambio de encuadre a los dos lados del corte.
 
-## Seguir a la persona al reencuadrar: NO, y esto es lo que falta
+## Encuadrar el recorte vertical sobre la cara (`skill/helpers/faces.py`)
 
-El **formato** vertical sí está (punto 7). Lo que no está es que el recorte **siga al
-sujeto**, y no está porque no supe hacerlo bien. Los dos caminos que probé, sobre seis
-fotogramas reales:
+Recortar un 16:9 a 9:16 tira **dos tercios del ancho**, así que la única pregunta que
+importa es qué tercio se queda. Las dos respuestas baratas fallaron y están medidas más
+abajo; la que funciona es la herramienta hecha para esto: **YuNet**, un detector de caras
+de 227 KB que corre en la CPU.
 
 | método | resultado |
 | --- | --- |
-| centroide de detalle + movimiento (gratis, ya calculado) | 3 aciertos de 6. Un fallo puso el recorte en un **coche aparcado** con el sujeto al otro lado |
-| preguntarle la posición a un modelo de visión local | contesta «50» mire lo que mire. Medido abajo |
+| centroide de detalle + movimiento | 3 aciertos de 6. Un fallo puso el recorte en un **coche aparcado** |
+| preguntarle la posición a un modelo de visión | contesta «50» mire lo que mire |
+| **YuNet** (lo que hay hoy) | **7 de 7 fotogramas**, 13-24 ms cada uno |
 
-En una función donde equivocarse significa **dejar la cara fuera del cuadro**, acertar dos
-de cada tres no vale. El dato del centroide se guarda igual en el track como `x`, porque es
-gratis y sirve para ponderar decisiones, pero `subject_x()` avisa en su docstring de que es
-una **pista y no un seguimiento**.
+**No añade ninguna dependencia**: el venv del motor ya trae `onnxruntime`, y el modelo va
+dentro del repo con su licencia MIT (`skill/models/`), así que esto funciona con el cable
+de red desenchufado.
+
+### Cómo se enchufa
+
+El motor solo lo llama cuando la salida tiene **otra forma** que el original, porque un
+16:9 dentro de un 16:9 no recorta nada y no hay nada que apuntar. Mira **tres momentos por
+corte**, se queda con la **mediana** (para que un brazo cruzando el objetivo no arrastre el
+plano entero) y escribe `frame_x` en cada tramo del EDL. El renderizador ya leía ese campo.
+
+Un valor **por corte y no por fotograma**, a propósito: un recorte fijo se lee como un plano
+elegido, mientras que uno que va siguiendo a la persona necesita suavizado o marea. Y si
+mueves la **barra `cropX`** a mano, el detector no se ejecuta: quien ha encuadrado ya ha
+contestado a la pregunta.
+
+### Dos umbrales que no son de adorno
+
+**`CONF = 0.4`.** Barrido sobre siete fotogramas con la respuesta sabida a ojo: a 0,6 y 0,5
+se pierde una cara que camina a media distancia; a 0,4 salen las siete y todas bien; a 0,2
+un falso positivo crece **más que la cara real** y se queda con el encuadre.
+
+**`SAME_LEAGUE = 0.85`.** Quedarse con la caja más grande parecía obvio y era el fallo: en
+un plano de selfie **el brazo estirado que sujeta la cámara se detecta como cara** con 0,60
+a 0,71, la cara real puntúa 0,85 a 0,88, y el brazo es **más grande**. El primer render
+vertical salió encuadrado sobre un codo. Ahora se descartan las detecciones muy por debajo
+de la mejor del fotograma y solo después gana la más cercana. Dos caras de verdad en un
+plano puntúan las dos alto y las dos sobreviven.
+
+### Qué NO hace
+
+No sigue a la persona **dentro** de un corte, no distingue de quién es la cara (en un plano
+con dos personas se queda con la más cercana) y **sin caras recorta por el centro**, que es
+lo correcto para un plano de recurso. El centroide de detalle y movimiento sigue guardado en
+el track como `x` porque es gratis y sirve para ponderar decisiones, pero `subject_x()`
+avisa en su docstring de que es una **pista y no un seguimiento**.
 
 ### Preguntarle la posición a un modelo de visión no funciona, y está medido
 
@@ -163,14 +198,8 @@ modelos de lenguaje con visión, que describen bien y **ubican mal**. Además cu
 y 31 segundos por fotograma. **No reintentar con otro prompt**: cambiar la redacción es el
 mismo intento (regla X).
 
-**Condición de desbloqueo:** un detector de caras de verdad, que es un modelo pequeño y
-especializado, no un modelo de lenguaje. La buena noticia es que **el venv del motor ya
-tiene `onnxruntime` instalado**, así que no hace falta añadir ninguna dependencia: solo el
-archivo del modelo (YuNet pesa unos 340 KB). Con la posición resuelta el recorte por plano
-ya está hecho, porque recortar y escalar es lo trivial.
-
-Mientras tanto hay **barra manual `cropX`** en la interfaz, que no adivina pero tampoco
-falla.
+Que un modelo describa bien una imagen no quiere decir que sepa **dónde** están las cosas
+dentro de ella. Para ubicar se usa un detector, y para contar se usa un modelo de lenguaje.
 
 ## 6. Editar con un prompt (`skill/helpers/director.py`)
 
@@ -214,10 +243,10 @@ de 22, con el texto **del mismo tamano fisico** que en horizontal, que es como s
 shorts de verdad. En Resolve ademas cambia la resolucion del timeline y sube el zoom de los
 clips lo justo para tapar el cuadro (3,16 al pasar de 1920x1080 a 1080x1920).
 
-**El recorte va al centro y NO sigue a la persona.** Esto se ve: en una prueba real el
-sujeto quedaba cortado por el borde derecho en uno de los planos. Por eso hay una barra de
-**recorte manual** (`cropX`), y no una promesa de seguimiento que falla una de cada tres
-veces. La condicion de desbloqueo sigue siendo la de arriba: un detector de personas.
+**El recorte se apunta a la cara**, con el detector del apartado anterior: tres miradas por
+corte y la mediana. Antes iba al centro y se veia, porque en el segundo 3 de la prueba real
+el sujeto quedaba cortado por el borde derecho; ahora entra entero. Sigue habiendo barra de
+**recorte manual** (`cropX`) y tiene prioridad: si la mueves, el detector ni se ejecuta.
 
 Un aviso medido: para vertical, el estilo de subtitulo se sube a `pop` si el elegido era
 demasiado fino, porque un short se ve en un movil a un brazo de distancia y un `minimal` de

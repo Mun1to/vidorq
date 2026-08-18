@@ -154,8 +154,8 @@ def subject_x(track, start, end, default=0.5):
     thing as a face, and a bright background full of edges wins the vote.
 
     So this is fine for weighting a decision, and NOT enough to crop a vertical
-    video by: getting that wrong puts someone's head outside the frame. Doing
-    that properly needs an actual person detector. See docs/INTELIGENCIA.md.
+    video by: getting that wrong puts someone's head outside the frame. That job
+    belongs to faces.py, which asks a face detector instead of guessing.
 
     The median, not the mean: one frame where an arm swings past the lens should
     not drag the whole shot sideways.
