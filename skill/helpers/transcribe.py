@@ -6,11 +6,35 @@ Usage:
 Writes:
     <out_dir>/transcript.json   - segments with word-level timestamps
     <out_dir>/takes_packed.md   - compact phrase view for LLM reasoning
+
+This is the slowest step in the whole program, and it is the first one, so it is
+also the one the user sits and watches. Two things make it bearable:
+
+  the graphics card   asked for first and fallen back from silently, because a
+                      machine without CUDA libraries must still work
+  batching            faster-whisper cuts the audio at the silences and runs
+                      several pieces at once instead of one after another
+
+Both are attempts, not assumptions: a missing cuDNN, a card busy with Resolve or
+an older faster-whisper all end up on the CPU path, which is where this started.
+Progress goes to stdout as PROGRESO lines so the engine can show a real bar
+instead of a number that never moves.
 """
 import json
 import sys
 import time
 from pathlib import Path
+
+# Whisper's own working size. Bigger is more accurate and much slower, and the
+# difference on clear speech does not pay for itself.
+MODEL = "small"
+# Batching is OFF, and that is a decision, not an oversight. It is faster, and
+# on the same 40 second clip it returned TWO phrases where the plain pass
+# returns ten: it glues speech across the silences instead of breaking on them.
+# Vidorq cuts on phrase boundaries and the director reads the phrase list, so
+# coarser phrases means coarser cuts and less for the model to reason about.
+# Speed that costs the edit is not speed. Set it above zero to turn it back on.
+BATCH = 0
 
 
 def probe_duration(path: str) -> float:
@@ -18,6 +42,71 @@ def probe_duration(path: str) -> float:
 
     with av.open(path) as container:
         return float(container.duration) / 1_000_000 if container.duration else 0.0
+
+
+def cpu_model():
+    """The engine that always works. Sixteen threads instead of the default four."""
+    import os
+    from faster_whisper import WhisperModel
+    threads = max(4, (os.cpu_count() or 4))
+    return (WhisperModel(MODEL, device="cpu", compute_type="int8",
+                         cpu_threads=threads),
+            "%s int8 cpu (%d hilos)" % (MODEL, threads))
+
+
+def gpu_model():
+    """The card, or None. Building the model is NOT proof that it works.
+
+    Measured trap: WhisperModel(device="cuda") builds happily on a machine that
+    has the driver but not the CUDA maths libraries, and then dies in the middle
+    of the first transcription with "cublas64_12.dll is not found". Loading it
+    is not a test, so the caller keeps a way back and the real check is the first
+    piece of audio going through it.
+    """
+    from faster_whisper import WhisperModel
+    for compute in ("float16", "int8_float16"):
+        try:
+            return (WhisperModel(MODEL, device="cuda", compute_type=compute),
+                    "%s %s cuda" % (MODEL, compute))
+        except Exception:
+            continue
+    return None, ""
+
+
+def transcriber(model):
+    """The batched pipeline when this version has it, the plain model otherwise."""
+    if BATCH <= 0:
+        return model, False
+    try:
+        from faster_whisper import BatchedInferencePipeline
+        return BatchedInferencePipeline(model=model), True
+    except Exception:
+        return model, False
+
+
+def run(model, video, language, dur, how):
+    """One full pass. Raises if the engine cannot finish, so a caller can retry."""
+    print("CARGANDO_MODELO: %s" % how, flush=True)
+    engine, batched = transcriber(model)
+    print("MODO: %s" % ("por lotes" if batched else "seguido"), flush=True)
+    opts = dict(language=language, word_timestamps=True, vad_filter=True,
+                vad_parameters={"min_silence_duration_ms": 400})
+    if batched:
+        opts["batch_size"] = BATCH
+    segments, info = engine.transcribe(video, **opts)
+
+    seg_list, lines = [], []
+    for seg in segments:
+        words = [{"w": w.word, "s": round(w.start, 2), "e": round(w.end, 2)}
+                 for w in (seg.words or [])]
+        seg_list.append({"start": round(seg.start, 2), "end": round(seg.end, 2),
+                         "text": seg.text.strip(), "words": words})
+        lines.append(f"[{seg.start:07.2f}-{seg.end:07.2f}] {seg.text.strip()}")
+        # Every few phrases, not every twenty five: on a ten minute video that
+        # was four updates in as many minutes, which reads as a frozen program.
+        if len(seg_list) % 5 == 0:
+            print(f"PROGRESO: {seg.end:.0f}/{dur:.0f}s", flush=True)
+    return seg_list, lines, info
 
 
 def main() -> None:
@@ -29,38 +118,21 @@ def main() -> None:
     dur = probe_duration(video)
     print(f"DURACION_SEGUNDOS: {dur:.1f}", flush=True)
 
-    from faster_whisper import WhisperModel
-
-    print("CARGANDO_MODELO: small int8 cpu", flush=True)
-    model = WhisperModel("small", device="cpu", compute_type="int8")
-
     t0 = time.time()
-    segments, info = model.transcribe(
-        video,
-        language=language,
-        word_timestamps=True,
-        vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": 400},
-    )
-
-    seg_list = []
-    lines = []
-    for seg in segments:
-        words = [
-            {"w": w.word, "s": round(w.start, 2), "e": round(w.end, 2)}
-            for w in (seg.words or [])
-        ]
-        seg_list.append(
-            {
-                "start": round(seg.start, 2),
-                "end": round(seg.end, 2),
-                "text": seg.text.strip(),
-                "words": words,
-            }
-        )
-        lines.append(f"[{seg.start:07.2f}-{seg.end:07.2f}] {seg.text.strip()}")
-        if len(seg_list) % 25 == 0:
-            print(f"PROGRESO: {seg.end:.0f}/{dur:.0f}s", flush=True)
+    seg_list, lines, info = None, None, None
+    model, how = gpu_model()
+    if model:
+        try:
+            seg_list, lines, info = run(model, video, language, dur, how)
+        except Exception as e:
+            # The card was there and could not finish. Say so once, in one line,
+            # and carry on: the user asked for a transcript, not for a lecture
+            # about CUDA.
+            print("SIN_GPU: %s" % str(e)[:140], flush=True)
+            seg_list = None
+    if seg_list is None:
+        model, how = cpu_model()
+        seg_list, lines, info = run(model, video, language, dur, how)
 
     (out_dir / "transcript.json").write_text(
         json.dumps(
