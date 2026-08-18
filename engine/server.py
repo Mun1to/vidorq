@@ -1502,9 +1502,12 @@ def run_job(req):
         prompt = (req.get("prompt") or "").strip()
         ratio = req.get("ratio") or "source"
         transition = req.get("transition") or "none"
-        look = req.get("look") or ""
-        if look not in looks.PRESETS:
-            look = ""
+        # `colour` y no `look`: mas abajo `look` es lo que devuelve mirar el
+        # video con vision.analyse, y llamar igual a dos cosas distintas hacia
+        # que el filtro acabara guardado como {}.
+        colour = req.get("look") or ""
+        if colour not in looks.PRESETS:
+            colour = ""
         # The look of the captions. An unknown name falls back to the default
         # instead of failing an edit that has already been transcribed.
         caption_preset = req.get("captionPreset") or profile_load().get(
@@ -1543,7 +1546,7 @@ def run_job(req):
             captions = fresh.get("captions", captions)
             caption_preset = fresh.get("captionPreset") or caption_preset
             caption_anim = fresh.get("captionAnim", caption_anim)
-            look = fresh.get("look", look)
+            colour = fresh.get("look", colour)
             output = fresh.get("output") or output
             if req.get("output"):
                 output = req["output"]
@@ -1563,7 +1566,7 @@ def run_job(req):
                                  log=lambda m: set_progress(tr("directing"), 7, m))
             ratio = plan["ratio"]
             transition = plan["transition"]
-            look = plan.get("look") or look
+            colour = plan.get("look") or colour
             captions = plan["captions"]
             caption_preset = plan["captionPreset"]
             caption_anim = plan["captionAnim"]
@@ -1836,7 +1839,7 @@ def run_job(req):
                 video, edl, transcript, captions, caption_preset, workdir,
                 caption_anim, translated_chunks, ratio,
                 drop=(session_load(workdir).get("timelines") or []) if again else [],
-                look=look, transition=transition)
+                look=colour, transition=transition)
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
                 # come back looking finished and be missing the voice, which is
@@ -1855,8 +1858,8 @@ def run_job(req):
                     cmd += ["--crop-x", str(float(req["cropX"]))]
             if caption_anim:
                 cmd += ["--anim", caption_anim]
-            if look:
-                cmd += ["--look", look]
+            if colour:
+                cmd += ["--look", colour]
             if translated_chunks:
                 ch_path = workdir / "chunks_traducidos.json"
                 ch_path.write_text(json.dumps(translated_chunks, ensure_ascii=False),
@@ -1877,7 +1880,7 @@ def run_job(req):
         settings_now = {"ratio": ratio, "transition": transition,
                         "captions": captions, "captionPreset": caption_preset,
                         "captionAnim": caption_anim, "cuts": preset,
-                        "look": look, "output": output}
+                        "look": colour, "output": output}
         # Lo que ha pasado en este turno, contado. Se guarda con la sesion para
         # que la conversacion siga estando ahi despues de cerrar la ventana.
         did = said_it(changed, settings_now) if again else []
