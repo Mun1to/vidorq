@@ -672,9 +672,21 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     fill = fill_zoom(width, height, out_w, out_h)
     for i, seg in enumerate(edl):
         z = float(seg.get("zoom", 1.0)) * fill
+        props = {}
         if z > 1.001:
+            props.update(ZoomX=z, ZoomY=z)
+        # Zoom alone only fills the frame, it does not choose WHICH part of the
+        # frame survives, so without this the vertical crop in Resolve is always
+        # centred while the MP4 one aims at the face. Once zoomed, the clip is
+        # out_w * z wide inside a window out_w wide, so moving the visible window
+        # onto fx means sliding the picture the other way by that fraction of its
+        # zoomed width. Pan is in timeline pixels.
+        fx = float(seg.get("frame_x", 0.5))
+        if (out_w, out_h) != (width, height) and abs(fx - 0.5) > 0.005:
+            props["Pan"] = -(fx - 0.5) * out_w * z
+        if props:
             bridge_post("/clip/properties", {"trackType": "video", "trackIndex": 1,
-                                             "clipIndex": i, "properties": {"ZoomX": z, "ZoomY": z}})
+                                             "clipIndex": i, "properties": props})
 
     made = tr("timeline_made", timeline)
     if captions:
