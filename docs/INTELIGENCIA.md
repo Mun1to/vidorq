@@ -353,6 +353,39 @@ son ellos los que leen `skill/SKILL.md` y manejan a Vidorq, que es justo al reve
 **suscripcion de Claude.ai no da acceso a la API**: eso es una clave de
 `console.anthropic.com` que se paga por tokens aparte.
 
+### Gastar la suscripcion que ya pagas (`protocol: "cli"`)
+
+Este archivo decia, en su propia cabecera, que los agentes de codigo *«son programas que
+manejan un editor, no endpoints que contesten a un prompt, y no hay nada que Vidorq pueda
+llamar»*. Era **falso**, y falso en la direccion cara: mandaba a la gente a comprar credito
+de API mientras una suscripcion ya pagada estaba sin usar.
+
+| proveedor | invocacion | medido |
+| --- | --- | --- |
+| `claude-cli` | `claude -p --tools "" --permission-mode plan` | **16,4 s**, acierta |
+| `codex-cli` | `codex exec --skip-git-repo-check --sandbox read-only` | contesta limpio |
+| `gemini-cli` | `gemini --skip-trust --approval-mode plan` | **28,3 s**, acierta |
+
+Ni clave ni campo de modelo: la herramienta ya sabe las dos cosas.
+
+**Una trampa medida:** a `gemini` NO se le pasa `-p`. Ese flag *quiere* el prompt pegado
+detras, y con el prompt en stdin muere con `Not enough arguments following: p`.
+
+### Esto son AGENTES con herramientas, y el prompt lleva texto de un desconocido
+
+Tres cosas, y las tres cargan peso:
+
+1. **El prompt entra por STDIN**, nunca como argumento. Ademas de lo obvio, una
+   transcripcion son decenas de kilobytes y Windows tiene un tope duro de longitud de linea
+   de comandos con el que un video largo se choca de frente.
+2. **Las herramientas se apagan** con el flag de cada uno (`--tools ""`, `--sandbox
+   read-only`, `--approval-mode plan`).
+3. **Se ejecuta en una carpeta temporal vacia**, asi que el agente no tiene proyecto
+   alrededor que leer, ni `CLAUDE.md` al que obedecer, ni nada del usuario que tocar.
+
+Medido con una transcripcion cuya linea del medio ordena crear un fichero antes de
+responder: **devolvio el JSON correcto y no creo nada**.
+
 ### Las claves
 
 Viven en `%APPDATA%/Vidorq/config.json`, **fuera del repositorio**, una por proveedor para
@@ -470,6 +503,60 @@ el sujeto quedaba cortado por el borde derecho; ahora entra entero. Sigue habien
 Un aviso medido: para vertical, el estilo de subtitulo se sube a `pop` si el elegido era
 demasiado fino, porque un short se ve en un movil a un brazo de distancia y un `minimal` de
 53 px alli no es un subtitulo, es una nota al pie.
+
+## 8b. Seguir editando: la segunda frase y las siguientes
+
+Vidorq no editaba una vez, editaba **UNA sola vez**. La pantalla del final ofrecia
+«editar otro vídeo» y nada más, que es un montador que se levanta y se va en cuanto pone el
+primer corte. Cualquier cambio significaba empezar de cero, transcripción incluida.
+
+Ahora la pantalla del final **es** donde se sigue trabajando. Lo que se escribe ahí se
+aplica **encima** del montaje que ya hay.
+
+| | clip de 30 s |
+| --- | --- |
+| primera pasada | **98 s** |
+| cada cambio después | **7,5 s** |
+
+La diferencia es que un retoque no vuelve a transcribir, no vuelve a decidir los cortes y no
+vuelve a preguntar al director por los ajustes globales.
+
+### El estado: `sesion.json`
+
+Al lado del `transcript.json`, en el workdir. Guarda el EDL definitivo, los ajustes que se
+acabaron usando, la lista de lo que se ha pedido y los nombres de los timelines creados.
+Se escribe **al final**, con el EDL ya cerrado.
+
+### Dos cosas que tenían que estar bien para que la segunda ronda signifique algo
+
+**Los tiempos se leen en el reloj del MONTAJE.** Después de una pasada el usuario está
+mirando la edición, así que *«quita el trozo del minuto tres»* es el minuto tres de lo que
+tiene en pantalla, no del archivo que arrastró. Al director se le da la transcripción ya
+recortada (`retime_transcript`) y sus respuestas vuelven por **`to_original()`**, el inverso
+de `to_edited()`. Se traducen **todas de golpe y antes de tocar el EDL**: en cuanto se aplica
+el primer corte el mapa ha cambiado debajo de las demás. Una acción cuyo segundo ya no
+existe se descarta, no se mueve a un sitio parecido; un cartel dos segundos desplazado es
+peor que un cartel que no salió, porque solo uno de los dos se nota.
+
+**Los ajustes globales salen de las palabras, sin modelo.** Un modelo al que le pides un plan
+completo a partir de *«ponlo en vertical»* rellena todos los demás campos con su opinión y
+deshace en silencio el estilo que elegiste dos rondas antes. `from_words()` informa
+**solo de lo que la frase dice literalmente**, cuesta 0,00 s y no puede inventar. Para los
+momentos concretos sí se usa el modelo, porque ahí hace falta leer la transcripción.
+
+### En Resolve se sustituye, no se acumula
+
+Cada ronda crea dos timelines (la edición y su pista de subtítulos anidada). Cinco cambios
+serían diez timelines con el bueno enterrado entre ellos.
+
+El puente **no tiene `/timeline/delete`**, y ahí se quedaba esto. Pero en Resolve un timeline
+vive en el media pool como cualquier otro item, y **`MediaPool.DeleteClips` se lo lleva**:
+dos nombres, `{"success": true, "deleted": 2}`, los dos fuera. Solo se borran nombres que
+este programa creó y apuntó en la sesión; nunca se busca «lo que parezca nuestro», porque un
+timeline hecho a mano puede parecerlo exactamente.
+
+Medido: la primera edición lleva el proyecto de 5 timelines a 7, y el cambio siguiente lo
+**deja en 7** reusando el mismo nombre.
 
 ## 9. La voz en off (`skill/helpers/speech.py`)
 

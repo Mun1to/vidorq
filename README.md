@@ -107,6 +107,14 @@ picture.
 227 KB detector that runs on the CPU, so a vertical short does not cut the
 speaker out of frame. There is a manual slider when you would rather choose.
 
+**It keeps editing.** The screen at the end is not a dead end, it is where the
+work continues: type the next change and it is applied on top of the edit that
+exists. No re-transcribing, no re-deciding the cuts, and the settings carry
+over. On a 30 s clip the first pass took 98 s and every change after it took
+7.5 s. Times are read on the clock of the EDIT, not the original file, because
+that is what you are looking at by then. In Resolve the previous version is
+replaced rather than piled up next to it.
+
 **Prompts.** "vertical, short style, animated subtitles" sets the frame shape,
 the subtitle style, the animation, the transition and the kind of cut. It also
 takes instructions aimed at **one moment**: "put a card saying SUBSCRIBE at
@@ -136,11 +144,19 @@ nothing leaves the computer. In `Settings > Model and AI` you can point it at:
 | provider | notes |
 | --- | --- |
 | **Ollama local** | the default, no key |
-| Anthropic | an API key from the console, billed per token. A Claude.ai subscription is **not** API access |
+| **Claude Code** | the one you already have installed and signed in. Spends your **subscription**, asks for no key |
+| **Codex** | same, on your ChatGPT subscription |
+| **Gemini CLI** | same, on your Google account |
+| Anthropic | an API key from the console, billed per token. A Claude.ai subscription is **not** API access - but the Claude Code row above is |
 | OpenAI | |
 | **OpenRouter** | one key, hundreds of models |
 | Google Gemini | |
 | **OpenAI-compatible** | give it a base URL: Groq, DeepSeek, xAI, LM Studio, llama.cpp |
+
+The three command-line entries need nothing set up: if the tool is on your
+PATH it lights up, and if it is not it shows greyed out. The prompt goes to them
+on stdin with their tools switched off, in an empty scratch folder, because they
+are agents and the transcript in that prompt came out of somebody else's video.
 
 `Settings > Voice` is the same idea for speech: Windows' own voice by default,
 then ElevenLabs, OpenAI or any OpenAI-compatible endpoint.
