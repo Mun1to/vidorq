@@ -28,11 +28,36 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-# Ollama's own default. OLLAMA_HOST overrides it, which is also how a second
-# instance on another port gets used without touching the user's setup.
-OLLAMA = os.environ.get("OLLAMA_HOST", "127.0.0.1:11434")
-if not OLLAMA.startswith("http"):
-    OLLAMA = "http://" + OLLAMA
+# Where Ollama listens. OLLAMA_HOST wins outright when it is set, because that
+# is the user saying so out loud. With nothing set, the ports are tried in order
+# and the one that answers WITH MODELS is the one used.
+#
+# Not paranoia, a measured trap: Ollama's own app keeps the model folder in its
+# settings database, and that setting beats the OLLAMA_MODELS variable. So a
+# machine can have Ollama answering perfectly on the default port with an empty
+# model list, while the real models sit behind a second instance. Everything
+# then fails with "there is no local model" on a computer that has forty two of
+# them, which is the kind of error nobody debugs on the first afternoon.
+OLLAMA_PORTS = (11434, 11435)
+
+
+def _pick_ollama():
+    forced = os.environ.get("OLLAMA_HOST", "")
+    if forced:
+        return forced if forced.startswith("http") else "http://" + forced
+    fallback = "http://127.0.0.1:%d" % OLLAMA_PORTS[0]
+    for port in OLLAMA_PORTS:
+        url = "http://127.0.0.1:%d" % port
+        try:
+            with urllib.request.urlopen(url + "/api/tags", timeout=2) as r:
+                if json.loads(r.read().decode()).get("models"):
+                    return url
+        except Exception:
+            continue      # nada escuchando ahi, o no tiene modelos
+    return fallback
+
+
+OLLAMA = _pick_ollama()
 
 # Best first. Vidorq takes the first one the machine actually has, so it works
 # on a laptop with one small model and gets better on a machine with more.
