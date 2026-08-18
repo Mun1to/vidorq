@@ -14,12 +14,45 @@ if (-not (Test-Path $scripts)) {
 }
 
 $home_ = Split-Path $PSScriptRoot -Parent
-$bridge = "C:\proyectos\davinci-resolve-mcp\src\CursorBridge.py"
-# pythonw y no python: el de interfaz grafica no puede abrir una consola ni un parpadeo.
-$python = "C:\proyectos\davinci-resolve-mcp\venv\Scripts\pythonw.exe"
+$vecinos = Split-Path $home_ -Parent
 
-if (-not (Test-Path $bridge)) {
-    Write-Warning "No encuentro el puente en $bridge; Vidorq no podra hablar con Resolve."
+# El puente (CursorBridge.py) vive en otro repositorio, davinci-resolve-mcp. Se
+# busca en vez de darlo por hecho: escribir aqui la ruta de una maquina concreta
+# hace que el instalador solo funcione en esa maquina.
+$candidatosPuente = @()
+if ($env:VIDORQ_BRIDGE) { $candidatosPuente += $env:VIDORQ_BRIDGE }
+$candidatosPuente += @(
+    (Join-Path $vecinos "davinci-resolve-mcp\src\CursorBridge.py"),
+    "C:\proyectos\davinci-resolve-mcp\src\CursorBridge.py"
+)
+$bridge = $candidatosPuente | Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+if ($bridge) {
+    $bridge = (Resolve-Path $bridge).Path
+    Write-Host "Puente encontrado: $bridge"
+} else {
+    $bridge = $candidatosPuente[-1]
+    Write-Warning "No encuentro CursorBridge.py. Clona davinci-resolve-mcp al lado de Vidorq,"
+    Write-Warning "o pon su ruta en la variable VIDORQ_BRIDGE y vuelve a lanzar esto."
+}
+
+# pythonw y no python: el de interfaz grafica no puede abrir una consola ni un parpadeo.
+# Primero el entorno de Vidorq, luego el del puente, y por ultimo el del sistema.
+$candidatosPython = @(
+    (Join-Path $home_ ".venv\Scripts\pythonw.exe"),
+    (Join-Path $vecinos "davinci-resolve-mcp\venv\Scripts\pythonw.exe"),
+    "C:\proyectos\davinci-resolve-mcp\venv\Scripts\pythonw.exe"
+)
+$python = $candidatosPython | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $python) {
+    $delSistema = Get-Command pythonw.exe -ErrorAction SilentlyContinue
+    if ($delSistema) { $python = $delSistema.Source }
+}
+if ($python) {
+    Write-Host "Python: $python"
+} else {
+    Write-Warning "No encuentro ningun pythonw.exe. Crea el entorno de Vidorq primero:"
+    Write-Warning "  python -m venv .venv"
+    Write-Warning "  .venv\Scripts\pip install -r requirements.txt"
 }
 
 # 1. El puntero. Es lo unico que sabe donde vive Vidorq.

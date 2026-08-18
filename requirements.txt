@@ -1,0 +1,13 @@
+# Everything the Vidorq engine imports. Install with:
+#
+#     python -m venv .venv
+#     .venv\Scripts\pip install -r requirements.txt
+#
+# ffmpeg is NOT here because it is a program, not a package: install it
+# separately and make sure `ffmpeg -version` answers in a terminal.
+
+faster-whisper>=1.0     # word-level transcription, runs on the CPU
+av>=12.0                # decoding, and reading a file's real frame rate
+pillow>=10.0            # frames in and out of the vision and face passes
+numpy>=1.26             # the arithmetic behind shot detection and face decoding
+onnxruntime>=1.17       # runs the face detector in skill/models/
