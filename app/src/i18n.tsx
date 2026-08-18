@@ -35,6 +35,8 @@ const es = {
   "alert.noEngine": "No se pudo hablar con el motor. ¿Está encendido?",
 
   "drop.inproject": "O elige uno de este proyecto de Resolve",
+  "preview.head": "Asi va a quedar",
+  "preview.note": "Hecho con el mismo motor que el video final, sobre tu propio metraje.",
   "drop.title": "Arrastra tu vídeo aquí",
   "drop.sub": "o pega la ruta del archivo y pulsa Enter",
   "drop.change": "cambiar",
@@ -185,6 +187,8 @@ const en: Record<keyof typeof es, string> = {
   "alert.noEngine": "Could not reach the engine. Is it running?",
 
   "drop.inproject": "Or pick one from this Resolve project",
+  "preview.head": "How it will look",
+  "preview.note": "Made by the same engine as the final video, on your own footage.",
   "drop.title": "Drop your video here",
   "drop.sub": "or paste the file path and press Enter",
   "drop.change": "change",

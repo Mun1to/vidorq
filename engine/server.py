@@ -55,6 +55,7 @@ import director  # noqa: E402
 import resolve_captions  # noqa: E402
 import faces  # noqa: E402
 import providers  # noqa: E402
+import previews  # noqa: E402
 
 _lock = threading.Lock()
 _progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": ""}
@@ -1088,6 +1089,25 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):  # quiet
         pass
 
+    def _send_bytes(self, data, content_type):
+        """An image straight down the socket.
+
+        Previews are files on disk, not JSON, and base64 in a JSON envelope would
+        make every one of them a third bigger for no reason. They are immutable
+        once written (the cache key contains everything that went into them), so
+        they can be cached hard by the window.
+        """
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "public, max-age=86400")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(data)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+
     def _send(self, obj, code=200):
         data = json.dumps(obj).encode()
         try:
@@ -1119,6 +1139,38 @@ class Handler(BaseHTTPRequestHandler):
             self._send(profile_load())
         elif self.path == "/resolve":
             self._send(bridge_status())
+        elif self.path.startswith("/preview"):
+            # A picture of what a choice actually does, made by the real
+            # renderer. Slow the first time, free every time after, because the
+            # cache key already contains everything that went into it.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            one = lambda k, d="": (q.get(k) or [d])[0]  # noqa: E731
+            video = one("video")
+            try:
+                w, h = 1920, 1080
+                at = 1.0
+                if video and Path(video).is_file():
+                    _, w, h = video_shape(video)
+                    at, _fx = previews.best_moment(video)
+                kind = one("kind", "style")
+                lang = one("lang", "es")
+                ratio = one("ratio", "source")
+                if kind == "ratio":
+                    path = previews.ratio_still(ratio, video, w, h, at)
+                elif kind == "anim":
+                    path = previews.anim_loop(one("id", "pop"),
+                                              one("preset", cap.DEFAULT_PRESET),
+                                              ratio, video, lang, w, h, at)
+                else:
+                    path = previews.style_still(one("id", cap.DEFAULT_PRESET),
+                                                ratio, video, lang,
+                                                one("anim") or None, w, h, at)
+                mime = "image/webp" if str(path).endswith(".webp") else "image/png"
+                self._send_bytes(Path(path).read_bytes(), mime)
+            except Exception as e:
+                traceback.print_exc()
+                self._send({"error": str(e)[:300]}, 500)
         elif self.path == "/clips":
             # No bridge_status() gate on purpose. That check allows two seconds,
             # and the moment this gets asked is app startup, when Resolve is busy

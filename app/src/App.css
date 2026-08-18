@@ -415,6 +415,27 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .inline-foot { border-top: 0; padding: 4px 0 0; }
 .hint { font-size: 12px; color: var(--muted); }
 
+/* La preview de la combinacion elegida. Se hace con el renderizador de verdad,
+   asi que lo que se ve aqui es lo que sale, no una aproximacion dibujada. */
+.preview { display: flex; flex-direction: column; gap: 7px; }
+.preview-head {
+  font-size: 11px; color: var(--faint); letter-spacing: .4px; text-transform: uppercase;
+}
+.preview-box {
+  align-self: center; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--panel2);
+  min-height: 120px; display: grid; place-items: center; position: relative;
+}
+.preview-box img { display: block; max-width: 100%; max-height: 340px; }
+/* Mientras llega, la caja se queda en su sitio en vez de dar un salto. */
+.preview-box.loading { min-width: 220px; }
+.preview-box.loading::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
+  animation: preview-wait 1.1s linear infinite;
+}
+@keyframes preview-wait { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
 /* Los videos que ya estan en el proyecto de Resolve abierto: pedirle al usuario
    que arrastre un archivo que la aplicacion ya tiene delante es hacerle a el la
    busqueda que deberia hacer ella. */

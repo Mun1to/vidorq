@@ -64,6 +64,8 @@ function App() {
   const [ratios, setRatios] = useState<Record<string, string>>({});
   // El recorte no sigue a la persona (no es fiable), asi que se mueve a mano.
   const [cropX, setCropX] = useState(0.5);
+  // Cuantas previews se han pedido ya. Solo sirve para saber si esta la primera.
+  const [previewReady, setPreviewReady] = useState(false);
   const [output, setOutput] = useState<Output>("mp4");
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -162,6 +164,27 @@ function App() {
     pedir();
     return () => { alive = false; };
   }, [phase]);
+
+  // La preview de la combinacion elegida AHORA: estilo, entrada, formato y el
+  // recorte real sobre el video del usuario. Se pide animada cuando hay entrada,
+  // porque un movimiento no se ve en una foto quieta.
+  const previewUrl = useMemo(() => {
+    if (!captions && ratio === "source") return "";
+    const q = new URLSearchParams({ ratio, lang, video });
+    if (!captions) {
+      q.set("kind", "ratio");
+    } else if (capAnim && capAnim !== "none") {
+      q.set("kind", "anim");
+      q.set("id", capAnim);
+      q.set("preset", capStyle);
+    } else {
+      q.set("kind", "style");
+      q.set("id", capStyle);
+    }
+    return `${ENGINE}/preview?${q.toString()}`;
+  }, [captions, capStyle, capAnim, ratio, video, lang]);
+
+  useEffect(() => { setPreviewReady(false); }, [previewUrl]);
 
   // Progreso
   useEffect(() => {
@@ -409,6 +432,21 @@ function App() {
           </div>
 
           {seeVideo && <small className="capnote">{t("vision.note")}</small>}
+
+          {previewUrl && (
+            <section className="preview">
+              <span className="preview-head">{t("preview.head")}</span>
+              <div className={`preview-box ${previewReady ? "" : "loading"}`}>
+                <img
+                  src={previewUrl}
+                  alt=""
+                  onLoad={() => setPreviewReady(true)}
+                  onError={() => setPreviewReady(true)}
+                />
+              </div>
+              <small className="under">{t("preview.note")}</small>
+            </section>
+          )}
 
           {captions && capStyles.length > 0 && (
             <div className="capstyles">
