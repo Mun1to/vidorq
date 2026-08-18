@@ -183,6 +183,25 @@ no existe. Lo que lo hace visible es alternar el encuadre a los dos lados (`BEAT
 1.09`), que es el punch-in que hace cualquier editor de vlog sobre una accion. Verificado
 sacando los dos fotogramas del corte y comparandolos.
 
+### Temblor de impacto (solo MP4)
+
+Opcional, y apagado salvo que se pida: es un **look**, no una correccion, y un podcast no
+quiere que su camara pegue botes. Sobre el trozo que empieza **en** el golpe, un temblor que
+se apaga en **0,20 s** a **17 Hz**, con los dos ejes decayendo juntos pero a frecuencias
+distintas (1,0 y 1,37) para que el movimiento no sea una linea diagonal.
+
+Va escrito como **una expresion de ffmpeg**, no moviendo el recorte fotograma a fotograma
+desde Python: eso ultimo es lo que hacia la v1 del renderizador y por lo que tardaba
+cincuenta minutos en renderizar diez. Una expresion se evalua en C y no cuesta nada medible.
+
+**Un temblor necesita sitio donde moverse.** El recorte solo puede deslizarse dentro del
+margen que deja el zoom, asi que un tramo con temblor y zoom 1.0 tiene margen cero y sale
+completamente quieto: medido, **la mitad de los cortes salian sin temblar** hasta que un
+tramo que tiembla paso a llevar `SHAKE_MIN_ZOOM = 1.05` como minimo.
+
+**Solo en el MP4.** En Resolve haria falta animar la posicion del clip, y los keyframes por
+API no existen (el mismo muro que las transiciones).
+
 ## 5. Tapar los jump cuts
 
 Lo que más separa un vídeo cortado de un vídeo **editado**. Si quitas un silencio de un

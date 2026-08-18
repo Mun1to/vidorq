@@ -55,6 +55,7 @@ function App() {
   const [animOf, setAnimOf] = useState<Record<string, string>>({});
   // Mirar el video y traducir cuestan minutos, asi que van apagados de serie.
   const [seeVideo, setSeeVideo] = useState(false);
+  const [shake, setShake] = useState(false);
   const [transLang, setTransLang] = useState("");
   const [burnTrans, setBurnTrans] = useState(false);
   const [langs, setLangs] = useState<Record<string, string>>({});
@@ -226,7 +227,7 @@ function App() {
       const j = await apiPost<{ ok?: boolean; error?: string }>("/edit", {
         video, preset, captions, output, prompt: proOpen ? prompt : "", lang,
         captionPreset: capStyle, captionAnim: capAnim,
-        vision: seeVideo, translate: transLang, translateCaptions: burnTrans,
+        vision: seeVideo, shake, translate: transLang, translateCaptions: burnTrans,
         transition, ratio, cropX,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
@@ -434,6 +435,21 @@ function App() {
               <span className="box"><IconCheck size={12} className="icon" /></span>
               {t("vision")}
             </button>
+            {/* Solo aparece con la vista puesta: el temblor va sobre los golpes
+                del movimiento, y sin mirar el video no hay golpes que encontrar.
+                Ofrecerlo apagado seria ofrecer un boton que no hace nada. */}
+            {seeVideo && (
+              <button
+                className={`chk ${shake ? "on" : ""}`}
+                onClick={() => setShake(!shake)}
+                role="switch"
+                aria-checked={shake}
+                title={t("shake.note")}
+              >
+                <span className="box"><IconCheck size={12} className="icon" /></span>
+                {t("shake")}
+              </button>
+            )}
             <span className="profile-note">{t("workspace")} <b>{ws.active}</b></span>
           </div>
 
