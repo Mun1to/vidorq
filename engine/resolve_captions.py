@@ -5,9 +5,10 @@ paid plugins, and each one has a way round it that was measured, not assumed:
 
   the API cannot set keyframes          -> a .comp file carries its own splines,
                                            and ImportFusionComp keeps them
-  the API cannot set a title's length   -> inserting the next title trims the
-                                           previous one, so inserting in time
-                                           order hands out exact durations
+  the API cannot set a title's length   -> a caption is not a title at all: it
+                                           is any clip placed with an exact
+                                           recordFrame and an exact length, and
+                                           the .comp goes on top of that
   a title always lands on V1, rippling  -> captions are built in their own
   whatever was already there               timeline and that timeline is nested
                                            on V2 of the real edit, which is a
@@ -19,13 +20,77 @@ burning pixels.
 """
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import captions as cap
 
 # A title arrives 150 frames long, so anything inserted further ahead than that
-# leaves the previous caption hanging on screen until it runs out.
+# leaves the previous caption hanging on screen until it runs out. Only the slow
+# path cares; the fast one states every length outright.
 TITLE_DEFAULT_FRAMES = 150
+
+# --------------------------------------------------------------------------- #
+# Why captions are not made of titles any more
+# --------------------------------------------------------------------------- #
+# Putting one caption on a Resolve timeline used to cost 518 ms, and 89% of that
+# was a single call: moving the playhead. Measured on 21.0.4.5 Free, with the
+# connection to the bridge already open:
+#
+#     transporte (una peticion que no hace nada)     13.7 ms
+#     /title/insert                                  31.4 ms
+#     escribir la .comp en disco                      0.6 ms
+#     /clip/fusion/import                            32.3 ms
+#     /playhead                                     501.9 ms   <-- todo esto
+#
+# SetCurrentTimecode costs half a second whatever you do. Same on the Edit, Cut
+# and Media pages. Same on an empty timeline and on one holding 25 Fusion
+# titles. Same when it does not move at all, which is what settles it: it is not
+# seeking, and it is not rendering. It is what that call costs.
+#
+# It was there because a title has no length of its own: you insert the next one
+# where the previous should end and the ripple trims it. So every caption paid
+# 500 ms for a length.
+#
+# /media/insert takes a recordFrame AND a length, so a clip lands exactly where
+# it should be, exactly as long as it should be, with the playhead untouched. It
+# needs a media file rather than a title, and that turns out not to matter: the
+# comps this program writes are Text+ -> optional Blur -> optional Glow ->
+# Saver, with no MediaIn anywhere, so the clip underneath never enters the
+# graph. Proved rather than assumed: with a bright red placeholder, the clip
+# without a comp exports as (255, 24, 0) and the clip with one exports as
+# (0, 0, 0). The red never arrives, which is also why the caption still nests
+# with its transparency intact.
+#
+#     antes:  518 ms por subtitulo  ->  389 s para los 751 de un video de 10 min
+#     ahora:   52 ms por subtitulo  ->   39 s
+SUPPORT_SECONDS = 20
+
+
+def support_clip(work_dir, fps):
+    """A throwaway video for the captions to sit on, made once per frame rate.
+
+    Its frame rate has to match the timeline's. Source frames and timeline
+    frames are not the same unit, and a 30 fps placeholder on a 24 fps timeline
+    hands out captions 20% short - measured, and it looks like a rounding bug
+    everywhere except where it is.
+    """
+    import subprocess
+    r = max(1, int(round(float(fps or 30))))
+    path = Path(work_dir) / ("vidorq_soporte_%dfps.mp4" % r)
+    if path.exists():
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    exe = shutil.which("ffmpeg")
+    if not exe:
+        raise RuntimeError("hace falta ffmpeg para preparar los subtitulos")
+    subprocess.run(
+        [exe, "-hide_banner", "-loglevel", "error", "-f", "lavfi",
+         "-i", "color=c=black:s=64x36:r=%d:d=%d" % (r, SUPPORT_SECONDS),
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", str(path)],
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        capture_output=True, timeout=120, check=True)
+    return path
 
 
 def frame_to_tc(frame, start_frame, start_tc, fps):
@@ -83,6 +148,68 @@ def _events(chunks, fps, start_frame):
     return plan
 
 
+def _place_fast(post, get, real, work_dir, fps, start_frame, say):
+    """Place every caption with /media/insert. Returns False if it is not there.
+
+    Each caption states its own recordFrame and its own length, so nothing
+    trims anything and the order does not matter. A caption is clamped so it
+    cannot run into the next one: two clips fighting for a frame on V1 is how
+    you get a caption that disappears for no visible reason.
+    """
+    try:
+        support = support_clip(work_dir, fps)
+    except Exception as e:
+        say("sin clip de soporte (%s), voy por el camino lento" % str(e)[:60])
+        return False
+    got = post("/media/import", {"filePaths": [str(support)]})
+    if not (got.get("success") or got.get("imported")):
+        say("Resolve no acepto el clip de soporte, voy por el camino lento")
+        return False
+
+    limit = int(round(SUPPORT_SECONDS * float(fps or 30))) - 1
+    placed = 0
+    for i, ev in enumerate(real):
+        end = real[i + 1]["frame"] if i + 1 < len(real) else None
+        want = int(round((ev["chunk"]["end"] - ev["chunk"]["start"]) * fps))
+        if end is not None:
+            want = min(want, end - ev["frame"])
+        dur = max(1, min(want, limit))
+        r = post("/media/insert", {"clipName": support.name, "trackIndex": 1,
+                                   "recordFrame": int(ev["frame"]),
+                                   "startFrame": 0, "endFrame": dur})
+        if not r.get("success"):
+            if placed == 0:
+                # Un puente sin /media/insert lo dice en la primera llamada, y
+                # ahi todavia no hay nada que deshacer.
+                say("este puente no coloca clips por frame, voy por el camino lento")
+                return False
+            raise RuntimeError("Resolve dejo de aceptar subtitulos en el %d: %s" % (i, r))
+        placed += 1
+    say("%d subtitulos colocados sin mover el cabezal" % placed)
+    return True
+
+
+def _place_slow(post, get, plan, start_frame, start_tc, fps, say):
+    """El camino de antes: un Text+ por evento, cada uno recortando al anterior.
+
+    Se queda como red para un puente viejo que no tenga /media/insert. Cuesta
+    medio segundo por subtitulo, todo el en mover el cabezal.
+    """
+    for ev in plan:
+        post("/playhead", {"timecode": frame_to_tc(ev["frame"], start_frame, start_tc, fps)})
+        r = post("/title/insert", {"titleName": "Text+", "fusionTitle": True})
+        if not r.get("success"):
+            raise RuntimeError("Resolve no acepto un Text+: %s" % r)
+    say("%d titulos colocados" % len(plan))
+    junk = [i for i, ev in enumerate(plan) if ev["spacer"]]
+    clips = (get("/timeline/clips?track_type=video&track_index=1") or {}).get("clips", [])
+    junk += list(range(len(plan), len(clips)))
+    if junk:
+        post("/timeline/clips/delete", {
+            "clips": [{"trackType": "video", "trackIndex": 1, "clipIndex": i} for i in junk],
+            "ripple": False})
+
+
 def build_subs(post, get, timeline_name, chunks, preset_name, work_dir,
                width=1920, height=1080, fps=30.0, log=None, anim=""):
     """Build <timeline_name>_Subs, full of captions, and leave it there.
@@ -138,29 +265,17 @@ def build_subs(post, get, timeline_name, chunks, preset_name, work_dir,
             raise RuntimeError("Resolve no acepto %s=%s en '%s': %s"
                                % (key, value, subs, got.get("error", got)))
 
-    # 2) One title per event, in time order, each trimming the one before it.
-    for ev in plan:
-        post("/playhead", {"timecode": frame_to_tc(ev["frame"], start_frame, start_tc, fps)})
-        r = post("/title/insert", {"titleName": "Text+", "fusionTitle": True})
-        if not r.get("success"):
-            raise RuntimeError("Resolve no acepto un Text+: %s" % r)
-    say("%d titulos colocados" % len(plan))
-
-    # 3) Throw away the spacers and the tails the ripple left behind. Inserting
-    #    in time order keeps the real ones at the front, so everything from
-    #    len(plan) onwards is debris.
-    junk = [i for i, ev in enumerate(plan) if ev["spacer"]]
-    clips = (get("/timeline/clips?track_type=video&track_index=1") or {}).get("clips", [])
-    junk += list(range(len(plan), len(clips)))
-    if junk:
-        post("/timeline/clips/delete", {
-            "clips": [{"trackType": "video", "trackIndex": 1, "clipIndex": i} for i in junk],
-            "ripple": False})
-
-    # 4) Now every surviving clip has its final length, so the comps can be
-    #    written against it and the entrance animation fits the caption.
-    clips = (get("/timeline/clips?track_type=video&track_index=1") or {}).get("clips", [])
+    # 2) One clip per caption, placed outright: exact frame, exact length, and
+    #    the playhead never moves. See the note at the top of this file for the
+    #    measurements that made this the only sensible way round.
     real = [ev for ev in plan if not ev["spacer"]]
+    fast = _place_fast(post, get, real, work_dir, fps, start_frame, say)
+    if not fast:
+        _place_slow(post, get, plan, start_frame, start_tc, fps, say)
+
+    # 3) Now every clip has its final length, so the comps can be written
+    #    against it and the entrance animation fits its own caption.
+    clips = (get("/timeline/clips?track_type=video&track_index=1") or {}).get("clips", [])
     if not clips:
         # The titles are on the timeline; without this list there is no way to
         # know how long each one ended up, so the comps cannot be written and
