@@ -163,6 +163,92 @@ def _look_system(lang="es"):
         % (", ".join(RATIOS), ", ".join(TRANSITIONS), ", ".join(CUTS), styles, anims))
 
 
+def _change_system(current, lang="es"):
+    """El prompt del retoque: estado actual, menu cerrado, y solo el delta.
+
+    Distinto de _look_system a proposito. Alli no hay nada elegido todavia y se
+    pide un plan entero; aqui YA hay un video montado y la frase es un retoque,
+    asi que pedir un plan completo es como preguntarle a alguien que rehaga la
+    casa porque quieres mover una silla: el modelo rellena todo lo demas con su
+    opinion y te deshace el estilo que elegiste hace dos rondas.
+
+    Tambien se le pregunta por lo que NO sabe hacer. Un modelo que puede decir
+    "esto no esta en la lista" deja de tener que inventarse algo, que es de
+    donde salen las respuestas raras.
+    """
+    styles = ", ".join(cap.PRESETS)
+    anims = ", ".join(cap.ANIMS)
+    return (
+        "Eres el editor de video de Vidorq. El usuario YA tiene un video montado "
+        "y te pide UN CAMBIO. Estos son los ajustes que tiene ahora:\n%s\n\n"
+        "Responde SOLO un objeto JSON, sin texto alrededor:\n"
+        '{"cambia": {...}, "no_puedo": [...], "why": "una frase corta"}\n\n'
+        "En 'cambia' pon UNICAMENTE las claves que hay que cambiar, y ninguna "
+        "mas. Si el usuario no habla del formato, NO pongas 'ratio'. Si no habla "
+        "del estilo, NO pongas 'captionPreset'. Claves y valores posibles:\n"
+        "  ratio: %s\n"
+        "  transition: %s\n"
+        "  captions: true o false\n"
+        "  captionPreset: %s\n"
+        "  captionAnim: %s\n"
+        "  cuts: %s\n\n"
+        "En 'no_puedo' pon con tus palabras lo que el usuario ha pedido y no "
+        "cabe en ninguna de esas claves. Si lo entiendes todo, dejalo vacio. Si "
+        "no hay que cambiar ningun ajuste, devuelve 'cambia' vacio: eso es una "
+        "respuesta correcta, no un fallo."
+        % (json.dumps(current, ensure_ascii=False),
+           ", ".join(RATIOS), ", ".join(TRANSITIONS), styles, anims, ", ".join(CUTS)))
+
+
+def change(prompt, current, ai=None, model=None, log=None):
+    """Que ajustes cambia esta frase, sobre los que ya hay.
+
+    Devuelve (delta, no_puedo, why). El delta pasa por la misma validacion que
+    look(): un valor que no esta en el catalogo se cae y no llega a ninguna
+    parte. Que el modelo no conteste no es un error, es un delta vacio.
+    """
+    out, cannot, why = {}, [], ""
+    system = _change_system(current)
+    raw = ""
+    try:
+        if _is_hosted(ai):
+            raw, _ = _hosted(ai, system, prompt, 900)
+        else:
+            raw, _ = _try_local(system, prompt, 900, log, model)
+    except Exception as e:
+        if log:
+            log("no pude leer el cambio (%s), me quedo con lo que dicen las palabras"
+                % str(e)[:60])
+        return out, cannot, why
+
+    got = _json_in(raw) or {}
+    delta = got.get("cambia") if isinstance(got.get("cambia"), dict) else {}
+    if delta.get("ratio") in RATIOS:
+        out["ratio"] = delta["ratio"]
+    if delta.get("transition") in TRANSITIONS:
+        out["transition"] = delta["transition"]
+    if isinstance(delta.get("captions"), bool):
+        out["captions"] = delta["captions"]
+    if delta.get("captionPreset") in cap.PRESETS:
+        out["captionPreset"] = delta["captionPreset"]
+    if delta.get("captionAnim") in cap.ANIMS:
+        out["captionAnim"] = delta["captionAnim"]
+    if delta.get("cuts") in CUTS:
+        out["cuts"] = delta["cuts"]
+    # Un delta que repite lo que ya habia no es un cambio, y contarlo como tal
+    # hace que Vidorq diga "he puesto vertical" cuando ya estaba vertical.
+    out = {k: v for k, v in out.items() if current.get(k) != v}
+    for item in (got.get("no_puedo") or [])[:4]:
+        text = _clean_text(item, 120)
+        if text:
+            cannot.append(text)
+    if isinstance(got.get("why"), str):
+        why = got["why"][:160]
+    if log and out:
+        log("entiendo: " + ", ".join("%s=%s" % (k, v) for k, v in out.items()))
+    return out, cannot, why
+
+
 # What the prompt says outright, in the words people actually use. This runs
 # before any model and wins over it, for a blunt reason: asking a model whether
 # the word "vertical" appears is slow, costs a GPU, and has been measured getting
@@ -179,8 +265,16 @@ WORD_RULES = (
     ("cuts", "montage", r"resumen|mejores momentos|highlight|montaje|best bits|"
                         r"lo mejor\b"),
     ("cuts", "podcast", r"podcast|entrevista|preguntas y respuestas|\bq&a\b"),
-    ("transition", "dissolve", r"disolvenc|\bfundido\b(?!.*negro)|cross ?dissolve"),
-    ("transition", "dip", r"fundido a negro|dip to black|a negro"),
+    ("transition", "dip", r"fundido a negro|dip to black|a negro|\bnegro\b"),
+    ("transition", "white", r"fundido a blanco|dip to white|a blanco|\bflash\b|destello"),
+    ("transition", "wipe", r"barrido|\bwipe\b"),
+    ("transition", "slide", r"deslizamient|\bslide\b|desliza"),
+    ("transition", "dissolve", r"disolvenc|\bfundido\b|cross ?dissolve"),
+    # El generico va el ULTIMO, porque las reglas se leen en orden y la primera
+    # que toca una clave gana: "fundido a negro" tiene que ganar a "transicion".
+    # Sin esta linea, "pon transiciones en cada corte" no encajaba con NADA y el
+    # retoque se quedaba sin entender nada mientras rehacia el video entero.
+    ("transition", "dissolve", r"transicion|transición|transiciones"),
 )
 
 # A style named outright wins too. The keys are what someone would actually type.
