@@ -109,6 +109,43 @@ def frame_to_tc(frame, start_frame, start_tc, fps):
     return "%02d:%02d:%02d:%02d" % (total // 3600, (total // 60) % 60, total % 60, f)
 
 
+def timeline_fps(tl, fallback=30.0):
+    """The frame rate of the timeline in front of us, worked out from itself.
+
+    Not the video's. They are different numbers and using the wrong one bends
+    every caption: a 29.97 source on a 24 fps timeline puts a caption meant for
+    9:42 at 12:07, drifting a little more with every second, and the last third
+    of them land past the end of the edit entirely. Measured on a ten minute
+    video, against the .srt that carries the true times.
+
+    The bridge does not report a frame rate, so it comes out of the two numbers
+    that are always there: a timeline starts at a timecode and at a frame, and
+    the frame count of that timecode is seconds x fps. Resolve's usual start is
+    01:00:00:00, so 86400 frames is 24 fps and 107892 is 29.97.
+    """
+    try:
+        start = int(tl.get("startFrame", 0))
+        h, m, sec, f = (int(x) for x in
+                        str(tl.get("startTimecode") or "01:00:00:00")
+                        .replace(";", ":").split(":"))
+        secs = h * 3600 + m * 60 + sec
+        if secs > 0 and start > 0:
+            got = (start - f) / float(secs)
+            # Snapped to the rates a timeline can actually have, and to the
+            # CLOSEST one rather than the first that is near: 24 and 23.976 sit
+            # 0.024 apart, so "near enough" picks whichever happens to be
+            # earlier in the list. Anything far from all of them means the
+            # arithmetic did not apply here, and guessing is exactly how the
+            # bug this function exists to fix got in.
+            known = min((23.976, 24, 25, 29.97, 30, 47.952, 48, 50, 59.94, 60),
+                        key=lambda r: abs(got - r))
+            if abs(got - known) < 0.6:
+                return float(known)
+    except Exception:
+        pass
+    return float(fallback)
+
+
 def switch_to(post, get, name):
     """Make `name` the current timeline.
 
@@ -250,6 +287,14 @@ def build_subs(post, get, timeline_name, chunks, preset_name, work_dir,
     tl = get("/timeline") or {}
     start_frame = int(tl.get("startFrame", 0))
     start_tc = tl.get("startTimecode") or "01:00:00:00"
+    # From here on the only clock that matters is the timeline's own. What the
+    # caller handed in is the VIDEO's rate, which is a different number and the
+    # wrong one: see timeline_fps.
+    real_fps = timeline_fps(tl, fps)
+    if abs(real_fps - float(fps)) > 0.01:
+        say("el timeline va a %g fps y el video a %g; mando el timeline"
+            % (real_fps, float(fps)))
+    fps = real_fps
     plan = _events(chunks, fps, start_frame)
 
     # A new timeline is born with the project's shape, and this one ends up
