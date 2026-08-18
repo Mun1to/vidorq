@@ -414,6 +414,24 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
    porque el pie es del modal entero y este boton es solo de esta pestana. */
 .inline-foot { border-top: 0; padding: 4px 0 0; }
 .hint { font-size: 12px; color: var(--muted); }
+
+/* Los videos que ya estan en el proyecto de Resolve abierto: pedirle al usuario
+   que arrastre un archivo que la aplicacion ya tiene delante es hacerle a el la
+   busqueda que deberia hacer ella. */
+.pool { width: 100%; margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+.pool-head {
+  font-size: 11px; color: var(--faint); letter-spacing: .4px; text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.pool-clip {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 12px; color: var(--text-dim); font-family: inherit; font-size: 12.5px;
+  cursor: pointer;
+}
+.pool-clip:hover { border-color: var(--accent); color: var(--text); }
+.pool-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pool-meta { color: var(--faint); font-size: 11px; flex: 0 0 auto; }
 .hint code { color: var(--accent-soft); }
 
 /* ---------- vincular agentes ---------- */

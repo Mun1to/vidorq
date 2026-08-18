@@ -34,6 +34,7 @@ const es = {
   "alert.engineOff": "El motor local está apagado. Arráncalo con",
   "alert.noEngine": "No se pudo hablar con el motor. ¿Está encendido?",
 
+  "drop.inproject": "O elige uno de este proyecto de Resolve",
   "drop.title": "Arrastra tu vídeo aquí",
   "drop.sub": "o pega la ruta del archivo y pulsa Enter",
   "drop.change": "cambiar",
@@ -183,6 +184,7 @@ const en: Record<keyof typeof es, string> = {
   "alert.engineOff": "The local engine is off. Start it with",
   "alert.noEngine": "Could not reach the engine. Is it running?",
 
+  "drop.inproject": "Or pick one from this Resolve project",
   "drop.title": "Drop your video here",
   "drop.sub": "or paste the file path and press Enter",
   "drop.change": "change",

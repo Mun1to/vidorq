@@ -31,6 +31,14 @@ const PRESETS: { id: Preset; Icon: typeof IconScissors; name: Key; desc: Key; be
   { id: "montage", Icon: IconZap, name: "preset.montage", desc: "preset.montage.desc", beta: true },
 ];
 
+interface PoolClip {
+  name: string;
+  path: string;
+  resolution: string;
+  fps: number | string;
+  duration: string;
+}
+
 function App() {
   const { t, lang, setLang } = useLang();
   const [video, setVideo] = useState<string>("");
@@ -68,6 +76,8 @@ function App() {
   const [engineUp, setEngineUp] = useState<boolean | null>(null);
   const [retry, setRetry] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  // Los videos que ya estan en el proyecto de Resolve abierto.
+  const [poolClips, setPoolClips] = useState<PoolClip[]>([]);
   const [ws, setWs] = useState<Workspaces>({ active: "Principal", list: ["Principal"] });
   const [wsOpen, setWsOpen] = useState(false);
   const [view, setView] = useState<View>("edit");
@@ -130,6 +140,14 @@ function App() {
         setTimeout(() => setRetry((n) => n + 1), 2000);
       });
   }, [lang, retry]);
+
+  // Los clips del proyecto abierto. Se piden al arrancar y al volver de una
+  // edicion, que es cuando el proyecto puede haber cambiado.
+  useEffect(() => {
+    apiGet<{ clips?: PoolClip[] }>("/clips")
+      .then((r) => setPoolClips(Array.isArray(r?.clips) ? r.clips : []))
+      .catch(() => setPoolClips([]));
+  }, [phase]);
 
   // Progreso
   useEffect(() => {
@@ -327,6 +345,18 @@ function App() {
                     if (e.key === "Enter") setVideo((e.target as HTMLInputElement).value.replace(/^"|"$/g, ""));
                   }}
                 />
+                {poolClips.length > 0 && (
+                  <div className="pool">
+                    <span className="pool-head">{t("drop.inproject")}</span>
+                    {poolClips.map((c) => (
+                      <button key={c.path} className="pool-clip" onClick={() => setVideo(c.path)}>
+                        <IconVideo size={15} className="icon" />
+                        <span className="pool-name">{c.name}</span>
+                        <span className="pool-meta">{c.resolution} · {c.duration}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </>
             )}
           </div>

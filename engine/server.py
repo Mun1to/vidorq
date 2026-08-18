@@ -625,6 +625,37 @@ def fill_zoom(w, h, out_w, out_h):
     return max(src / dst, dst / src)
 
 
+def resolve_clips():
+    """The video files already sitting in the open Resolve project.
+
+    Vidorq runs INSIDE Resolve, on top of a media pool that already knows where
+    the footage is, and it was still asking people to drag a file into it. That
+    is the app making the user do its own lookup.
+
+    A media pool item is not always a file: timelines live there too, and they
+    have no path behind them. So anything without a File Path is skipped rather
+    than offered and then failing when it is clicked.
+    """
+    from urllib.parse import quote
+    pool = bridge_get("/mediapool", timeout=8) or {}
+    out = []
+    for c in pool.get("clips", []):
+        name = c.get("name") or ""
+        if not name:
+            continue
+        info = bridge_get("/mediapool/clip/info?clip_name=" + quote(name),
+                          timeout=8) or {}
+        props = info.get("properties") or {}
+        path = props.get("File Path") or ""
+        if not path or "Video" not in (props.get("Type") or ""):
+            continue
+        out.append({"name": name, "path": path,
+                    "resolution": props.get("Resolution", ""),
+                    "fps": props.get("FPS", ""),
+                    "duration": props.get("Duration", "")})
+    return out
+
+
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
                    workdir=None, anim="", chunks=None, ratio="source"):
     name = Path(video).stem[:40]
@@ -1088,6 +1119,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send(profile_load())
         elif self.path == "/resolve":
             self._send(bridge_status())
+        elif self.path == "/clips":
+            # Only worth asking when Resolve is actually there; a dead bridge
+            # should give an empty list, not thirty seconds of timeouts.
+            try:
+                self._send({"clips": resolve_clips() if bridge_status()["bridge"]
+                            else []})
+            except Exception as e:
+                traceback.print_exc()
+                self._send({"clips": [], "error": str(e)[:200]})
         elif self.path.startswith("/providers"):
             lang = "en" if "lang=en" in self.path else "es"
             cfg = load_config()
