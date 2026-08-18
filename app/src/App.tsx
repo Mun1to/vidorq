@@ -4,6 +4,7 @@ import { useLang, Key } from "./i18n";
 import Brand from "./Brand";
 import Settings from "./Settings";
 import Guia from "./Guia";
+import Gallery from "./Gallery";
 import logo from "./assets/logo.png";
 import {
   IconAlert, IconBook, IconBrand, IconCheck, IconChevron, IconClock, IconDrop,
@@ -76,6 +77,7 @@ function App() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const [galOpen, setGalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
   // La guia se abre sola la primera vez, para que nadie tenga que adivinar los pasos de Resolve.
@@ -457,7 +459,14 @@ function App() {
 
           {previewUrl && (
             <section className="preview">
-              <span className="preview-head">{t("preview.head")}</span>
+              <span className="preview-head">
+                {t("preview.head")}
+                {captions && capStyles.length > 0 && (
+                  <button className="open-gal" onClick={() => setGalOpen(true)}>
+                    <IconSpark size={13} className="icon" />{t("preview.gallery")}
+                  </button>
+                )}
+              </span>
               <div className={`preview-box ${previewReady ? "" : "loading"}`}>
                 <img
                   src={previewUrl}
@@ -613,6 +622,14 @@ function App() {
         </section>
       )}
 
+      {galOpen && (
+        <Gallery
+          styles={capStyles} anims={capAnims} animOf={animOf}
+          style={capStyle} anim={capAnim} ratio={ratio} video={video}
+          onStyle={setCapStyle} onAnim={setCapAnim}
+          onClose={() => setGalOpen(false)}
+        />
+      )}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       {brandOpen && <Brand onClose={() => setBrandOpen(false)} styles={capStyles} />}
       {guiaOpen && (

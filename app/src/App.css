@@ -274,6 +274,10 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   max-height: min(calc(100vh - 48px), 760px);
 }
 .modal.wide { width: min(540px, 94vw); }
+/* La galeria ensena fotogramas, no texto, asi que necesita sitio: por debajo de
+   tres columnas las baldosas se quedan tan pequenas que no se distingue un
+   contorno de una sombra, que es justo lo que se viene a comparar. */
+.modal.gallery { width: min(880px, 96vw); max-height: min(calc(100vh - 48px), 880px); }
 .modal h2 { font-size: 17px; font-weight: 650; letter-spacing: -.3px; }
 
 /* Cabecera y pie fijos, el centro rueda: el modal nunca se sale de la ventana. */
@@ -425,6 +429,55 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .preview { display: flex; flex-direction: column; gap: 7px; }
 .preview-head {
   font-size: 11px; color: var(--faint); letter-spacing: .4px; text-transform: uppercase;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+/* El acceso a la galeria vive aqui y no en una fila propia porque este es el
+   sitio al que ya esta mirando el ojo cuando juzga un estilo: ves uno, pulsas,
+   los ves todos. */
+.preview-head .open-gal {
+  background: none; border: 0; color: var(--accent-soft); cursor: pointer;
+  font: inherit; font-size: 11px; letter-spacing: .4px; text-transform: uppercase;
+  display: flex; align-items: center; gap: 6px; padding: 2px 0;
+}
+.preview-head .open-gal:hover { color: var(--text); }
+
+/* ---------- galeria ---------- */
+.grid {
+  display: grid; gap: 12px;
+  /* Tres columnas anchas, no cuatro estrechas. La baldosa ensena una banda de
+     2:1 y en ella una letra fina tiene que seguir siendo una letra. */
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.tile {
+  background: none; border: 0; padding: 0; cursor: pointer; font: inherit;
+  display: flex; flex-direction: column; gap: 7px; text-align: left;
+}
+.tile-shot {
+  position: relative; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--panel2);
+  /* Alto fijo y la imagen contenida dentro: las baldosas de 9:16 y las de 16:9
+     conviven en la misma cuadricula sin que unas den saltos de altura. */
+  height: 172px; display: grid; place-items: center;
+}
+.tile-shot img { display: block; max-width: 100%; max-height: 100%; }
+.tile:hover .tile-shot { border-color: var(--accent-soft); }
+.tile.sel .tile-shot { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-fill); }
+.tile-tick {
+  position: absolute; top: 7px; right: 7px; width: 21px; height: 21px;
+  border-radius: 50%; background: var(--accent); color: #fff;
+  display: grid; place-items: center;
+}
+.tile-name {
+  font-size: 12.5px; color: var(--text-dim); font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tile.sel .tile-name { color: var(--text); }
+/* Mismo latido que la preview suelta, para que un hueco vacio se lea como
+   "viene de camino" y no como "esto esta roto". */
+.tile-shot.loading::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
+  animation: preview-wait 1.1s linear infinite;
 }
 .preview-box {
   align-self: center; border-radius: 10px; overflow: hidden;

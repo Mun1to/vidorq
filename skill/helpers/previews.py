@@ -48,6 +48,31 @@ LOOP_FPS = 20
 # video is chosen.
 BLANK = "0x14141a"
 
+# The gallery tile is a close-up, not the whole frame, and it has to be.
+# Measured on the wall of ten looks: a Minimal caption is 3.4% of the frame
+# width tall, so in a 198 px tile it came out at under seven pixels and five of
+# the ten looks were an unreadable smudge. A gallery that cannot show you the
+# difference between Minimal and Mono is a list of names with decoration.
+#
+# Showing less of the frame is the only lever: the caption is a fixed fraction
+# of the frame, so the only way to make it bigger in a fixed tile is to crop
+# the frame around it. The whole frame is still what the big preview shows,
+# which is the one that answers "how will this look".
+#
+# Width first: the sample line is short and centred, and even Pop, the fattest
+# look, runs to about 42% of the width. 62% clears it with room for the glow,
+# which is drawn outside the letters.
+BAND_W = 0.62
+# Height measured from the bottom. Captions sit between 0.12 and 0.22 of the
+# height off the floor and stand about 0.06 tall, so everything is inside the
+# bottom 28%, and half the frame would already be plenty. It is set higher than
+# it needs to be on purpose: the height costs nothing in legibility, because a
+# tile is limited by its WIDTH and the letters only grow when the band gets
+# narrower. Cropped to the bottom half, ten tiles of a talking video all showed
+# the same pair of jeans. Two thirds gets the person back in the picture for
+# free.
+BAND_H = 0.70
+
 
 # Windows gives every child process its own console window when the parent has
 # none, and the parent here has none: Resolve starts the engine with pythonw so
@@ -89,6 +114,23 @@ def _crop_chain(w, h, out_w, out_h, crop_w, crop_h, fx):
     y0 = (h - crop_h) // 2 // 2 * 2
     return ["crop=%d:%d:%d:%d" % (crop_w, crop_h, x0, y0),
             "scale=%d:%d:flags=lanczos" % (out_w, out_h)]
+
+
+def _band_key(band):
+    """What the band contributes to a cache key.
+
+    The fractions themselves, not a yes/no. Tuning BAND_H and still being
+    served yesterday's crop is a preview that lies, which is the one thing this
+    module is not allowed to do.
+    """
+    return ("band%.2fx%.2f" % (BAND_W, BAND_H)) if band else ""
+
+
+def _band(out_w, out_h):
+    """Crop to where the caption lives: centre of the width, bottom half."""
+    bw = int(out_w * BAND_W) // 2 * 2
+    bh = int(out_h * BAND_H) // 2 * 2
+    return "crop=%d:%d:%d:%d" % (bw, bh, (out_w - bw) // 2 // 2 * 2, out_h - bh)
 
 
 def _fit(out_w, out_h):
@@ -224,11 +266,12 @@ def _face_x(video, at):
 # The three kinds
 # --------------------------------------------------------------------------- #
 def style_still(preset, ratio="source", video="", lang="es", anim=None,
-                width=1920, height=1080, at=1.0):
+                width=1920, height=1080, at=1.0, band=False):
     """A PNG of one caption look, burned in by the real subtitle renderer."""
     out_w, out_h, crop_w, crop_h = _shape(ratio, width, height)
     dest = CACHE / ("style_%s.png" % _key(preset, anim or "", ratio, video, lang,
-                                          at, out_w, out_h, PREVIEW_LONG))
+                                          at, out_w, out_h, PREVIEW_LONG,
+                                          _band_key(band)))
     if dest.exists():
         return dest
     exe = ffmpeg()
@@ -249,7 +292,13 @@ def style_still(preset, ratio="source", video="", lang="es", anim=None,
         src, real = _source_args(video, at, out_w, out_h)
         vf = _crop_chain(width, height, out_w, out_h, crop_w, crop_h,
                          _face_x(video, at)) if real else []
-        vf += ["subtitles=s.ass", _fit(out_w, out_h)]
+        # The band crop goes AFTER the subtitles filter, never before: libass
+        # places a caption relative to the frame it is handed, so cropping first
+        # would move the caption instead of framing it.
+        vf += ["subtitles=s.ass"]
+        if band:
+            vf.append(_band(out_w, out_h))
+        vf.append(_fit(out_w, out_h))
         # ffmpeg runs inside `work` so that s.ass resolves; the output is written
         # there too and then moved, because a half written PNG in the cache would
         # be served forever.
@@ -265,11 +314,12 @@ def style_still(preset, ratio="source", video="", lang="es", anim=None,
 
 
 def anim_loop(anim, preset=cap.DEFAULT_PRESET, ratio="source", video="",
-              lang="es", width=1920, height=1080, at=1.0):
+              lang="es", width=1920, height=1080, at=1.0, band=False):
     """An animated WebP of one entrance, because motion needs motion."""
     out_w, out_h, crop_w, crop_h = _shape(ratio, width, height)
     dest = CACHE / ("anim_%s.webp" % _key(anim, preset, ratio, video, lang, at,
-                                          out_w, out_h, PREVIEW_LONG))
+                                          out_w, out_h, PREVIEW_LONG,
+                                          _band_key(band)))
     if dest.exists():
         return dest
     exe = ffmpeg()
@@ -287,7 +337,10 @@ def anim_loop(anim, preset=cap.DEFAULT_PRESET, ratio="source", video="",
         src, real = _source_args(video, at, out_w, out_h, LOOP_SECONDS)
         vf = _crop_chain(width, height, out_w, out_h, crop_w, crop_h,
                          _face_x(video, at)) if real else []
-        vf += ["subtitles=s.ass", "fps=%d" % LOOP_FPS, _fit(out_w, out_h)]
+        vf += ["subtitles=s.ass", "fps=%d" % LOOP_FPS]
+        if band:
+            vf.append(_band(out_w, out_h))
+        vf.append(_fit(out_w, out_h))
         subprocess.run(
             [exe, "-hide_banner", "-loglevel", "error", "-nostdin"] + src +
             ["-t", "%.2f" % LOOP_SECONDS, "-vf", ",".join(vf),

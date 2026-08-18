@@ -1443,16 +1443,19 @@ class Handler(BaseHTTPRequestHandler):
                 kind = one("kind", "style")
                 lang = one("lang", "es")
                 ratio = one("ratio", "source")
+                # The gallery asks for the close-up; the single preview under
+                # the picker asks for the whole frame. Same renderer, two jobs.
+                band = one("band") == "1"
                 if kind == "ratio":
                     path = previews.ratio_still(ratio, video, w, h, at)
                 elif kind == "anim":
                     path = previews.anim_loop(one("id", "pop"),
                                               one("preset", cap.DEFAULT_PRESET),
-                                              ratio, video, lang, w, h, at)
+                                              ratio, video, lang, w, h, at, band)
                 else:
                     path = previews.style_still(one("id", cap.DEFAULT_PRESET),
                                                 ratio, video, lang,
-                                                one("anim") or None, w, h, at)
+                                                one("anim") or None, w, h, at, band)
                 mime = "image/webp" if str(path).endswith(".webp") else "image/png"
                 self._send_bytes(Path(path).read_bytes(), mime)
             except Exception as e:
