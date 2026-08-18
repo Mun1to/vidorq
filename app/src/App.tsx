@@ -72,6 +72,7 @@ function App() {
   const [output, setOutput] = useState<Output>(
     () => (localStorage.getItem("vidorq.output") === "resolve" ? "resolve" : "mp4"));
   useEffect(() => { localStorage.setItem("vidorq.output", output); }, [output]);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -469,97 +470,111 @@ function App() {
             </div>
           )}
 
-          {captions && capAnims.length > 0 && (
-            <div className="capstyles anims">
-              <span className="caplabel">{t("captions.anim")}</span>
-              <button
-                className={`capstyle ${capAnim === "" ? "sel" : ""}`}
-                onClick={() => setCapAnim("")}
-                title={t("captions.anim.own")}
-              >
-                {t("captions.anim.own")}
-                {animOf[capStyle] ? ` · ${capAnims.find((a) => a.id === animOf[capStyle])?.label ?? ""}` : ""}
-              </button>
-              {capAnims.map((a) => (
-                <button
-                  key={a.id}
-                  className={`capstyle ${capAnim === a.id ? "sel" : ""}`}
-                  onClick={() => setCapAnim(a.id)}
-                  title={a.note}
-                >
-                  {a.label}
-                </button>
-              ))}
-              <small className="capnote">
-                {capAnim ? capAnims.find((a) => a.id === capAnim)?.note : t("captions.anim.ownNote")}
-              </small>
-            </div>
-          )}
-
-          {captions && Object.keys(langs).length > 0 && (
-            <div className="capstyles anims">
-              <span className="caplabel">{t("captions.lang")}</span>
-              <button className={`capstyle ${transLang === "" ? "sel" : ""}`}
-                      onClick={() => { setTransLang(""); setBurnTrans(false); }}>
-                {t("captions.lang.same")}
-              </button>
-              {Object.entries(langs).map(([id, label]) => (
-                <button key={id} className={`capstyle ${transLang === id ? "sel" : ""}`}
-                        onClick={() => setTransLang(id)}>
-                  {label}
-                </button>
-              ))}
-              <small className="capnote">
-                {transLang ? t("captions.lang.note") : t("captions.lang.sameNote")}
-              </small>
-              {transLang && (
-                <button className={`chk ${burnTrans ? "on" : ""}`}
-                        onClick={() => setBurnTrans(!burnTrans)}
-                        role="switch" aria-checked={burnTrans}>
-                  <span className="box"><IconCheck size={12} className="icon" /></span>
-                  {t("captions.lang.burn")}
-                </button>
+          {/* Lo de todos los dias arriba; lo demas, guardado. Una pantalla que
+              lo ensena todo a la vez no es potente, es ruidosa. */}
+          <div className="more">
+            <button className="more-toggle" onClick={() => setMoreOpen(!moreOpen)}>
+              <IconSliders size={15} className="icon" />
+              {t("more")}
+              <IconChevron size={15} className={`icon chev ${moreOpen ? "up" : ""}`} />
+            </button>
+            {moreOpen && (
+              <div className="more-body">
+              {captions && capAnims.length > 0 && (
+                <div className="capstyles anims">
+                  <span className="caplabel">{t("captions.anim")}</span>
+                  <button
+                    className={`capstyle ${capAnim === "" ? "sel" : ""}`}
+                    onClick={() => setCapAnim("")}
+                    title={t("captions.anim.own")}
+                  >
+                    {t("captions.anim.own")}
+                    {animOf[capStyle] ? ` · ${capAnims.find((a) => a.id === animOf[capStyle])?.label ?? ""}` : ""}
+                  </button>
+                  {capAnims.map((a) => (
+                    <button
+                      key={a.id}
+                      className={`capstyle ${capAnim === a.id ? "sel" : ""}`}
+                      onClick={() => setCapAnim(a.id)}
+                      title={a.note}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
+                  <small className="capnote">
+                    {capAnim ? capAnims.find((a) => a.id === capAnim)?.note : t("captions.anim.ownNote")}
+                  </small>
+                </div>
               )}
-            </div>
-          )}
 
-          {Object.keys(ratios).length > 0 && (
-            <div className="capstyles anims">
-              <span className="caplabel">{t("ratio")}</span>
-              {Object.entries(ratios).map(([id, label]) => (
-                <button key={id} className={`capstyle ${ratio === id ? "sel" : ""}`}
-                        onClick={() => setRatio(id)}>
-                  {label}
-                </button>
-              ))}
-              <small className="capnote">
-                {ratio === "source" ? t("ratio.sourceNote") : t("ratio.note")}
-              </small>
-              {ratio !== "source" && (
-                <label className="cropx">
-                  {t("ratio.crop")}
-                  <input type="range" min={0} max={1} step={0.05} value={cropX}
-                         onChange={(e) => setCropX(parseFloat(e.target.value))} />
-                  <b>{cropX === 0.5 ? t("ratio.center") : `${Math.round(cropX * 100)}%`}</b>
-                </label>
+              {captions && Object.keys(langs).length > 0 && (
+                <div className="capstyles anims">
+                  <span className="caplabel">{t("captions.lang")}</span>
+                  <button className={`capstyle ${transLang === "" ? "sel" : ""}`}
+                          onClick={() => { setTransLang(""); setBurnTrans(false); }}>
+                    {t("captions.lang.same")}
+                  </button>
+                  {Object.entries(langs).map(([id, label]) => (
+                    <button key={id} className={`capstyle ${transLang === id ? "sel" : ""}`}
+                            onClick={() => setTransLang(id)}>
+                      {label}
+                    </button>
+                  ))}
+                  <small className="capnote">
+                    {transLang ? t("captions.lang.note") : t("captions.lang.sameNote")}
+                  </small>
+                  {transLang && (
+                    <button className={`chk ${burnTrans ? "on" : ""}`}
+                            onClick={() => setBurnTrans(!burnTrans)}
+                            role="switch" aria-checked={burnTrans}>
+                      <span className="box"><IconCheck size={12} className="icon" /></span>
+                      {t("captions.lang.burn")}
+                    </button>
+                  )}
+                </div>
               )}
-            </div>
-          )}
 
-          {output === "mp4" && Object.keys(transitions).length > 0 && (
-            <div className="capstyles anims">
-              <span className="caplabel">{t("transition")}</span>
-              {Object.entries(transitions).map(([id, label]) => (
-                <button key={id} className={`capstyle ${transition === id ? "sel" : ""}`}
-                        onClick={() => setTransition(id)}>
-                  {label}
-                </button>
-              ))}
-              <small className="capnote">
-                {transition === "none" ? t("transition.noneNote") : t("transition.note")}
-              </small>
-            </div>
-          )}
+              {Object.keys(ratios).length > 0 && (
+                <div className="capstyles anims">
+                  <span className="caplabel">{t("ratio")}</span>
+                  {Object.entries(ratios).map(([id, label]) => (
+                    <button key={id} className={`capstyle ${ratio === id ? "sel" : ""}`}
+                            onClick={() => setRatio(id)}>
+                      {label}
+                    </button>
+                  ))}
+                  <small className="capnote">
+                    {ratio === "source" ? t("ratio.sourceNote") : t("ratio.note")}
+                  </small>
+                  {ratio !== "source" && (
+                    <label className="cropx">
+                      {t("ratio.crop")}
+                      <input type="range" min={0} max={1} step={0.05} value={cropX}
+                             onChange={(e) => setCropX(parseFloat(e.target.value))} />
+                      <b>{cropX === 0.5 ? t("ratio.center") : `${Math.round(cropX * 100)}%`}</b>
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {output === "mp4" && Object.keys(transitions).length > 0 && (
+                <div className="capstyles anims">
+                  <span className="caplabel">{t("transition")}</span>
+                  {Object.entries(transitions).map(([id, label]) => (
+                    <button key={id} className={`capstyle ${transition === id ? "sel" : ""}`}
+                            onClick={() => setTransition(id)}>
+                      {label}
+                    </button>
+                  ))}
+                  <small className="capnote">
+                    {transition === "none" ? t("transition.noneNote") : t("transition.note")}
+                  </small>
+                </div>
+              )}
+              </div>
+            )}
+          </div>
+
 
           <div className="pro">
             <button className="pro-toggle" onClick={() => setProOpen(!proOpen)}>

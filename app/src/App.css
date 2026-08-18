@@ -120,11 +120,15 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 .drop.loaded { border-style: solid; border-color: var(--accent); }
 .drop b { font-size: 14.5px; font-weight: 600; color: var(--text); letter-spacing: -.1px; }
 .drop small { font-size: 12.5px; letter-spacing: .1px; }
+/* Sin caja. Un recuadro alrededor de cada campo llena la pantalla de lineas que
+   no dicen nada: el fondo ya separa el campo de lo que hay detras, y el borde
+   solo aparece cuando escribes, que es cuando significa algo. */
 .path-input {
-  margin-top: 4px; width: 74%; background: var(--panel); border: 1px solid var(--line);
+  margin-top: 4px; width: 74%; background: var(--panel); border: 1px solid transparent;
   border-radius: 8px; padding: 8px 12px; color: var(--text); font-size: 12.5px;
-  text-align: center; font-family: inherit;
+  text-align: center; font-family: inherit; transition: border-color .12s;
 }
+.path-input:focus { outline: none; border-color: var(--accent); }
 .path-input::placeholder { color: var(--faint); }
 
 /* ---------- presets ---------- */
@@ -299,8 +303,9 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 .opt-tag { font-size: 10px; color: var(--faint); font-weight: 500; letter-spacing: .4px; }
 
 .modal input, .modal textarea {
-  background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel2); border: 1px solid transparent; border-radius: 8px;
   padding: 10px 12px; color: var(--text); font-size: 12.5px; font-family: inherit;
+  transition: border-color .12s;
 }
 .modal input:focus, .modal textarea:focus { outline: none; border-color: var(--accent); }
 .modal textarea { min-height: 68px; resize: none; line-height: 1.5; }
@@ -474,3 +479,20 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .cropx input { flex: 0 1 220px; accent-color: var(--accent); }
 .cropx b { color: var(--text); font-weight: 600; min-width: 52px; }
+
+
+/* Mas ajustes: lo secundario, cerrado por defecto. Animacion, idioma, formato,
+   recorte y transicion se usan una vez y luego se quedan, asi que ocupar con
+   ellas media pantalla cada dia es cobrarle al usuario un espacio que no gasta. */
+.more { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; }
+.more-toggle {
+  width: 100%; background: transparent; color: var(--text-dim); border: 0;
+  padding: 11px 13px; font-size: 12px; font-weight: 600; cursor: pointer;
+  font-family: inherit; display: flex; align-items: center; gap: 8px;
+}
+.more-toggle .chev { margin-left: auto; color: var(--faint); transition: transform .15s; }
+.more-toggle .chev.up { transform: rotate(180deg); }
+.more-body {
+  display: flex; flex-direction: column; gap: 18px;
+  padding: 4px 14px 16px; border-top: 1px solid var(--line-soft);
+}
