@@ -198,7 +198,13 @@ def _place_fast(post, get, real, work_dir, fps, start_frame, say):
     except Exception as e:
         say("sin clip de soporte (%s), voy por el camino lento" % str(e)[:60])
         return False
-    got = post("/media/import", {"filePaths": [str(support)]})
+    # Solo si no esta ya. /media/import no mira si el archivo esta dentro, asi
+    # que sin esto el media pool acumula una copia del soporte por cada edicion.
+    pool = (get("/mediapool") or {}).get("clips") or []
+    if any(x.get("name") == support.name for x in pool):
+        got = {"success": True}
+    else:
+        got = post("/media/import", {"filePaths": [str(support)]})
     if not (got.get("success") or got.get("imported")):
         say("Resolve no acepto el clip de soporte, voy por el camino lento")
         return False
