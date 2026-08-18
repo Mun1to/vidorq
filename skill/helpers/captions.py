@@ -281,6 +281,15 @@ ANIMS = {
 
 DEFAULT_ANIM = "pop"
 
+# How wide one character of the caption font runs, as a fraction of the Text+
+# Size. Measured off rendered frames: "MUCHISIMAS" came out 1076 px at Size
+# 0.2440 in a 1080 wide frame, which is 0.41 per character. Used only as a
+# ceiling, so being a little pessimistic is the safe direction.
+CHAR_ADVANCE = 0.41
+# How much of the frame width the longest line may take. The rest is breathing
+# room for the glow, which is drawn outside the letters.
+FIT = 0.94
+
 
 def anim(name):
     """An animation by name, falling back to the preset's own rather than dying."""
@@ -740,8 +749,26 @@ def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None):
     p = preset(name)
     a = anim(anim_name) or anim(p["anim"]) or ANIMS[DEFAULT_ANIM]
     # Text+ Size is a cell height, not a cap height, and it is a fraction of the
-    # frame height - so a vertical frame needs it scaled down to stay on screen.
-    size = float(p["size"]) * 1.40 * (line_ref(w, h) / max(1.0, float(h)))
+    # frame WIDTH, not of the height. That is not a guess: the same caption was
+    # rendered in both shapes and measured, and it came out 0.0573 of the width
+    # in a 16:9 frame and 0.0574 in a 9:16 one. The same number twice settles it.
+    # Dividing by the height instead made every vertical caption 56% of its size,
+    # which on a phone reads as a footnote under a video.
+    # The constant makes a comp match the MP4 renderer, which is the reference
+    # because libass wraps a long line and a Text+ does not: it just walks off
+    # both edges. Same preset, same caption, both shapes, glyphs measured:
+    # "VER TODOS" came out 895 px wide burned into the MP4 and 986 px in Fusion,
+    # so Fusion draws 10.2% wider for the same nominal size, and 2.489/1.102
+    # brings them together. Before this, a ten character line lost a letter off
+    # each end of a vertical short.
+    size = float(p["size"]) * 2.259 * (line_ref(w, h) / max(1.0, float(w)))
+    # And a ceiling, because a Text+ still cannot wrap: the chunker caps a line
+    # by CHARACTER count, and ten narrow letters are not ten wide ones. Measured
+    # on the rendered frames, one character of this font advances about 0.41 of
+    # the Size, so the longest line sets the largest size that fits. FIT leaves
+    # a margin for the glow, which is drawn outside the glyphs.
+    longest = max((len(line) for line in str(chunk["text"]).splitlines()), default=1)
+    size = min(size, FIT / (CHAR_ADVANCE * max(1, longest)))
     y = float(p["y"])
     els = _elements(p)
     anim_tools, wires, extra = _anim_splines(a, dur, size, els)
