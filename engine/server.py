@@ -103,6 +103,7 @@ TEXT = {
         "framing_help": "Detector local, milisegundos por fotograma",
         "framed": "Encuadre sobre la cara en %d de %d tramos",
         "framed_none": "Sin caras: recorte centrado",
+        "no_gpu": "Sin GPU para transcribir, va por CPU y tarda mas",
         "moments": "Leyendo lo que pides en momentos concretos...",
         "moments_done": "En momentos concretos: %s",
     },
@@ -135,6 +136,7 @@ TEXT = {
         "framing_help": "Local detector, milliseconds per frame",
         "framed": "Framed on the face in %d of %d cuts",
         "framed_none": "No faces found: centred crop",
+        "no_gpu": "No GPU for transcription, running on CPU and slower",
         "moments": "Reading what you asked for at specific moments...",
         "moments_done": "At specific moments: %s",
     },
@@ -931,6 +933,49 @@ def packed_view(workdir, transcript, video):
 # --------------------------------------------------------------------------- #
 # The job
 # --------------------------------------------------------------------------- #
+TRANSCRIBE_RE = re.compile(r"^PROGRESO: (\d+)/(\d+)s")
+
+
+def run_transcribe(cmd, out_file, timeout=7200):
+    """Run the transcriber and relay its progress instead of swallowing it.
+
+    This is the longest step and it used to run under capture_output, so every
+    PROGRESO line it printed died inside the pipe and the bar sat at 10% for
+    minutes. A progress bar that does not move is worse than no bar: it is the
+    only evidence the user has that the program is alive.
+    """
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                            text=True, encoding="utf-8", errors="replace",
+                            creationflags=NO_WINDOW)
+    killer = threading.Timer(timeout, proc.kill)
+    killer.start()
+    tail = deque(maxlen=20)
+    how = ""
+    try:
+        for line in proc.stdout:
+            line = line.strip()
+            m = TRANSCRIBE_RE.match(line)
+            if m:
+                done, total = int(m.group(1)), max(1, int(m.group(2)))
+                set_progress(tr("transcribing"),
+                             min(32, 10 + int(22 * done / total)),
+                             "%s%d de %d segundos" % (how, done, total))
+            elif line.startswith("CARGANDO_MODELO:"):
+                how = line.split(":", 1)[1].strip() + " | "
+                set_progress(tr("transcribing"), 10, how.rstrip(" |"))
+            elif line.startswith("SIN_GPU:"):
+                # Worth showing once: it is the difference between one minute
+                # and ten, and the user can act on it.
+                set_progress(tr("transcribing"), 10, tr("no_gpu"))
+            elif line:
+                tail.append(line)
+        proc.wait(timeout=120)
+    finally:
+        killer.cancel()
+    if proc.returncode != 0 or not out_file.exists():
+        raise RuntimeError("Fallo transcribiendo: " + "\n".join(tail)[-400:])
+
+
 def run_render(cmd, out_file, timeout=7200):
     """Run the renderer relaying its PROGRESS lines to /progress in real time."""
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
@@ -1011,11 +1056,8 @@ def run_job(req):
         if not tr_path.exists():
             set_progress(tr("transcribing"), 10,
                          "La primera vez descarga el modelo; puede tardar unos minutos")
-            r = subprocess.run([PYTHON, str(HELPERS / "transcribe.py"), video, str(workdir)],
-                               capture_output=True, text=True, timeout=3600,
-                               creationflags=NO_WINDOW)
-            if r.returncode != 0 or not tr_path.exists():
-                raise RuntimeError("Fallo transcribiendo: " + (r.stderr or r.stdout)[-400:])
+            run_transcribe([PYTHON, str(HELPERS / "transcribe.py"), video,
+                            str(workdir)], tr_path)
         transcript = json.loads(tr_path.read_text(encoding="utf-8"))
 
         # 2) Look at the picture. Optional because it costs minutes on a long
