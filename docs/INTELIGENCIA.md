@@ -235,6 +235,46 @@ determinista: un modelo que no cuaja no puede costarte la edicion.
 
 Si uno falla se prueba el siguiente, en vez de dar la edicion por perdida.
 
+### Quien piensa el prompt (`skill/helpers/providers.py`)
+
+Se elige en Ajustes, y **de fabrica es el Ollama de tu equipo**: gratis, sin clave y sin
+que el video ni la transcripcion salgan de la maquina. Encima de eso, cualquiera de estos:
+
+| proveedor | protocolo | notas |
+| --- | --- | --- |
+| Ollama local | `ollama` | lo de fabrica, sin clave |
+| Anthropic | `anthropic` | `/v1/messages` |
+| OpenAI | `openai` | `/v1/chat/completions` |
+| OpenRouter | `openai` | una clave, **413 modelos** medidos en la prueba |
+| Google Gemini | `gemini` | `:generateContent` |
+| Compatible con OpenAI | `openai` | pones la URL base: Groq, DeepSeek, xAI, LM Studio, llama.cpp |
+
+Son **cuatro protocolos, no seis integraciones**, porque el de OpenAI lo habla medio
+sector. Por eso "compatible con OpenAI" mas una URL base llega a cualquier cosa que salga
+manana sin tocar codigo.
+
+**La lista de modelos se pide al proveedor en el momento**, no viene escrita en el codigo:
+una lista a mano lleva razon tres semanas y despues le miente al usuario sobre lo que puede
+elegir.
+
+**Que NO es un proveedor.** Codex, opencode, Antigravity y Claude Code son **agentes**, no
+endpoints: programas que manejan un editor, no sitios a los que Vidorq pueda mandar un
+prompt y recibir JSON. Su sitio es la otra pestana de Ajustes, "Vincular con tu IA", donde
+son ellos los que leen `skill/SKILL.md` y manejan a Vidorq, que es justo al reves. Y la
+**suscripcion de Claude.ai no da acceso a la API**: eso es una clave de
+`console.anthropic.com` que se paga por tokens aparte.
+
+### Las claves
+
+Viven en `%APPDATA%/Vidorq/config.json`, **fuera del repositorio**, una por proveedor para
+que cambiar de uno a otro no pierda la anterior ni le mande a un proveedor el secreto de
+otro. El motor **nunca las devuelve**: `/providers` dice *que proveedores tienen clave*, no
+cual es, porque un endpoint que la devuelve esta a un fallo de distancia de filtrarla.
+
+Si la clave es mala, la edicion **no se cae**: se apunta el motivo real que dio el
+proveedor (`openrouter.ai respondio 401. Missing Auth`) y se sigue con las reglas de
+palabras, que en la prueba seguian acertando el vertical en 0,3 s.
+
 ## 7. Formato de salida (vertical, cuadrado, 4:5)
 
 `ratio` en `/edit`, y en la interfaz. Recorta la imagen a la forma pedida (no deforma ni
