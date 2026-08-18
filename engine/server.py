@@ -54,6 +54,7 @@ import translate as tl  # noqa: E402
 import director  # noqa: E402
 import resolve_captions  # noqa: E402
 import faces  # noqa: E402
+import providers  # noqa: E402
 
 _lock = threading.Lock()
 _progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": ""}
@@ -732,6 +733,37 @@ def retime_transcript(transcript, edl):
     return {"duration": offset, "segments": segments}
 
 
+def ai_choice(req=None):
+    """Which model answers a prompt, and the key for it.
+
+    Kept in one place because three call sites need the same answer and a second
+    copy of this would drift. The request may override the saved settings, so a
+    user can try a provider without committing to it.
+
+    The key is looked up per provider: swapping from OpenRouter to Gemini and
+    back must not lose either key, and it must not send one vendor's secret to
+    another. Never logged, never returned by /config.
+    """
+    req = req or {}
+    cfg = load_config()
+    provider = req.get("aiProvider") or cfg.get("aiProvider") or providers.DEFAULT_PROVIDER
+    if provider not in providers.PROVIDERS:
+        provider = providers.DEFAULT_PROVIDER
+    keys = cfg.get("keys") or {}
+    # The old single-key config predates the picker; honour it so an upgrade does
+    # not silently log the user out of the provider they were already using.
+    if not keys.get("anthropic") and cfg.get("anthropicKey"):
+        keys["anthropic"] = cfg["anthropicKey"]
+    if not keys.get("openai") and cfg.get("openaiKey"):
+        keys["openai"] = cfg["openaiKey"]
+    if not keys.get("gemini") and cfg.get("geminiKey"):
+        keys["gemini"] = cfg["geminiKey"]
+    return {"provider": provider,
+            "model": req.get("aiModel") or cfg.get("aiModel") or "",
+            "key": req.get("aiKey") or keys.get(provider, ""),
+            "baseUrl": req.get("aiBaseUrl") or cfg.get("aiBaseUrl") or ""}
+
+
 def packed_view(workdir, transcript, video):
     """The compact phrase view the director reads, rebuilt if it went missing.
 
@@ -818,7 +850,7 @@ def run_job(req):
         plan = None
         if prompt:
             set_progress(tr("directing"), 6)
-            plan = director.look(prompt, load_config().get("anthropicKey", ""),
+            plan = director.look(prompt, ai_choice(req),
                                  req.get("directorModel") or None, _lang,
                                  log=lambda m: set_progress(tr("directing"), 7, m))
             ratio = plan["ratio"]
@@ -870,7 +902,6 @@ def run_job(req):
         set_progress(tr("deciding"), 50)
         report = {}
         if prompt:
-            key = load_config().get("anthropicKey", "")
             packed = packed_view(workdir, transcript, video)
             if look.get("shots"):
                 # The model reads the video instead of watching it: the visual
@@ -880,7 +911,7 @@ def run_job(req):
             if brand:
                 prompt += "\n\nPERFIL DE MARCA DEL USUARIO (respetalo): " + json.dumps(
                     brand, ensure_ascii=False)
-            edl = director.segments(prompt, packed, key,
+            edl = director.segments(prompt, packed, ai_choice(req),
                                     req.get("directorModel") or None,
                                     log=lambda m: set_progress(tr("deciding"), 52, m))
             if not edl:
@@ -1057,6 +1088,38 @@ class Handler(BaseHTTPRequestHandler):
             self._send(profile_load())
         elif self.path == "/resolve":
             self._send(bridge_status())
+        elif self.path.startswith("/providers"):
+            lang = "en" if "lang=en" in self.path else "es"
+            cfg = load_config()
+            chosen = ai_choice()
+            # Which providers have a key, NOT the keys. A settings screen needs
+            # to draw a filled-in field; it never needs the secret back, and an
+            # endpoint that hands one out is one XSS away from leaking it.
+            saved = set((cfg.get("keys") or {}).keys())
+            for old, pid in (("anthropicKey", "anthropic"), ("openaiKey", "openai"),
+                             ("geminiKey", "gemini")):
+                if cfg.get(old):
+                    saved.add(pid)
+            self._send({"list": providers.catalogue(lang),
+                        "provider": chosen["provider"],
+                        "model": chosen["model"],
+                        "baseUrl": chosen["baseUrl"],
+                        "hasKey": sorted(saved)})
+        elif self.path.startswith("/models"):
+            # Asked live, so the list is whatever the provider has today rather
+            # than whatever was true when this was written.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            pid = (q.get("provider") or [""])[0]
+            over = {"aiProvider": pid} if pid in providers.PROVIDERS else {}
+            if q.get("key"):
+                over["aiKey"] = q["key"][0]
+            if q.get("baseUrl"):
+                over["aiBaseUrl"] = q["baseUrl"][0]
+            a = ai_choice(over)
+            self._send({"provider": a["provider"],
+                        "models": providers.models(a["provider"], a["key"],
+                                                   a["baseUrl"])})
         elif self.path.startswith("/captions/presets"):
             lang = "en" if "lang=en" in self.path else "es"
             self._send({"default": cap.DEFAULT_PRESET, "list": cap.preset_list(lang),
@@ -1078,7 +1141,25 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == "/config":
             CONFIG_DIR.mkdir(parents=True, exist_ok=True)
             cfg = load_config()
-            cfg.update({k: v for k, v in body.items() if v})
+            # Keys arrive per provider and are merged, not replaced: the settings
+            # screen only ever sends the one being edited, and overwriting the
+            # whole map would wipe the others.
+            incoming = dict(body)
+            keys = dict(cfg.get("keys") or {})
+            for pid, value in (incoming.pop("keys", None) or {}).items():
+                if pid in providers.PROVIDERS:
+                    # An empty string is how the interface says "forget this one".
+                    keys[pid] = value
+            if keys:
+                cfg["keys"] = {k: v for k, v in keys.items() if v}
+            # Empty means "no preference" for these, and that has to be storable:
+            # otherwise switching provider keeps the old provider's model id
+            # forever and the interface offers no way to clear it. Everything
+            # else keeps the old rule, where empty means "I am not sending this".
+            for field in ("aiModel", "aiBaseUrl"):
+                if field in incoming:
+                    cfg[field] = incoming.pop(field)
+            cfg.update({k: v for k, v in incoming.items() if v != ""})
             CONFIG.write_text(json.dumps(cfg), encoding="utf-8")
             self._send({"ok": True})
         elif self.path == "/workspaces":

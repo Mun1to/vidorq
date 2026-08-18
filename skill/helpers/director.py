@@ -15,8 +15,10 @@ Split in two on purpose, because the two halves have very different difficulty:
               most likely to fumble, so a failure here falls back to the
               deterministic cut engine rather than ruining the edit.
 
-Anthropic is used when a key is present. Without one it runs on local Ollama, so
-the prompt mode works out of the box instead of being locked behind a key.
+Which model answers is the user's choice and lives in providers.py: the local
+Ollama by default, so prompt mode works out of the box instead of being locked
+behind a key, and anything from Anthropic to OpenRouter to a llama.cpp on the
+next desk if they would rather pay for a bigger brain.
 """
 from __future__ import annotations
 
@@ -25,6 +27,7 @@ import re
 import urllib.request
 
 import captions as cap
+import providers
 from vision import OLLAMA, available_models
 
 # Ordered by what actually works here, which is neither "biggest" nor "newest".
@@ -88,17 +91,23 @@ def _ollama(model, system, user, timeout=300, predict=900):
     return (d.get("response") or d.get("thinking") or "").strip()
 
 
-def _anthropic(key, system, user, timeout=180, tokens=4000):
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=json.dumps({"model": "claude-sonnet-5", "max_tokens": tokens,
-                         "system": system,
-                         "messages": [{"role": "user", "content": user}]}).encode(),
-        headers={"Content-Type": "application/json", "x-api-key": key,
-                 "anthropic-version": "2023-06-01"}, method="POST")
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        d = json.loads(r.read().decode())
-    return "".join(b.get("text", "") for b in d.get("content", []))
+def _hosted(ai, system, user, tokens):
+    """One answer from whichever provider the user picked. Returns (text, label).
+
+    The label is what the interface shows as "who decided this", so it names the
+    model and not the vendor: knowing it was `claude-sonnet-5` or `llama3.1:8b`
+    is the useful half.
+    """
+    model = ai.get("model") or providers.PROVIDERS[ai["provider"]]["default"]
+    text = providers.complete(ai["provider"], model, system, user,
+                              key=ai.get("key", ""), tokens=tokens,
+                              base_url=ai.get("baseUrl", ""))
+    return text, model
+
+
+def _is_hosted(ai):
+    """True when the user chose something other than the local Ollama."""
+    return bool(ai) and ai.get("provider") and ai["provider"] != "local"
 
 
 def _json_in(text):
@@ -218,7 +227,7 @@ def from_words(prompt):
     return got
 
 
-def look(prompt, key="", model=None, lang="es", log=None):
+def look(prompt, ai=None, model=None, lang="es", log=None):
     """The settings a prompt asks for, validated against the real catalogues.
 
     Three layers, each overriding the one before: sane defaults, then whatever a
@@ -233,9 +242,8 @@ def look(prompt, key="", model=None, lang="es", log=None):
     system = _look_system(lang)
     raw = ""
     try:
-        if key:
-            raw = _anthropic(key, system, prompt, tokens=1600)
-            out["by"] = "claude-sonnet-5"
+        if _is_hosted(ai):
+            raw, out["by"] = _hosted(ai, system, prompt, 1600)
         else:
             # 1600 and not 700: a reasoning model spends its first several
             # hundred tokens thinking and then has to have room left to answer.
@@ -300,16 +308,16 @@ SEG_SYSTEM = (
     "solo en momentos de enfasis.")
 
 
-def segments(prompt, packed, key="", model=None, log=None):
+def segments(prompt, packed, ai=None, model=None, log=None):
     """The keep-list a prompt asks for, or None if the model did not deliver.
 
     None is a normal outcome, not an error: the caller falls back to the
     deterministic cut engine, which is better than a made-up timeline.
     """
     try:
-        if key:
-            raw = _anthropic(key, SEG_SYSTEM, "INSTRUCCION: %s\n\nTRANSCRIPCION:\n%s"
-                             % (prompt, packed))
+        if _is_hosted(ai):
+            raw, _ = _hosted(ai, SEG_SYSTEM, "INSTRUCCION: %s\n\nTRANSCRIPCION:\n%s"
+                             % (prompt, packed), 4000)
         else:
             chosen = pick_model(model)
             if not chosen:
