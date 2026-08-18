@@ -28,7 +28,7 @@ import urllib.request
 
 import captions as cap
 import providers
-from vision import OLLAMA, available_models
+from vision import available_models, ollama_host
 
 # Ordered by what actually works here, which is neither "biggest" nor "newest".
 # Two things were measured on the same prompt:
@@ -81,7 +81,7 @@ def _try_local(system, user, predict, log=None, prefer=None):
 
 def _ollama(model, system, user, timeout=300, predict=900):
     req = urllib.request.Request(
-        OLLAMA + "/api/generate",
+        ollama_host() + "/api/generate",
         data=json.dumps({"model": model, "system": system, "prompt": user,
                          "stream": False,
                          "options": {"temperature": 0.1, "num_predict": predict}}).encode(),

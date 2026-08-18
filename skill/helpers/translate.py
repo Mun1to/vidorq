@@ -16,7 +16,7 @@ import json
 import re
 import urllib.request
 
-from vision import OLLAMA, available_models
+from vision import available_models, ollama_host
 
 # Multilingual first. aya-expanse was trained for exactly this, the qwen3.5
 # family is strong across languages, and the rest are decent fallbacks.
@@ -46,7 +46,7 @@ def pick_model(prefer=None):
 
 def _ask(model, system, user, timeout=240):
     req = urllib.request.Request(
-        OLLAMA + "/api/generate",
+        ollama_host() + "/api/generate",
         data=json.dumps({"model": model, "system": system, "prompt": user,
                          "stream": False,
                          "options": {"temperature": 0.2, "num_predict": 1400}}).encode(),

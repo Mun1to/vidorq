@@ -57,7 +57,43 @@ def _pick_ollama():
     return fallback
 
 
-OLLAMA = _pick_ollama()
+_ollama_url = ""
+
+
+def ollama_host():
+    """Where Ollama is, worked out on demand and remembered only once it answers.
+
+    It used to be worked out once at import and kept whatever it found. That is
+    wrong in the one case that matters: Vidorq's engine starts with Resolve, and
+    Ollama is often still coming up, or is running with no models loaded at all.
+    The engine then held on to a host with nothing behind it for the whole
+    session, and every prompt quietly did nothing.
+
+    Measured on this machine: an Ollama serving zero models answered /api/tags
+    perfectly, the engine picked it at import, and an edit asking for a voice
+    over went from transcription straight to rendering with no error anywhere.
+    Starting the second instance did not help until the engine was restarted.
+
+    So a hit is cached and a miss is not: the next call looks again, and the
+    look costs two seconds only while there is genuinely nothing there.
+    """
+    global _ollama_url
+    if _ollama_url:
+        return _ollama_url
+    found = _pick_ollama()
+    # _pick_ollama falls back to the first port when nothing has models. Only a
+    # real find is worth remembering.
+    if _has_models(found):
+        _ollama_url = found
+    return found
+
+
+def _has_models(url):
+    try:
+        with urllib.request.urlopen(url + "/api/tags", timeout=2) as r:
+            return bool(json.loads(r.read().decode()).get("models"))
+    except Exception:
+        return False
 
 # Best first. Vidorq takes the first one the machine actually has, so it works
 # on a laptop with one small model and gets better on a machine with more.
@@ -385,7 +421,7 @@ def quiet_moment(track, t, window=0.35):
 # Pass two: the model, on a handful of frames
 # --------------------------------------------------------------------------- #
 def _ollama(path, body, timeout=180):
-    req = urllib.request.Request(OLLAMA + path, data=json.dumps(body).encode(),
+    req = urllib.request.Request(ollama_host() + path, data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"},
                                  method="POST")
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -395,7 +431,7 @@ def _ollama(path, body, timeout=180):
 def available_models():
     """What this machine can actually run, or [] if Ollama is not listening."""
     try:
-        with urllib.request.urlopen(OLLAMA + "/api/tags", timeout=6) as r:
+        with urllib.request.urlopen(ollama_host() + "/api/tags", timeout=6) as r:
             data = json.loads(r.read().decode())
     except Exception:
         return []

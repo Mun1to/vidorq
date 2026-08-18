@@ -147,8 +147,8 @@ def _root(provider, base_url=""):
 # The four request shapes
 # --------------------------------------------------------------------------- #
 def _ollama(root, model, system, user, tokens, timeout):
-    from vision import OLLAMA
-    d = _post((root or OLLAMA) + "/api/generate",
+    from vision import ollama_host
+    d = _post((root or ollama_host()) + "/api/generate",
               {"model": model, "system": system, "prompt": user, "stream": False,
                # A reasoning model spends its first few hundred tokens reasoning
                # and hands back an empty answer if the budget is tight. Measured
