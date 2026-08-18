@@ -31,6 +31,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import captions as cap  # noqa: E402
+import looks  # noqa: E402
 
 CACHE = Path(os.environ.get("APPDATA", ".")) / "Vidorq" / "previews"
 # What the sample caption says. Short enough to fit one vertical line, long
@@ -349,6 +350,40 @@ def anim_loop(anim, preset=cap.DEFAULT_PRESET, ratio="source", video="",
         shutil.move(str(work / "out.webp"), str(dest))
     finally:
         shutil.rmtree(work, ignore_errors=True)
+    return dest
+
+
+def look_still(name, ratio="source", video="", width=1920, height=1080, at=1.0,
+               band=False):
+    """Un fotograma con el filtro de color puesto, hecho con el mismo LUT.
+
+    Sin subtitulos encima a proposito: aqui se juzga el color, y una linea de
+    texto blanca en medio es justo lo que impide ver que le ha pasado a la piel.
+    """
+    out_w, out_h, crop_w, crop_h = _shape(ratio, width, height)
+    dest = CACHE / ("look_%s.png" % _key(name, ratio, video, at, out_w, out_h,
+                                         PREVIEW_LONG, _band_key(band)))
+    if dest.exists():
+        return dest
+    exe = ffmpeg()
+    if not exe:
+        raise RuntimeError("ffmpeg no esta instalado")
+    CACHE.mkdir(parents=True, exist_ok=True)
+    src, real = _source_args(video, at, out_w, out_h)
+    vf = _crop_chain(width, height, out_w, out_h, crop_w, crop_h,
+                     _face_x(video, at)) if real else []
+    look_vf = looks.ffmpeg_filter(name)
+    if look_vf:
+        vf.append(look_vf)
+    if band:
+        vf.append(_band(out_w, out_h))
+    vf.append(_fit(out_w, out_h))
+    tmp = dest.with_suffix(".part%s.png" % uuid.uuid4().hex[:8])
+    subprocess.run(
+        [exe, "-hide_banner", "-loglevel", "error", "-nostdin"] + src +
+        ["-frames:v", "1", "-vf", ",".join(vf), "-y", str(tmp)],
+        creationflags=NO_WINDOW, capture_output=True, timeout=90, check=True)
+    shutil.move(str(tmp), str(dest))
     return dest
 
 

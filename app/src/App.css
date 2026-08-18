@@ -563,6 +563,12 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
      conviven en la misma cuadricula sin que unas den saltos de altura. */
   height: 172px; display: grid; place-items: center;
 }
+/* Las baldosas de color ensenan el cuadro ENTERO y no la banda del subtitulo,
+   asi que son mas anchas y mas bajas: lo que se compara aqui es la piel y el
+   cielo, no una linea de texto. */
+.grid.full { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+.grid.full .tile-shot { height: 128px;
+}
 .tile-shot img { display: block; max-width: 100%; max-height: 100%; }
 .tile:hover .tile-shot { border-color: var(--accent-soft); }
 .tile.sel .tile-shot { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-fill); }

@@ -1970,7 +1970,10 @@ class Handler(BaseHTTPRequestHandler):
                 # The gallery asks for the close-up; the single preview under
                 # the picker asks for the whole frame. Same renderer, two jobs.
                 band = one("band") == "1"
-                if kind == "ratio":
+                if kind == "look":
+                    path = previews.look_still(one("id", looks.DEFAULT), ratio,
+                                               video, w, h, at, band)
+                elif kind == "ratio":
                     path = previews.ratio_still(ratio, video, w, h, at)
                 elif kind == "anim":
                     path = previews.anim_loop(one("id", "pop"),

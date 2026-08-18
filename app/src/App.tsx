@@ -63,6 +63,9 @@ function App() {
   const [langs, setLangs] = useState<Record<string, string>>({});
   const [transition, setTransition] = useState("none");
   const [transitions, setTransitions] = useState<Record<string, string>>({});
+  // El filtro de color. Vacio es "sin filtro", igual que en el motor.
+  const [colours, setColours] = useState<CaptionStyle[]>([]);
+  const [colour, setColour] = useState("");
   const [ratio, setRatio] = useState("source");
   const [ratios, setRatios] = useState<Record<string, string>>({});
   // El recorte no sigue a la persona (no es fiable), asi que se mueve a mano.
@@ -140,7 +143,7 @@ function App() {
       default: string; list: CaptionStyle[];
       anims?: CaptionStyle[]; animOf?: Record<string, string>;
       langs?: Record<string, string>; transitions?: Record<string, string>;
-      ratios?: Record<string, string>;
+      ratios?: Record<string, string>; looks?: CaptionStyle[];
     }>(`/captions/presets?lang=${lang}`)
       .then((c) => {
         if (!c || !Array.isArray(c.list)) return;
@@ -151,6 +154,7 @@ function App() {
         if (c.langs) setLangs(c.langs);
         if (c.transitions) setTransitions(c.transitions);
         if (c.ratios) setRatios(c.ratios);
+        if (Array.isArray(c.looks)) setColours(c.looks);
       })
       .catch(() => {
         // El motor puede estar arrancando todavia. Sin este reintento, una
@@ -188,6 +192,7 @@ function App() {
   const previewUrl = useMemo(() => {
     if (!captions && ratio === "source") return "";
     const q = new URLSearchParams({ ratio, lang, video });
+    if (colour) q.set("look", colour);
     if (!captions) {
       q.set("kind", "ratio");
     } else if (capAnim && capAnim !== "none") {
@@ -199,7 +204,7 @@ function App() {
       q.set("id", capStyle);
     }
     return `${ENGINE}/preview?${q.toString()}`;
-  }, [captions, capStyle, capAnim, ratio, video, lang]);
+  }, [captions, capStyle, capAnim, ratio, video, lang, colour]);
 
   useEffect(() => { setPreviewReady(false); }, [previewUrl]);
 
@@ -288,7 +293,7 @@ function App() {
         refine: refine ? true : undefined,
         captionPreset: capStyle, captionAnim: capAnim,
         vision: seeVideo, shake, translate: transLang, translateCaptions: burnTrans,
-        transition, ratio, cropX,
+        transition, ratio, cropX, look: colour,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
     } catch {
@@ -724,7 +729,9 @@ function App() {
         <Gallery
           styles={capStyles} anims={capAnims} animOf={animOf}
           style={capStyle} anim={capAnim} ratio={ratio} video={video}
+          colours={colours} colour={colour}
           onStyle={setCapStyle} onAnim={setCapAnim}
+          onColour={(id) => setColour(id === "none" ? "" : id)}
           onClose={() => setGalOpen(false)}
         />
       )}
