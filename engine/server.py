@@ -565,6 +565,20 @@ def bridge_post(path, body):
         return json.loads(r.read().decode())
 
 
+# How long to wait when the answer is a whole timeline. Two seconds is right for
+# "is Resolve alive", and catastrophically wrong for "list the clips": measured
+# on a ten minute video, listing the 1513 caption titles takes 4.7 seconds, the
+# two second reader gave up, the empty list it returned looked like a timeline
+# with no clips, and every single caption was left with Text+'s factory text
+# saying "Custom Title". Silence again, and this time it reached the screen.
+PATIENT = 180
+
+
+def bridge_get_slow(path):
+    """Same reader, for calls whose answer grows with the size of the edit."""
+    return bridge_get(path, timeout=PATIENT)
+
+
 def bridge_get(path, timeout=2):
     """One GET to the bridge, or None if it is down or has nothing to say."""
     try:
@@ -761,13 +775,13 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
             # the one that looks like a machine editing, which is the point.
             set_progress(tr("captioning"), 85, tr("captioning_n", len(chunks)))
             out = resolve_captions.build_subs(
-                bridge_post, bridge_get, timeline, chunks, preset,
+                bridge_post, bridge_get_slow, timeline, chunks, preset,
                 workdir or Path(video).parent, out_w, out_h, fps,
                 log=lambda m: set_progress(tr("captioning"), 88, m), anim=anim)
             if out.get("timeline"):
                 set_progress(tr("captioning"), 96, tr("nesting"))
-                resolve_captions.nest_subs(bridge_post, bridge_get, timeline,
-                                           out["timeline"])
+                resolve_captions.nest_subs(bridge_post, bridge_get_slow,
+                                           timeline, out["timeline"])
             made += " " + tr("captions_made", out["captions"])
     # Back to the top and on the Edit page. The playhead is left wherever the
     # last caption went, which is the middle of the timeline, and a finished

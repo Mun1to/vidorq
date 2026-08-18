@@ -161,6 +161,15 @@ def build_subs(post, get, timeline_name, chunks, preset_name, work_dir,
     #    written against it and the entrance animation fits the caption.
     clips = (get("/timeline/clips?track_type=video&track_index=1") or {}).get("clips", [])
     real = [ev for ev in plan if not ev["spacer"]]
+    if not clips:
+        # The titles are on the timeline; without this list there is no way to
+        # know how long each one ended up, so the comps cannot be written and
+        # every caption would keep Text+'s own "Custom Title". Stopping is the
+        # honest outcome: a timeline full of placeholder text looks like the
+        # program worked and is worse than an error.
+        raise RuntimeError("Resolve no devolvio los %d titulos de '%s'; sin esa "
+                           "lista los subtitulos saldrian en blanco"
+                           % (len(real), subs))
     if len(clips) != len(real):
         say("aviso: %d clips para %d subtitulos, uso los que hay" % (len(clips), len(real)))
     comp_dir = Path(work_dir) / "comps"
