@@ -66,6 +66,7 @@ function App() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<Progress>({ step: "", percent: 0 });
   const [engineUp, setEngineUp] = useState<boolean | null>(null);
+  const [retry, setRetry] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [ws, setWs] = useState<Workspaces>({ active: "Principal", list: ["Principal"] });
   const [wsOpen, setWsOpen] = useState(false);
@@ -122,8 +123,13 @@ function App() {
         if (c.transitions) setTransitions(c.transitions);
         if (c.ratios) setRatios(c.ratios);
       })
-      .catch(() => {});
-  }, [lang]);
+      .catch(() => {
+        // El motor puede estar arrancando todavia. Sin este reintento, una
+        // ventana abierta medio segundo antes de tiempo se queda sin estilos,
+        // sin idiomas y sin formatos, y parece que la app viene rota.
+        setTimeout(() => setRetry((n) => n + 1), 2000);
+      });
+  }, [lang, retry]);
 
   // Progreso
   useEffect(() => {
