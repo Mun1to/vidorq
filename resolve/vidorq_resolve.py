@@ -58,6 +58,10 @@ T = {
                     "The engine will not start. Run engine\\start_engine.bat by hand and read it."),
     "engine_missing": ("No encuentro el lanzador del motor: %s", "Cannot find the engine launcher: %s"),
     "app_open": ("Abriendo la ventana de Vidorq...", "Opening the Vidorq window..."),
+    "app_stale": ("La ventana instalada es mas vieja que el codigo. Compilala con "
+                  "'pnpm tauri build' en app\\ o veras la version de antes.",
+                  "The installed window is older than the code. Build it with "
+                  "'pnpm tauri build' in app\\ or you will see the previous version."),
     "app_none": ("Sin app instalada, usa la ventana de desarrollo.",
                  "No installed app, use the dev window."),
     "bridge_up": ("El puente ya estaba en marcha, le pido que se aparte.",
@@ -190,9 +194,29 @@ def find_app():
     return ""
 
 
+def window_is_stale(exe):
+    """True when the built window predates the code it is supposed to show.
+
+    A Tauri release binary carries the interface INSIDE it, so rebuilding the web
+    side with `pnpm build` changes app/dist and changes nothing about what this
+    menu entry opens. Measured the hard way: an afternoon of interface work, all
+    of it verified in a browser against dist/, and the window kept showing the
+    previous version with no error anywhere. Silence is the whole problem, so
+    this at least says it out loud. Only a developer with the sources sees this;
+    an installed copy has no dist/ to compare against.
+    """
+    dist = os.path.join(HOME, "app", "dist", "index.html")
+    try:
+        return os.path.getmtime(dist) > os.path.getmtime(exe) + 5
+    except OSError:
+        return False
+
+
 app_exe = find_app()
 window_opened = False
 if app_exe:
+    if window_is_stale(app_exe):
+        say("app_stale")
     say("app_open")
     try:
         spawn_hidden(app_exe)
