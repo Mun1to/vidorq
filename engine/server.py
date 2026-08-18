@@ -108,6 +108,13 @@ TEXT = {
         "no_gpu": "Sin GPU para transcribir, va por CPU y tarda mas",
         "moments": "Leyendo lo que pides en momentos concretos...",
         "moments_done": "En momentos concretos: %s",
+        "refine_reading": "Leyendo lo que me pides...",
+        "not_understood": "No he entendido que cambiar, asi que no he tocado nada.",
+        "did_cuts": "%d tramos",
+        "did_cut": "%d tramo",
+        "did_caps": "%d subtitulos",
+        "did_titles": "%d carteles",
+        "did_voice": "%d voz en off",
         "refining": "Retoque %d: leyendo lo que pides...",
         "refine_kept": "Sigo sobre el montaje que ya hay (%d tramos). Cambias: %s",
         "refine_nothing_said": "solo lo de momentos concretos",
@@ -149,6 +156,13 @@ TEXT = {
         "no_gpu": "No GPU for transcription, running on CPU and slower",
         "moments": "Reading what you asked for at specific moments...",
         "moments_done": "At specific moments: %s",
+        "refine_reading": "Reading what you asked...",
+        "not_understood": "I did not understand what to change, so I left everything alone.",
+        "did_cuts": "%d pieces",
+        "did_cut": "%d piece",
+        "did_caps": "%d captions",
+        "did_titles": "%d cards",
+        "did_voice": "%d voice line(s)",
         "refining": "Change %d: reading what you asked...",
         "refine_kept": "Carrying on from the edit you have (%d pieces). Changing: %s",
         "refine_nothing_said": "only the specific moments",
@@ -1286,26 +1300,130 @@ def workdir_for(video):
     return Path(video).parent / "edit" / Path(video).stem[:40]
 
 
-def refine_settings(prompt, base):
-    """Only what the follow-up literally SAID, over what was already chosen.
+# Que sabe hacer cada salida. Una sola tabla, porque antes esto vivia como una
+# condicion suelta en el render (la transicion solo se pasaba al MP4) y en la
+# salida a Resolve se caia sin decir nada: pediste transiciones, no pasaron, y
+# nadie te lo conto.
+#
+# El valor es False (no puede), True (puede entero), o una tupla con lo que
+# puede de esa cosa.
+CAPABILITIES = {
+    "resolve": {
+        # La API de scripting no tiene transiciones. Punto.
+        "transition": (),
+        "voice": False,     # tampoco admite meter audio
+        "shake": False,     # ni keyframes de encuadre por llamada
+    },
+    "mp4": {
+        "transition": tuple(director.TRANSITIONS),
+        "voice": True,
+        "shake": True,
+    },
+}
 
-    Deliberately without a model. On a second round the user types a delta -
-    "make it vertical", "drop that bit" - and a model asked to produce a full
-    plan from four words fills every other field with an opinion, which silently
-    undoes the vertical they set two rounds ago. from_words() reports only what
-    is literally in the sentence, costs nothing and cannot hallucinate.
+
+def can_do(output, what, value=None):
+    """True si esta salida sabe hacer eso. Con `value`, si sabe hacer ESO."""
+    got = (CAPABILITIES.get(output) or {}).get(what, True)
+    if isinstance(got, tuple):
+        return (value in got) if value is not None else bool(got)
+    return bool(got)
+
+
+# Como se le explica a una persona lo que no cabe en su salida, y que hacer.
+CANNOT_WHY = {
+    "es": {
+        "transition": "Resolve no admite transiciones por su API, solo salen en el MP4.",
+        "voice": "Resolve no admite meter audio por su API, la voz solo sale en el MP4.",
+        "shake": "El temblor necesita keyframes de encuadre, que Resolve no da por API.",
+    },
+    "en": {
+        "transition": "Resolve takes no transitions over its API; they only come out "
+                      "in the MP4.",
+        "voice": "Resolve takes no audio over its API; the voice only comes out in "
+                 "the MP4.",
+        "shake": "The shake needs framing keyframes, which Resolve will not set over "
+                 "its API.",
+    },
+}
+
+
+# Como se le llama a cada ajuste cuando hay que contarselo a una persona. Sin
+# esto la respuesta seria "captionPreset: neon", que es el nombre de la variable
+# y no el de la cosa.
+SETTING_WORDS = {
+    "es": {"ratio": "formato", "transition": "transicion", "captions": "subtitulos",
+           "captionPreset": "estilo", "captionAnim": "entrada", "cuts": "corte"},
+    "en": {"ratio": "frame", "transition": "transition", "captions": "captions",
+           "captionPreset": "look", "captionAnim": "entrance", "cuts": "cut"},
+}
+
+
+def said_it(changed, settings):
+    """Los ajustes que cambiaron, escritos como se los dirias a alguien."""
+    words = SETTING_WORDS.get(_lang, SETTING_WORDS["es"])
+    out = []
+    for key in changed:
+        value = settings.get(key)
+        if key == "captions":
+            out.append(("subtitulos" if value else "sin subtitulos") if _lang == "es"
+                       else ("captions" if value else "no captions"))
+            continue
+        if key == "transition":
+            value = (TRANSITION_LABELS.get(_lang, TRANSITION_LABELS["es"])
+                     .get(value, value))
+        out.append("%s: %s" % (words.get(key, key), value))
+    return out
+
+
+def blocked_by_output(output, settings, asked, want_voice=False, want_shake=False):
+    """Lo que se ha pedido EN ESTE TURNO y esta salida no puede dar, explicado.
+
+    `asked` son las claves que ha tocado esta frase, y filtra de verdad. Sin ese
+    filtro, poner una transicion en el turno 2 hacia que el turno 5 siguiera
+    diciendo "no puedo poner transiciones" por un ajuste que nadie habia vuelto
+    a mencionar: el aviso se convierte en ruido y se deja de leer.
+
+    Se calcula ANTES de trabajar. Enterarse al final de que la voz no estaba es
+    lo mismo que no enterarse, porque el video ya parece terminado.
+    """
+    why = CANNOT_WHY.get(_lang, CANNOT_WHY["es"])
+    out = []
+    trans = settings.get("transition") or "none"
+    if ("transition" in asked and trans != "none"
+            and not can_do(output, "transition", trans)):
+        out.append({"what": "transition", "value": trans, "why": why["transition"]})
+    if want_voice and not can_do(output, "voice"):
+        out.append({"what": "voice", "why": why["voice"]})
+    if want_shake and not can_do(output, "shake"):
+        out.append({"what": "shake", "why": why["shake"]})
+    return out
+
+
+def refine_settings(prompt, base, ai=None, model=None, log=None):
+    """Que ajustes deja esta frase, sobre los que ya habia.
+
+    Dos fuentes y un orden que importa. Primero el modelo, al que se le pide
+    SOLO el delta (director.change), y encima las palabras literales, que ganan:
+    son exactas, cuestan cero y ya esta medido que aciertan donde el modelo se
+    despista. La version anterior usaba solo las palabras, y por eso una frase
+    fuera del puñado de reglas no cambiaba nada y aun asi rehacia el video.
+
+    Devuelve (ajustes, lo_que_cambio, lo_que_no_entendio).
     """
     out = dict(base)
-    said = director.from_words(prompt)
-    for key, value in said.items():
+    delta, cannot, _why = director.change(prompt, base, ai, model, log)
+    delta.update(director.from_words(prompt))
+    for key, value in delta.items():
         if key == "captionAnim" and value == "__any__":
             out["captionAnim"] = cap.PRESETS[
                 out.get("captionPreset") or cap.DEFAULT_PRESET]["anim"]
             continue
         out[key] = value
-    if "captions" in said and not said["captions"]:
+    if delta.get("captions") is False:
         out["captionAnim"] = ""
-    return out, sorted(said)
+    changed = sorted(k for k in delta if out.get(k) != base.get(k))
+    return out, changed, cannot
 
 
 def run_job(req):
@@ -1340,13 +1458,17 @@ def run_job(req):
         again = bool(req.get("refine")) and bool(
             session_load(workdir_for(video)).get("edl"))
         keep_edl, history, turn = None, [], 1
+        changed, not_understood = [], []
         if again:
             past = session_load(workdir_for(video))
             keep_edl = past["edl"]
             history = past.get("history") or []
             turn = len(history) + 1
             base = past.get("settings") or {}
-            fresh, said = refine_settings(prompt, base)
+            set_progress(tr("refining", turn), 6, tr("refine_reading"))
+            fresh, changed, not_understood = refine_settings(
+                prompt, base, ai_choice(req), req.get("directorModel") or None,
+                log=lambda m: set_progress(tr("refining", turn), 7, m))
             ratio = fresh.get("ratio", ratio)
             transition = fresh.get("transition", transition)
             captions = fresh.get("captions", captions)
@@ -1357,7 +1479,8 @@ def run_job(req):
                 output = req["output"]
             set_progress(tr("refining", turn), 8,
                          tr("refine_kept", len(keep_edl),
-                            ", ".join(said) if said else tr("refine_nothing_said")))
+                            ", ".join(changed) if changed
+                            else tr("refine_nothing_said")))
 
         # A prompt decides the whole edit, not just the cuts: the shape of the
         # frame, the caption look, its entrance, the joins. Before this the
@@ -1472,6 +1595,35 @@ def run_job(req):
                 # A crop that centres is a worse crop, not a failed edit.
                 traceback.print_exc()
                 set_progress(tr("framing"), 61, "sin encuadrar: %s" % str(e)[:120])
+
+        # 3b-bis) Un retoque que no cambio ningun ajuste y no pidio nada en
+        #     ningun momento concreto NO se hace. Rehacer la misma edicion para
+        #     entregar exactamente el mismo video es lo que hacia que "pon
+        #     transiciones en cada corte" acabara en un rato mirando como se
+        #     colocaban otra vez los mismos 751 subtitulos.
+        if again:
+            # Lo que ha cambiado y esta salida SI sabe hacer. Cambiar la
+            # transicion con salida a Resolve no cambia nada de lo que se ve,
+            # asi que rehacer el montaje entero para entregar el mismo video es
+            # exactamente lo que hacia que pedir transiciones acabara en un rato
+            # mirando como se colocaban otra vez los mismos subtitulos.
+            asked = set(changed)
+            blocked = blocked_by_output(
+                output, {"ratio": ratio, "transition": transition}, asked,
+                want_voice=False, want_shake=bool(req.get("shake")))
+            dead = {b["what"] for b in blocked}
+            useful = [k for k in changed if k not in dead]
+            if not useful and not (prompt and director.wants_moments(prompt)):
+                answer = {"you": prompt, "did": [], "cannot": blocked,
+                          "unknown": not_understood,
+                          "offer": ({"kind": "mp4"} if blocked else {}),
+                          "ok": False}
+                past["history"] = history + [answer]
+                session_save(workdir_for(video), past)
+                set_progress(tr("done"), 100,
+                             result=(blocked[0]["why"] if blocked
+                                     else tr("not_understood")))
+                return
 
         # 3c) What the prompt asked for at particular moments. After the cuts
         #     are decided and before anything downstream reads the EDL, because
@@ -1648,15 +1800,38 @@ def run_job(req):
 
         # Lo que hace falta para que la SIGUIENTE frase sea un retoque y no una
         # edicion desde cero. Se guarda al final, con el EDL ya definitivo.
+        settings_now = {"ratio": ratio, "transition": transition,
+                        "captions": captions, "captionPreset": caption_preset,
+                        "captionAnim": caption_anim, "cuts": preset,
+                        "output": output}
+        # Lo que ha pasado en este turno, contado. Se guarda con la sesion para
+        # que la conversacion siga estando ahi despues de cerrar la ventana.
+        did = said_it(changed, settings_now) if again else []
+        did += [tr("did_cut" if len(edl) == 1 else "did_cuts", len(edl))]
+        # Solo cuando se sabe el numero aqui. Cuando los subtitulos los arma el
+        # backend, el que los ha contado es el, y lo dice en `result`: repetirlo
+        # aqui con un cero seria peor que no decirlo.
+        if captions and translated_chunks:
+            did.append(tr("did_caps", len(translated_chunks)))
+        if want_titles:
+            did.append(tr("did_titles", len(want_titles)))
+        if voice_files:
+            did.append(tr("did_voice", len(voice_files)))
+        blocked = blocked_by_output(output, settings_now, set(changed),
+                                    want_voice=bool(want_voice),
+                                    want_shake=bool(req.get("shake")))
+        answer = {"you": prompt or tr("history_first"),
+                  "did": [x for x in did if x],
+                  "cannot": blocked,
+                  "unknown": not_understood,
+                  "offer": ({"kind": "mp4"} if blocked else {}),
+                  "result": result,
+                  "ok": True}
         session_save(workdir, {
             "video": video,
             "edl": edl,
-            "settings": {"ratio": ratio, "transition": transition,
-                         "captions": captions, "captionPreset": caption_preset,
-                         "captionAnim": caption_anim, "cuts": preset,
-                         "output": output},
-            "history": (history if again else []) + ([prompt] if prompt else
-                                                     [tr("history_first")]),
+            "settings": settings_now,
+            "history": (history if again else []) + [answer],
             "timelines": made_names,
             "result": result,
         })
@@ -1776,7 +1951,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send({"history": [], "can": False})
             else:
                 st = session_load(workdir_for(video))
-                self._send({"history": st.get("history") or [],
+                # Las sesiones viejas guardaban solo la frase del usuario. Se
+                # leen igual, en vez de romper una conversacion que ya existia.
+                turns = [({"you": h, "did": [], "cannot": [], "ok": True}
+                          if isinstance(h, str) else h)
+                         for h in (st.get("history") or [])]
+                self._send({"history": turns,
                             "settings": st.get("settings") or {},
                             "result": st.get("result", ""),
                             "can": bool(st.get("edl"))})
