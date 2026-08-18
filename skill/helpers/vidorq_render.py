@@ -124,6 +124,45 @@ def frame_for(ratio, w, h):
     return ow, oh, cw // 2 * 2, ch // 2 * 2
 
 
+# Impact shake, in numbers. Fast and short is the whole trick: a shake that
+# lasts is a wobble and reads as bad footage, while one that dies in a fifth of
+# a second reads as something landing. Cut off entirely below a pixel, so the
+# rest of the segment is not evaluating a sine wave for nothing.
+SHAKE_SECONDS = 0.20
+SHAKE_HZ = 17.0
+# How far it moves, as a fraction of the headroom the zoom left. Never more,
+# because past the headroom the crop walks off the edge of the frame and ffmpeg
+# clamps it, which turns a shake into a lurch.
+SHAKE_REACH = 0.75
+# The least zoom a shaking segment gets, so there is a margin to move inside.
+SHAKE_MIN_ZOOM = 1.05
+
+
+def shake_crop(zw, zh, zx, zy, secs=SHAKE_SECONDS, hz=SHAKE_HZ):
+    """A crop that jitters and settles, written as an ffmpeg expression.
+
+    Done inside ffmpeg on purpose. The alternative is moving the crop frame by
+    frame from Python, which is what v1 of this renderer did for everything and
+    why it took fifty minutes to render ten minutes of video. An expression is
+    evaluated in C, once per frame, and costs nothing measurable.
+
+    Both axes decay together but at different frequencies, so the movement is
+    not a diagonal line: 1.0 and 1.37 do not line up again for long enough that
+    the eye never sees a pattern. `t` restarts at zero for every segment because
+    each one is its own ffmpeg run, which is exactly the clock a shake wants.
+    """
+    ax = max(0.0, min(zx, zw * 0.05)) * SHAKE_REACH
+    ay = max(0.0, min(zy, zh * 0.05)) * SHAKE_REACH
+    if ax < 1 and ay < 1:
+        return f"crop={zw}:{zh}:{zx}:{zy}"
+    decay = f"exp(-t/{secs / 3.0:.4f})"
+    x = f"{zx}+{ax:.1f}*{decay}*sin(t*{hz * 6.2832:.3f})"
+    y = f"{zy}+{ay:.1f}*{decay}*cos(t*{hz * 1.37 * 6.2832:.3f})"
+    # lt(t,secs) switches the whole thing off once it has decayed to nothing.
+    return (f"crop={zw}:{zh}:x='if(lt(t,{secs}),{x},{zx})'"
+            f":y='if(lt(t,{secs}),{y},{zy})'")
+
+
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
                  preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5):
     src = av.open(source)
@@ -146,6 +185,12 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
     for i, seg in enumerate(edl):
         s, e = float(seg["start"]), float(seg["end"])
         zoom = float(seg.get("zoom", 1.0)) if do_zoom else 1.0
+        # A shake needs somewhere to move. The crop can only slide inside the
+        # margin the zoom left over, so a segment asked to shake at zoom 1.0 has
+        # a margin of zero and renders perfectly still. Measured: half the beat
+        # cuts came out with no shake at all until this line existed.
+        if seg.get("shake") and zoom < SHAKE_MIN_ZOOM:
+            zoom = SHAKE_MIN_ZOOM
         vf = []
         # Shape first, then the emphasis zoom, then the captions. The order is
         # the point: reframing after the captions would crop the words, and
@@ -164,7 +209,10 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
         if zoom > 1.001:
             zw, zh = int(crop_w / zoom) // 2 * 2, int(crop_h / zoom) // 2 * 2
             zx, zy = (crop_w - zw) // 2 // 2 * 2, (crop_h - zh) // 2 // 2 * 2
-            vf.append(f"crop={zw}:{zh}:{zx}:{zy}")
+            if seg.get("shake"):
+                vf.append(shake_crop(zw, zh, zx, zy))
+            else:
+                vf.append(f"crop={zw}:{zh}:{zx}:{zy}")
         if vf:
             vf.append(f"scale={out_w}:{out_h}:flags=lanczos")
         if do_caps:

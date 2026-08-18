@@ -341,6 +341,7 @@ def snap_to_picture(edl, track, window=0.30):
 
 
 def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=True,
+                    shake=False,
                     track=None):
     """Keep the speech, drop the dead air, the fillers and the retries.
 
@@ -387,7 +388,7 @@ def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=Tru
         seg["zoom"] = 1.0
         seg["note"] = ""
     merged, moved = snap_to_picture(merged, track)
-    merged, beat_cuts = cut_on_beats(merged, track)
+    merged, beat_cuts = cut_on_beats(merged, track, shake=shake)
     merged, hidden = hide_jump_cuts(merged, track)
     return merged, {"takes": dropped, "fillers": fillers, "cuts": len(merged),
                     "beats": beat_cuts,
@@ -411,7 +412,7 @@ BEAT_MARGIN_S = 0.8
 BEAT_ZOOM = 1.09
 
 
-def cut_on_beats(edl, track, log=None):
+def cut_on_beats(edl, track, log=None, shake=False):
     """Split a shot where the picture does something, so the action gets a cut.
 
     Speech says WHERE a cut is allowed; it says nothing about where one is
@@ -421,8 +422,11 @@ def cut_on_beats(edl, track, log=None):
     middle stayed one flat block.
 
     The split alone changes nothing on screen; what makes it read as a cut is
-    hide_jump_cuts afterwards, which gives the two halves different framing.
-    That is why this runs BEFORE it.
+    the alternating punch across it. With `shake` on, the piece that starts ON
+    the beat also gets a short impact shake, which is the CapCut move: the cut
+    lands and the camera flinches. Only the pieces that START on a beat get it,
+    never the first one, because the first one starts where the speech did and
+    nothing happened there.
     """
     if not track or not edl:
         return edl, 0
@@ -436,14 +440,16 @@ def cut_on_beats(edl, track, log=None):
         if not inside:
             out.append(seg)
             continue
-        at, tight = a, False
+        at, tight, first = a, False, True
         for t in inside:
             out.append(dict(seg, start=round(at, 3), end=round(t, 3),
-                            zoom=BEAT_ZOOM if tight else float(seg.get("zoom", 1.0))))
-            at, tight = t, not tight
+                            zoom=BEAT_ZOOM if tight else float(seg.get("zoom", 1.0)),
+                            shake=bool(shake and not first)))
+            at, tight, first = t, not tight, False
             made += 1
         out.append(dict(seg, start=round(at, 3), end=round(b, 3),
-                        zoom=BEAT_ZOOM if tight else float(seg.get("zoom", 1.0))))
+                        zoom=BEAT_ZOOM if tight else float(seg.get("zoom", 1.0)),
+                        shake=bool(shake and not first)))
     if log and made:
         log("%d cortes puestos sobre el movimiento" % made)
     return out, made
@@ -1175,6 +1181,9 @@ def run_job(req):
 
         # 3) Build the EDL
         set_progress(tr("deciding"), 50)
+        # Impact shake on the beats. Off unless asked for: it is a look, not a
+        # correction, and a podcast does not want its camera flinching.
+        shake = bool(req.get("shake"))
         report = {}
         if prompt:
             packed = packed_view(workdir, transcript, video)
@@ -1196,13 +1205,13 @@ def run_job(req):
                 set_progress(tr("deciding"), 54, "uso los cortes del motor")
                 edl, report = edl_from_speech(transcript,
                                               transcript.get("language", _lang),
-                                              track=look.get("track"))
+                                              track=look.get("track"), shake=shake)
         elif preset == "montage":
             edl, report = edl_montage(video, transcript, track=look.get("track"),
                                       lang=transcript.get("language", _lang))
         else:
             edl, report = edl_from_speech(transcript, transcript.get("language", _lang),
-                                          track=look.get("track"))
+                                          track=look.get("track"), shake=shake)
             if preset == "podcast":
                 edl = mark_questions(transcript, edl)
         if not edl:
