@@ -95,6 +95,8 @@ TEXT = {
         "framing_help": "Detector local, milisegundos por fotograma",
         "framed": "Encuadre sobre la cara en %d de %d tramos",
         "framed_none": "Sin caras: recorte centrado",
+        "moments": "Leyendo lo que pides en momentos concretos...",
+        "moments_done": "En momentos concretos: %s",
     },
     "en": {
         "busy": "There is already an edit running",
@@ -125,6 +127,8 @@ TEXT = {
         "framing_help": "Local detector, milliseconds per frame",
         "framed": "Framed on the face in %d of %d cuts",
         "framed_none": "No faces found: centred crop",
+        "moments": "Reading what you asked for at specific moments...",
+        "moments_done": "At specific moments: %s",
     },
 }
 
@@ -737,6 +741,98 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     return made
 
 
+def to_edited(t, edl):
+    """A second of the ORIGINAL video, expressed in the edited timeline.
+
+    Everything the prompt asks for is stated against the video the user watched,
+    because that is the only clock they can see. The edit moves all of it
+    earlier by whatever was cut in front. A moment that fell inside a cut has no
+    place on the new timeline, so it comes back as None and the caller drops it
+    rather than parking it at a wrong second.
+    """
+    offset = 0.0
+    for seg in edl:
+        a, b = float(seg["start"]), float(seg["end"])
+        if t < a:
+            return None                     # cayo en un hueco que se ha ido
+        if t <= b:
+            return offset + (t - a)
+        offset += b - a
+    return None
+
+
+def apply_actions(edl, acts, log=None):
+    """Carry out what the prompt asked for at particular moments.
+
+    Cuts and zooms change the EDL, markers ride along on the segment they land
+    in, and titles are handed back because they cannot be placed until the EDL
+    has stopped moving: a title's second only means something once the cuts that
+    come before it are final.
+    """
+    titles, done = [], {"cut": 0, "zoom": 0, "marker": 0, "title": 0}
+    for act in acts:
+        kind, at = act["do"], float(act["at"])
+        if kind == "cut":
+            until = float(act["until"])
+            fresh = []
+            for seg in edl:
+                a, b = float(seg["start"]), float(seg["end"])
+                if until <= a or at >= b:
+                    fresh.append(seg)            # fuera del recorte, intacto
+                    continue
+                done["cut"] += 1
+                if a < at:                       # se queda el trozo de delante
+                    fresh.append(dict(seg, end=round(at, 3)))
+                if b > until:                    # y el de detras
+                    fresh.append(dict(seg, start=round(until, 3)))
+            edl[:] = [x for x in fresh if float(x["end"]) - float(x["start"]) >= MIN_KEEP_S]
+        elif kind == "zoom":
+            until = float(act["until"])
+            for seg in edl:
+                if float(seg["start"]) < until and float(seg["end"]) > at:
+                    seg["zoom"] = max(float(seg.get("zoom", 1.0)), 1.06)
+                    done["zoom"] += 1
+        elif kind == "marker":
+            for seg in edl:
+                if float(seg["start"]) <= at <= float(seg["end"]):
+                    seg["note"] = act["text"]
+                    done["marker"] += 1
+                    break
+        elif kind == "title":
+            titles.append(act)
+    done["title"] = len(titles)
+    if log:
+        log(", ".join("%d %s" % (n, k) for k, n in done.items() if n) or
+            "nada que aplicar")
+    return titles
+
+
+def titles_into(chunks, titles, edl):
+    """Put the asked-for cards into the caption list, in edited time.
+
+    They join the captions instead of becoming a separate mechanism, so a title
+    gets the same look, the same renderer and the same treatment in both
+    backends for free. Overlapping captions are pushed out of the way rather
+    than stacked, because two lines in the same place is unreadable.
+    """
+    out = list(chunks or [])
+    for t in titles:
+        at = to_edited(float(t["at"]), edl)
+        if at is None:
+            continue
+        end = at + float(t.get("secs", 2.0))
+        out = [c for c in out
+               if float(c["end"]) <= at + 0.05 or float(c["start"]) >= end - 0.05]
+        words = t["text"].split()
+        step = (end - at) / max(1, len(words))
+        out.append({"start": round(at, 3), "end": round(end, 3), "text": t["text"],
+                    "words": [{"w": w, "s": round(at + i * step, 3),
+                               "e": round(at + (i + 1) * step, 3)}
+                              for i, w in enumerate(words)]})
+    out.sort(key=lambda c: float(c["start"]))
+    return out
+
+
 def retime_transcript(transcript, edl):
     """Move the words from source time into edited time.
 
@@ -985,6 +1081,29 @@ def run_job(req):
                 traceback.print_exc()
                 set_progress(tr("framing"), 61, "sin encuadrar: %s" % str(e)[:120])
 
+        # 3c) What the prompt asked for at particular moments. After the cuts
+        #     are decided and before anything downstream reads the EDL, because
+        #     a cut here moves every second that comes after it.
+        want_titles = []
+        if prompt:
+            set_progress(tr("moments"), 59, tr("framing_help"))
+            try:
+                acts = director.actions(
+                    prompt, packed_view(workdir, transcript, video),
+                    float(transcript.get("duration", 0)), ai_choice(req),
+                    req.get("directorModel") or None,
+                    log=lambda m: set_progress(tr("moments"), 59, m))
+                if acts:
+                    want_titles = apply_actions(
+                        edl, acts,
+                        log=lambda m: set_progress(tr("decided"), 59,
+                                                   tr("moments_done", m)))
+            except Exception as e:
+                # An instruction that could not be carried out must not cost the
+                # edit: the rest of it is still exactly what was asked for.
+                traceback.print_exc()
+                set_progress(tr("moments"), 59, "sin momentos: %s" % str(e)[:120])
+
         edl_path = workdir / "edl.json"
         edl_path.write_text(json.dumps({"segments": edl}, indent=1), encoding="utf-8")
         kept = sum(s["end"] - s["start"] for s in edl)
@@ -1036,6 +1155,16 @@ def run_job(req):
                         traceback.print_exc()
                         set_progress(tr("translating", target), 62,
                                      "sin traducir: %s" % str(e)[:120])
+
+        # 4b) The cards the prompt asked for join the captions, so they get the
+        #     same look and the same renderer in both backends instead of a
+        #     second mechanism that would have to be built twice.
+        if want_titles:
+            base = translated_chunks or cap.build_chunks(
+                retime_transcript(transcript, edl), caption_preset,
+                *out_frame(ratio, *video_shape(video)[1:]))
+            translated_chunks = titles_into(base, want_titles, edl)
+            captions = True
 
         # 5) Execute on the chosen backend
         if output == "resolve":
