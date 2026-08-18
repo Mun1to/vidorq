@@ -66,7 +66,12 @@ function App() {
   const [cropX, setCropX] = useState(0.5);
   // Cuantas previews se han pedido ya. Solo sirve para saber si esta la primera.
   const [previewReady, setPreviewReady] = useState(false);
-  const [output, setOutput] = useState<Output>("mp4");
+  // Se recuerda entre sesiones. Reiniciarlo a MP4 cada vez que se abre la
+  // ventana es como se llega a pulsar "editar" esperando un timeline y recibir
+  // un archivo: la eleccion se veia hecha en la sesion anterior, no en esta.
+  const [output, setOutput] = useState<Output>(
+    () => (localStorage.getItem("vidorq.output") === "resolve" ? "resolve" : "mp4"));
+  useEffect(() => { localStorage.setItem("vidorq.output", output); }, [output]);
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
