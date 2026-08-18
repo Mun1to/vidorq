@@ -646,17 +646,19 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     if (out_w, out_h) != (width, height):
         # A vertical timeline holding a wide clip letterboxes it, so the timeline
         # is reshaped and every clip is zoomed just enough to fill the new frame.
-        bridge_post("/timeline/setting", {"settings": {
-            "useCustomSettings": "1",
-            "timelineResolutionWidth": str(out_w),
-            "timelineResolutionHeight": str(out_h)}})
-    if (out_w, out_h) != (width, height):
-        # A vertical timeline holding a wide clip letterboxes it, so the timeline
-        # is reshaped and every clip is zoomed just enough to fill the new frame.
-        bridge_post("/timeline/setting", {"settings": {
-            "useCustomSettings": "1",
-            "timelineResolutionWidth": str(out_w),
-            "timelineResolutionHeight": str(out_h)}})
+        #
+        # One key per call, and useCustomSettings first: a timeline ignores a
+        # resolution it has not been told to keep. This used to go out as a
+        # single {"settings": {...}} and the bridge answered "key is required",
+        # which nobody read, so every timeline stayed 16:9 while the progress
+        # line happily said vertical. Hence the check below.
+        for key, value in (("useCustomSettings", "1"),
+                           ("timelineResolutionWidth", str(out_w)),
+                           ("timelineResolutionHeight", str(out_h))):
+            got = bridge_post("/timeline/setting", {"key": key, "value": value})
+            if not got.get("success"):
+                raise RuntimeError("Resolve no acepto %s=%s: %s"
+                                   % (key, value, got.get("error", got)))
     record = 0
     for seg in edl:
         sf = round(seg["start"] * fps)

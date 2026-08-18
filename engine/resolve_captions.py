@@ -112,6 +112,19 @@ def build(post, get, timeline_name, chunks, preset_name, work_dir,
     if not subs:
         raise RuntimeError("No pude crear el timeline de subtitulos '%s'" % base)
 
+    # A new timeline is born with the project's shape, and this one ends up
+    # NESTED inside the edit. Left at 16:9 inside a vertical edit, Resolve fits
+    # it like any other clip: the captions come out at 56% of their size, parked
+    # across the middle of the frame instead of near the bottom. Measured, not
+    # guessed. One key per call, and useCustomSettings before the numbers.
+    for key, value in (("useCustomSettings", "1"),
+                       ("timelineResolutionWidth", str(int(width))),
+                       ("timelineResolutionHeight", str(int(height)))):
+        got = post("/timeline/setting", {"key": key, "value": value})
+        if not got.get("success"):
+            raise RuntimeError("Resolve no acepto %s=%s en '%s': %s"
+                               % (key, value, subs, got.get("error", got)))
+
     # 2) One title per event, in time order, each trimming the one before it.
     for ev in plan:
         post("/playhead", {"timecode": frame_to_tc(ev["frame"], start_frame, start_tc, fps)})
