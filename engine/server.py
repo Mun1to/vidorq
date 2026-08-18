@@ -76,7 +76,7 @@ TEXT = {
         "rendering": "Renderizando (GPU)...",
         "building": "Montando timeline en Resolve...",
         "done": "Listo",
-        "timeline_made": "Timeline 'Vidorq_%s' creado en Resolve",
+        "timeline_made": "Timeline '%s' creado en Resolve",
         "captioning": "Poniendo los subtitulos en Resolve...",
         "captioning_n": "%d subtitulos, uno a uno",
         "captions_made": "con %d subtitulos editables",
@@ -106,7 +106,7 @@ TEXT = {
         "rendering": "Rendering (GPU)...",
         "building": "Building the timeline in Resolve...",
         "done": "Done",
-        "timeline_made": "Timeline 'Vidorq_%s' created in Resolve",
+        "timeline_made": "Timeline '%s' created in Resolve",
         "captioning": "Putting the captions into Resolve...",
         "captioning_n": "%d captions, one by one",
         "captions_made": "with %d editable captions",
@@ -629,10 +629,27 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     name = Path(video).stem[:40]
     fps, width, height = video_shape(video)
     out_w, out_h = out_frame(ratio, width, height)
-    timeline = f"Vidorq_{name}"
     # import media (idempotent) + timeline + inserts
     bridge_post("/media/import", {"filePaths": [video]})
-    bridge_post("/timeline/create", {"name": timeline})
+    # Resolve refuses a name it already has, and the old code read straight past
+    # the refusal: editing the same video twice appended the second edit onto the
+    # end of the first one, nested captions and all. Same numbering the caption
+    # timelines use.
+    timeline = None
+    for n in range(1, 40):
+        candidate = f"Vidorq_{name}" if n == 1 else f"Vidorq_{name}{n}"
+        if bridge_post("/timeline/create", {"name": candidate}).get("success"):
+            timeline = candidate
+            break
+    if not timeline:
+        raise RuntimeError("No pude crear un timeline para '%s' en Resolve" % name)
+    if (out_w, out_h) != (width, height):
+        # A vertical timeline holding a wide clip letterboxes it, so the timeline
+        # is reshaped and every clip is zoomed just enough to fill the new frame.
+        bridge_post("/timeline/setting", {"settings": {
+            "useCustomSettings": "1",
+            "timelineResolutionWidth": str(out_w),
+            "timelineResolutionHeight": str(out_h)}})
     if (out_w, out_h) != (width, height):
         # A vertical timeline holding a wide clip letterboxes it, so the timeline
         # is reshaped and every clip is zoomed just enough to fill the new frame.
@@ -657,7 +674,7 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
             bridge_post("/clip/properties", {"trackType": "video", "trackIndex": 1,
                                              "clipIndex": i, "properties": {"ZoomX": z, "ZoomY": z}})
 
-    made = tr("timeline_made", name)
+    made = tr("timeline_made", timeline)
     if captions:
         # Caption times have to follow the CUT video, not the original, so the
         # transcript is folded onto the edit before the chunks are built.
