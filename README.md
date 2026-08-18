@@ -95,10 +95,16 @@ picture.
 speaker out of frame. There is a manual slider when you would rather choose.
 
 **Prompts.** "vertical, short style, animated subtitles" sets the frame shape,
-the subtitle style, the animation, the transition and the kind of cut. It works
-with **no API key** on a local model, and it never trusts the model blindly:
-whatever it invents is validated against the real catalogues before anything
-reaches the renderer.
+the subtitle style, the animation, the transition and the kind of cut. It also
+takes instructions aimed at **one moment**: "put a card saying SUBSCRIBE at
+second 12", "zoom in where he talks about the price", "cut that bit out". It
+works with **no API key** on a local model, and it never trusts the model
+blindly: verbs come from a closed list, times are checked against the real
+length, and anything invented produces nothing at all.
+
+**Previews.** Every look, entrance and crop is shown as a picture before you
+commit to it, made by the same renderer that makes the final video, on your own
+footage, with the crop aimed where it will really be aimed.
 
 ## Which AI thinks about your prompt
 

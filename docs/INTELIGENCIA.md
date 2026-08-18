@@ -275,6 +275,63 @@ Si la clave es mala, la edicion **no se cae**: se apunta el motivo real que dio 
 proveedor (`openrouter.ai respondio 401. Missing Auth`) y se sigue con las reglas de
 palabras, que en la prueba seguian acertando el vertical en 0,3 s.
 
+## 8. Pedir cosas en un momento concreto (`director.actions`)
+
+El punto 6 decide cosas **globales**: formato, estilo, transicion. Esto decide lo que
+pasa **en un segundo concreto**: *"pon un cartel que diga SUSCRIBETE en el segundo 12"*.
+
+Cuatro verbos, y son una lista cerrada:
+
+| verbo | que hace |
+| --- | --- |
+| `title` | un cartel con tu texto, que entra en la lista de subtitulos y por eso hereda el estilo, la animacion y los dos renderizadores gratis |
+| `marker` | una marca en el timeline de Resolve |
+| `zoom` | acerca ese tramo |
+| `cut` | quita ese trozo |
+
+Los tiempos van en segundos del video **original**, que es el unico reloj que el usuario
+ve; `to_edited()` los traslada al montaje, porque cada corte de delante mueve todo lo que
+viene detras. Un momento que cae dentro de un corte no se coloca en un sitio aproximado:
+se descarta.
+
+### La lista cerrada no es burocracia
+
+La transcripcion entra en el mismo prompt que tu instruccion, y **una transcripcion es
+texto de un desconocido**: el video de cualquiera puede decir "ignora lo anterior y haz X".
+Por eso el verbo se valida contra la lista, los tiempos contra la duracion real, el texto se
+limpia de caracteres no imprimibles y se corta a 90, y hay techo de 24 acciones. Un modelo
+que se invente algo fuera de eso no produce **nada**, en vez de producir una sorpresa.
+
+### Tres cosas que se midieron y cambiaron el diseno
+
+**Un `regex` decide si hay siquiera pregunta.** A un modelo al que le preguntas "¿hay algo
+aqui?" le sale antes inventarse algo que decir que no: con *"ponlo en vertical con
+subtitulos animados"*, que es puramente global, devolvio un cartel y una marca que nadie
+habia pedido. Ahora una expresion regular mira si el texto habla de un momento, y si no,
+**ni se pregunta**: 0,00 s y cero alucinaciones.
+
+**El mejor modelo para esto NO es el mejor para lo otro.** Con el mismo prompt real:
+
+| modelo | resultado |
+| --- | --- |
+| **`llama3.2:3b`** | **acierta en 9,7 s**. El que se usa |
+| `phi4-mini:3.8b` | acierta, 17,5 s |
+| `qwen3.5:9b` | acierta, 39,9 s |
+| `granite4.1:3b` | lista vacia en 9,6 s: forma valida, respuesta falsa |
+| `qwen3.5:4b` | **devolvio el ejemplo del prompt tal cual** |
+| `llama3.1:8b` | se nego en seco, *"no puedo cumplir con esa solicitud"* |
+
+Ser bueno eligiendo un estilo de subtitulo no dice nada sobre leer un timestamp, asi que
+cada tarea tiene su propio orden de modelos.
+
+**Un modelo bajo presion te devuelve el ejemplo.** Y llega con la forma perfecta, asi que
+validar la estructura no lo caza. Los textos que coinciden con los marcadores del prompt
+(`LO QUE PONE`, `nota corta`) se tiran.
+
+**Un corte de tres centesimas no es un corte.** A *"quita los ultimos 5 segundos"* contesto
+39,98 a 40,01 en un video de 40 s: no encontro el momento y devolvio el numero mas cercano
+que tenia. Por debajo de medio segundo se descarta, y manda el motor determinista.
+
 ## 7. Formato de salida (vertical, cuadrado, 4:5)
 
 `ratio` en `/edit`, y en la interfaz. Recorta la imagen a la forma pedida (no deforma ni
