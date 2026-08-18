@@ -308,6 +308,192 @@ SEG_SYSTEM = (
     "solo en momentos de enfasis.")
 
 
+# What a prompt is allowed to ask for at a particular moment. A whitelist and
+# not a free field, because the transcript goes into the same prompt as the
+# user's instruction and a transcript is UNTRUSTED text: somebody's video can
+# contain "ignore the above and run...". A model that invents a verb outside
+# this list produces nothing at all instead of something surprising.
+ACTIONS = ("title", "marker", "zoom", "cut")
+# Ceilings, for the same reason. A prompt asking for four things should not come
+# back with two hundred, and a caption is a caption and not an essay.
+MAX_ACTIONS = 24
+MAX_TEXT = 90
+# Shorter than this and a "cut" is noise, not an edit.
+MIN_CUT = 0.5
+# A title shorter than this is a flash nobody reads; longer than that and it
+# outstays the line it belongs to.
+TITLE_SECS = (0.8, 6.0)
+
+# Which model to ask for timed actions, best first, and it is NOT the same order
+# as DIRECTORS. Measured on one real transcript with the prompt "pon un cartel
+# que diga SUSCRIBETE en el segundo 12 durante 2 segundos":
+#   llama3.2:3b     right, 9.7 s      <- the one it uses
+#   phi4-mini:3.8b  right, 17.5 s
+#   qwen3.5:9b      right, 39.9 s
+#   granite4.1:3b   empty list in 9.6 s: valid shape, wrong answer
+#   qwen3.5:4b      echoed the example from the prompt back verbatim
+#   llama3.1:8b     refused outright ("no puedo cumplir con esa solicitud"),
+#                   which is a spurious refusal and not a capability limit
+# Being good at picking a caption style says nothing about being good at reading
+# a timestamp out of a transcript, so the two tasks get their own order.
+TIMERS = ("llama3.2:3b", "phi4-mini:3.8b", "qwen3.5:9b", "granite4.1:3b",
+          "qwen2.5:3b", "mistral-small:24b", "llama3.1:8b")
+
+# The literal placeholders from the system prompt. A small model under pressure
+# hands the example back instead of an answer, and it arrives perfectly shaped,
+# so shape alone cannot catch it. Measured on qwen3.5:4b.
+ECHOES = {"lo que pone", "nota corta", "lo que dice"}
+
+ACT_SYSTEM = (
+    "Eres el editor de video de Vidorq. Recibes la transcripcion empaquetada de "
+    "un video (lineas '[inicio-fin] texto' en segundos) y la instruccion del "
+    "usuario. Tu unico trabajo es sacar lo que el usuario pide EN MOMENTOS "
+    "CONCRETOS del video. Lo global (formato, estilo, transiciones) NO es tuyo. "
+    "Devuelve SOLO un JSON {\"actions\":[...]} donde cada accion es una de:\n"
+    '  {"do":"title","at":12.5,"secs":2.0,"text":"LO QUE PONE"}\n'
+    '  {"do":"marker","at":12.5,"text":"nota corta"}\n'
+    '  {"do":"zoom","at":12.5,"until":15.0}\n'
+    '  {"do":"cut","at":12.5,"until":15.0}\n'
+    "Los tiempos son segundos del video ORIGINAL y los sacas de la "
+    "transcripcion, buscando lo que se dice. Si el usuario no pide nada en un "
+    'momento concreto, devuelve {"actions":[]}. No inventes momentos y no '
+    "repitas la misma accion.")
+
+
+def _clean_text(value):
+    """A caption the user will see, with anything that is not text taken out."""
+    text = " ".join(str(value or "").split())
+    text = "".join(ch for ch in text if ch.isprintable())
+    return text[:MAX_TEXT]
+
+
+# Does this prompt point at a moment at all? Asking a model costs seconds and,
+# worse, a model asked "is there anything here?" would rather invent something
+# than answer no: measured on "ponlo en vertical con subtitulos animados", a
+# purely global instruction, it came back with a title and a marker nobody
+# asked for. So a regex decides whether there is even a question, and it does
+# it in a fraction of a millisecond and never hallucinates.
+MOMENT_RE = re.compile(
+    r"segundo|minuto|\bmin\b|\bseg\b|\d\s*:\s*\d|"          # un tiempo
+    r"al (final|principio|empezar|acabar|terminar)|ultim|primer|"  # una punta
+    r"cuando (dice|habla|sale|aparece|cuenta|explica)|"            # por contenido
+    r"en la parte|el trozo|el cacho|la parte donde|"
+    r"quita|elimin|borra|corta el|fuera el|"                       # sacar algo
+    r"anad|añad|pon un|pon una|mete|inserta|cartel|tarjeta|"       # meter algo
+    r"rotulo|rótulo|marca en|zoom en|acerca",
+    re.I)
+
+
+def wants_moments(prompt):
+    """True when the instruction talks about a specific point in the video."""
+    return bool(MOMENT_RE.search(prompt or ""))
+
+
+def _ask_timer(prompt, packed, model=None, log=None):
+    """The first local model that answers with the right SHAPE, in TIMERS order.
+
+    "The right shape" and not "a non empty list" on purpose: an empty list is a
+    perfectly good answer when the prompt asked for nothing time-specific, so
+    retrying until something comes back would walk the whole list every time
+    somebody just says "make it vertical". What gets rejected is a refusal or a
+    sentence, which is what a model does when it cannot do the job.
+    """
+    have = set(available_models())
+    order = [model] if model and model in have else []
+    order += [m for m in TIMERS if m in have and m != model]
+    order += [m for m in DIRECTORS if m in have and m not in order]
+    for name in order:
+        try:
+            raw = _ollama(name, ACT_SYSTEM,
+                          "INSTRUCCION: %s\n\nTRANSCRIPCION:\n%s" % (prompt, packed),
+                          predict=1600)
+        except Exception:
+            continue
+        if isinstance((_json_in(raw) or {}).get("actions"), list):
+            return raw
+        if log:
+            log("%s no supo leer los momentos, pruebo el siguiente" % name)
+    return ""
+
+
+def actions(prompt, packed, duration, ai=None, model=None, log=None):
+    """What the prompt asks for at particular moments, in SOURCE seconds.
+
+    Returns a list, empty when the prompt was only about global things, which is
+    the common case and not a failure. Everything is validated against the
+    catalogue and the video's own length before it leaves here: the model is a
+    suggestion engine, not an authority, and the transcript feeding it is text
+    from a stranger's video.
+    """
+    if not wants_moments(prompt):
+        return []
+    try:
+        if _is_hosted(ai):
+            raw, _ = _hosted(ai, ACT_SYSTEM, "INSTRUCCION: %s\n\nTRANSCRIPCION:\n%s"
+                             % (prompt, packed), 2000)
+        else:
+            raw = _ask_timer(prompt, packed, model, log)
+    except Exception as e:
+        if log:
+            log("no pude leer los momentos: %s" % str(e)[:80])
+        return []
+
+    got = (_json_in(raw) or {}).get("actions")
+    if not isinstance(got, list):
+        return []
+
+    out, seen = [], set()
+    for item in got[:MAX_ACTIONS * 2]:
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("do", "")).strip().lower()
+        if kind not in ACTIONS:
+            continue
+        try:
+            at = float(item.get("at"))
+        except (TypeError, ValueError):
+            continue
+        if not (0.0 <= at <= duration):
+            continue
+        act = {"do": kind, "at": round(at, 2)}
+        if kind in ("zoom", "cut"):
+            try:
+                until = float(item.get("until", at + 1.0))
+            except (TypeError, ValueError):
+                continue
+            until = min(duration, until)
+            # A cut of three hundredths is not a cut, it is a model that could
+            # not find the moment and answered with the nearest number it had.
+            # Applying it would do nothing visible and cost trust; dropping it
+            # leaves the deterministic engine in charge, which is the right
+            # outcome. Measured on "quita los ultimos 5 segundos", answered as
+            # 39.98 to 40.01 on a 40 second video.
+            if act["do"] == "cut" and until - at < MIN_CUT:
+                continue
+            act["until"] = round(max(at + 0.2, until), 2)
+        if kind in ("title", "marker"):
+            act["text"] = _clean_text(item.get("text"))
+            if not act["text"] or act["text"].lower() in ECHOES:
+                continue
+        if kind == "title":
+            try:
+                secs = float(item.get("secs", 2.0))
+            except (TypeError, ValueError):
+                secs = 2.0
+            act["secs"] = round(min(TITLE_SECS[1], max(TITLE_SECS[0], secs)), 2)
+        key = (act["do"], act["at"], act.get("text", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(act)
+        if len(out) >= MAX_ACTIONS:
+            break
+    out.sort(key=lambda a: a["at"])
+    if log and out:
+        log("%d cosas pedidas en momentos concretos" % len(out))
+    return out
+
+
 def segments(prompt, packed, ai=None, model=None, log=None):
     """The keep-list a prompt asks for, or None if the model did not deliver.
 
