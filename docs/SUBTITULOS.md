@@ -91,6 +91,8 @@ paga la primera vez que se abre con ese vídeo.
 ## Los tres muros de Resolve Free, y por dónde se pasa
 
 Esto es lo que hace que los subtítulos animados sean posibles en la versión gratuita.
+El segundo ya no es un muro: se rodeó entero, y la vuelta salió **diez veces más rápida**
+que el camino que atravesaba.
 
 ### 1. La API no pone keyframes → el archivo los trae puestos
 
@@ -113,20 +115,61 @@ dummy **no fue necesario**. `ImportFusionComp` sobre un Text+ recién insertado 
 al primer intento, siempre con **ruta absoluta** (el puente corre dentro de Resolve, con
 otro directorio de trabajo: una ruta relativa falla sin decir por qué).
 
-### 2. La API no fija la duración de un título → la fija el siguiente título
+### 2. La API no fija la duración de un título → entonces no se usan títulos
 
-`InsertFusionTitleIntoTimeline` mete siempre un Text+ de **150 fotogramas** y no hay forma
-de decirle otra cosa. Pero insertar el siguiente **recorta el anterior**, así que
-insertando en orden de tiempo cada subtítulo acaba con su duración exacta.
+Este muro se derribó entero el 2026-08-18, y de paso resultó ser el que hacía lento todo
+lo demás.
 
-Dos detalles que hay que tratar:
+**Lo de antes.** `InsertFusionTitleIntoTimeline` mete siempre un Text+ de **150
+fotogramas** y no hay forma de decirle otra cosa. Pero insertar el siguiente **recorta el
+anterior**, así que insertando en orden de tiempo cada uno acababa con su duración exacta.
+Funcionaba, con dos apaños feos: un título **de relleno** después de cada silencio solo
+para recortar, y una pasada final borrando las colas que el ripple dejaba detrás.
 
-- Si después de un subtítulo viene silencio, se inserta un título **de relleno** en su
-  final solo para recortarlo, y luego se borra.
-- El recorte es un **insert con ripple**: la cola del título anterior sobrevive y se va
-  acumulando **detrás** de los buenos. Como se insertan en orden, los reales son siempre
-  los primeros, y todo lo que hay a partir de `len(plan)` es basura que se borra de una
-  llamada con `/timeline/clips/delete`.
+**Lo que costaba.** Poner un subtítulo salía por **518 ms**, y el 89% era una sola llamada.
+Medido en 21.0.4.5 Free, con la conexión al puente ya abierta:
+
+| llamada | coste |
+| --- | --- |
+| transporte (una petición que no hace nada) | 13,7 ms |
+| `/title/insert` | 31,4 ms |
+| escribir la `.comp` en disco | 0,6 ms |
+| `/clip/fusion/import` | 32,3 ms |
+| **`/playhead`** | **501,9 ms** |
+
+`SetCurrentTimecode` cuesta medio segundo hagas lo que hagas. Igual en la página Edit, en
+Cut y en Media. Igual con el timeline vacío que con 25 títulos Fusion dentro. **Igual
+cuando no se mueve**, que es lo que lo cierra: no está buscando y no está renderizando, es
+lo que cuesta esa llamada. Y estaba ahí solo porque un título no tiene duración propia.
+
+**La salida.** `/media/insert` acepta `recordFrame` **y** una duración, así que un clip cae
+donde toca, dura lo que tiene que durar y el cabezal no se mueve. Pide un archivo de medios
+en vez de un título, y eso resulta que da igual: los comps de este programa son
+`Text+ → Blur → Glow → Saver`, **sin MediaIn**, así que el clip de debajo nunca entra en el
+gráfico.
+
+Comprobado, no supuesto: con un soporte **rojo**, el clip sin comp se exporta como
+`(255, 24, 0)` y el clip con comp se exporta como `(0, 0, 0)`. El rojo no llega nunca, que
+es también la razón de que siga anidándose con su transparencia.
+
+El soporte es un vídeo negro de 64×36 que se genera con ffmpeg una vez por frame rate. **Su
+frame rate tiene que ser el del timeline**: `startFrame`/`endFrame` van en fotogramas del
+ORIGEN, y un soporte de 30 fps en un timeline de 24 reparte subtítulos un 20% cortos, que
+parece un error de redondeo en todas partes menos donde está.
+
+| | 751 subtítulos (vídeo de 10 min) |
+| --- | --- |
+| antes, 518 ms cada uno | **389 s** solo en colocarlos |
+| ahora, 52 ms cada uno | **39,5 s** medidos |
+
+Y la edición entera de ese vídeo, con sus 751 subtítulos, tarda **111 s**: 39,5 s
+colocando, 65 s importando los comps y 5 s anidando. El camino viejo sigue en el código
+como `_place_slow`, para un puente que no tenga `/media/insert`; se elige solo, al primer
+rechazo, cuando todavía no hay nada que deshacer.
+
+**Lo siguiente que sobra**, ya que la cuenta cambió: ahora el que más pesa es
+`/clip/fusion/import`, 86 ms por subtítulo sobre un timeline de 751 (medido; en uno de 20
+son 32 ms, o sea que escala con el número de clips).
 
 ### 3. Un título siempre cae en V1 y descoloca la edición → los subtítulos van anidados
 
