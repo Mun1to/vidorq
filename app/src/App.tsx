@@ -144,9 +144,23 @@ function App() {
   // Los clips del proyecto abierto. Se piden al arrancar y al volver de una
   // edicion, que es cuando el proyecto puede haber cambiado.
   useEffect(() => {
-    apiGet<{ clips?: PoolClip[] }>("/clips")
-      .then((r) => setPoolClips(Array.isArray(r?.clips) ? r.clips : []))
-      .catch(() => setPoolClips([]));
+    let alive = true;
+    // Se reintenta porque "vacio" y "todavia no" se ven igual desde aqui, y al
+    // arrancar la ventana Resolve suele estar abriendo el proyecto. Sin esto, un
+    // segundo de mas y la lista no aparece nunca, sin decir nada.
+    let quedan = 4;
+    const pedir = () => {
+      apiGet<{ clips?: PoolClip[] }>("/clips")
+        .then((r) => {
+          if (!alive) return;
+          const c = Array.isArray(r?.clips) ? r.clips : [];
+          setPoolClips(c);
+          if (!c.length && quedan-- > 0) setTimeout(pedir, 1500);
+        })
+        .catch(() => { if (alive && quedan-- > 0) setTimeout(pedir, 1500); });
+    };
+    pedir();
+    return () => { alive = false; };
   }, [phase]);
 
   // Progreso

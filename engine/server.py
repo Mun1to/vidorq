@@ -1120,11 +1120,14 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/resolve":
             self._send(bridge_status())
         elif self.path == "/clips":
-            # Only worth asking when Resolve is actually there; a dead bridge
-            # should give an empty list, not thirty seconds of timeouts.
+            # No bridge_status() gate on purpose. That check allows two seconds,
+            # and the moment this gets asked is app startup, when Resolve is busy
+            # opening a project and answers slower than that. The gate would time
+            # out, report no bridge, and the clip list would stay empty forever
+            # without a word. resolve_clips() already returns nothing when the
+            # bridge is down, and a refused connection fails instantly anyway.
             try:
-                self._send({"clips": resolve_clips() if bridge_status()["bridge"]
-                            else []})
+                self._send({"clips": resolve_clips()})
             except Exception as e:
                 traceback.print_exc()
                 self._send({"clips": [], "error": str(e)[:200]})
