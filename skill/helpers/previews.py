@@ -25,6 +25,8 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -112,6 +114,12 @@ def _source_args(video, at, out_w, out_h, seconds=0.0):
 MOMENTS = (0.12, 0.24, 0.36, 0.48, 0.60, 0.72, 0.84)
 # {video: (second, face centre 0-1)}. Worked out once per file.
 _best = {}
+# The engine answers every preview on its own thread, and a gallery asks for
+# eighteen at once. Without this they all miss the cache in the same instant and
+# each runs its own seven face detections on the same file: measured at roughly
+# four seconds of work, times eighteen, for one answer. The lock makes the first
+# one do the pass and the other seventeen wait a moment and read it.
+_best_lock = threading.Lock()
 
 
 def _grab_fast(video, at, width=640):
@@ -159,6 +167,14 @@ def best_moment(video):
         return 1.0, 0.5
     if video in _best:
         return _best[video]
+    with _best_lock:
+        if video in _best:          # otro hilo lo calculo mientras esperabamos
+            return _best[video]
+        return _scan_moments(video)
+
+
+def _scan_moments(video):
+    """The pass itself. Only ever called with _best_lock held."""
     at, fx = 1.0, 0.5
     try:
         import faces
@@ -219,7 +235,10 @@ def style_still(preset, ratio="source", video="", lang="es", anim=None,
     if not exe:
         raise RuntimeError("ffmpeg no esta instalado")
     CACHE.mkdir(parents=True, exist_ok=True)
-    work = CACHE / ("tmp_" + dest.stem)
+    # Unique per call, not per output. Two threads asked for the same preview
+    # at the same time would otherwise share one scratch folder, and the first
+    # to finish would delete it from under the second.
+    work = CACHE / ("tmp_%s_%s" % (dest.stem[:24], uuid.uuid4().hex[:8]))
     work.mkdir(parents=True, exist_ok=True)
     try:
         # Named s.ass and run from its own folder: libass resolves the path
@@ -257,7 +276,10 @@ def anim_loop(anim, preset=cap.DEFAULT_PRESET, ratio="source", video="",
     if not exe:
         raise RuntimeError("ffmpeg no esta instalado")
     CACHE.mkdir(parents=True, exist_ok=True)
-    work = CACHE / ("tmp_" + dest.stem)
+    # Unique per call, not per output. Two threads asked for the same preview
+    # at the same time would otherwise share one scratch folder, and the first
+    # to finish would delete it from under the second.
+    work = CACHE / ("tmp_%s_%s" % (dest.stem[:24], uuid.uuid4().hex[:8]))
     work.mkdir(parents=True, exist_ok=True)
     try:
         cap.to_ass(work / "s.ass", [_chunk(lang, LOOP_SECONDS)], 0.0,
@@ -292,7 +314,7 @@ def ratio_still(ratio, video="", width=1920, height=1080, at=1.0):
     src, real = _source_args(video, at, out_w, out_h)
     vf = _crop_chain(width, height, out_w, out_h, crop_w, crop_h, fx) if real else []
     vf.append(_fit(out_w, out_h))
-    tmp = dest.with_suffix(".part.png")
+    tmp = dest.with_suffix(".part%s.png" % uuid.uuid4().hex[:8])
     subprocess.run(
         [exe, "-hide_banner", "-loglevel", "error", "-nostdin"] + src +
         ["-frames:v", "1", "-vf", ",".join(vf), "-y", str(tmp)],
