@@ -239,12 +239,14 @@ Lo que se ha visto renderizado, y lo que no. Compilar no cuenta.
 | qué | MP4 (libass) | Resolve (Fusion) |
 | --- | --- | --- |
 | `pop`, `punch`, `marker`, `bar`, `glass`, `minimal`, `mono` | visto | visto |
-| `neon`, `ember`, `halo` (glow) | **visto** | pendiente, el nodo `Glow` sí se vio funcionando en la prueba suelta |
+| `neon` (glow) | **visto** | **visto**, halo cian real del nodo `Glow`, en vertical 1080x1920 |
+| `ember`, `halo` (glow) | **visto** | pendiente; comparten el mismo nodo que `neon`, que sí está visto |
+| `ignite` | visto | **visto** |
 | `bounce`, `zoom`, `focus`, `throb` | **visto moviéndose** en dos fotogramas | pendiente |
-| `ignite` | visto | pendiente |
 
-Lo pendiente es porque Resolve se cayó con la prueba del degradado y el puente solo
-vuelve cuando alguien hace clic en `Workspace > Scripts > Vidorq`.
+Lo pendiente de la columna de Resolve es que no se ha exportado un fotograma de **ese**
+preset concreto; el mecanismo que usan (el nodo `Glow`, las splines importadas) sí está
+visto funcionando con `neon` e `ignite`.
 
 ## Cabos sueltos
 

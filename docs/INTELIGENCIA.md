@@ -240,8 +240,40 @@ Si uno falla se prueba el siguiente, en vez de dar la edicion por perdida.
 `ratio` en `/edit`, y en la interfaz. Recorta la imagen a la forma pedida (no deforma ni
 pone barras) y ajusta los subtitulos: en un short caben **10 caracteres por linea** en vez
 de 22, con el texto **del mismo tamano fisico** que en horizontal, que es como se ven los
-shorts de verdad. En Resolve ademas cambia la resolucion del timeline y sube el zoom de los
-clips lo justo para tapar el cuadro (3,16 al pasar de 1920x1080 a 1080x1920).
+shorts de verdad. En Resolve ademas cambia la resolucion del timeline, sube el zoom de los
+clips lo justo para tapar el cuadro (3,16 al pasar de 1920x1080 a 1080x1920) y **desplaza
+cada clip con `Pan`** para que el trozo que sobrevive sea el de la cara, igual que en el MP4.
+
+### Cuatro cosas que solo se vieron abriendo Resolve
+
+Los cuatro fallos de abajo convivian a la vez y ninguno daba error. Estan aqui porque
+comparten una moraleja: **el motor leia por encima de lo que le contestaba el puente.**
+
+| lo que se veia | la causa |
+| --- | --- |
+| el timeline salia 1920x1080 pidiendo vertical | el puente quiere `{"key","value"}` de uno en uno y se le mandaba `{"settings":{...}}`; contestaba `key is required` y nadie lo leia |
+| el subtitulo salia al 56% y en mitad del pecho | el timeline **anidado** de subtitulos se quedaba en 16:9, asi que Resolve lo encajaba dentro del vertical como a cualquier clip |
+| el subtitulo salia a la mitad de tamano | el `Size` de Text+ es una fraccion del **ancho** del cuadro, no del alto. Medido: el mismo subtitulo ocupa 0,0573 del ancho en 16:9 y 0,0574 en 9:16 |
+| a la segunda edicion del mismo video se apilaba todo | Resolve rechaza un nombre repetido y el motor seguia, insertando el segundo montaje detras del primero |
+
+Ahora cada una de esas llamadas **comprueba la respuesta y para si Resolve dice que no**.
+Un puente que contesta y no le hacen caso es peor que un puente caido, porque el caido se
+nota.
+
+### El tamano del subtitulo en Fusion
+
+`Text+` **no parte lineas**: una linea larga se sale por los dos lados en vez de doblarse,
+que es lo que si hace libass en el MP4. Asi que el MP4 es la referencia y la comp se ajusta
+a el. Con el mismo preset y el mismo subtitulo, medido sobre los fotogramas:
+
+```
+"VER TODOS"    MP4 895 px de ancho   Fusion 986 px    Fusion dibuja un 10,2% mas
+```
+
+De ahi sale la constante. Y encima hay un techo: el troceador corta por **numero de
+caracteres**, pero diez letras estrechas no ocupan lo que diez anchas, asi que la linea mas
+larga marca el tamano maximo (`CHAR_ADVANCE = 0.41` del `Size` por caracter, `FIT = 0.94`
+del ancho). Antes de eso, `MUCHISIMAS` perdia una letra por cada lado.
 
 **El recorte se apunta a la cara**, con el detector del apartado anterior: tres miradas por
 corte y la mediana. Antes iba al centro y se veia, porque en el segundo 3 de la prueba real
