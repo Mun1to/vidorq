@@ -106,6 +106,7 @@ TEXT = {
         "no_gpu": "Sin GPU para transcribir, va por CPU y tarda mas",
         "moments": "Leyendo lo que pides en momentos concretos...",
         "moments_done": "En momentos concretos: %s",
+        "nesting": "Poniendo los subtitulos encima de tu edicion...",
     },
     "en": {
         "busy": "There is already an edit running",
@@ -139,6 +140,7 @@ TEXT = {
         "no_gpu": "No GPU for transcription, running on CPU and slower",
         "moments": "Reading what you asked for at specific moments...",
         "moments_done": "At specific moments: %s",
+        "nesting": "Laying the captions over your edit...",
     },
 }
 
@@ -676,8 +678,15 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     name = Path(video).stem[:40]
     fps, width, height = video_shape(video)
     out_w, out_h = out_frame(ratio, width, height)
+    # The whole point of the Resolve output is watching the edit appear, and
+    # somebody sitting on the Fusion or the Colour page watches nothing at all.
+    # So the curtain goes up first: the Edit page, every time, before a single
+    # clip is inserted.
+    bridge_post("/page", {"page": "edit"})
+
     # import media (idempotent) + timeline + inserts
     bridge_post("/media/import", {"filePaths": [video]})
+
     # Resolve refuses a name it already has, and the old code read straight past
     # the refusal: editing the same video twice appended the second edit onto the
     # end of the first one, nested captions and all. Same numbering the caption
@@ -706,6 +715,7 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
             if not got.get("success"):
                 raise RuntimeError("Resolve no acepto %s=%s: %s"
                                    % (key, value, got.get("error", got)))
+    start_tc = (bridge_get("/timeline") or {}).get("startTimecode") or "01:00:00:00"
     record = 0
     for seg in edl:
         sf = round(seg["start"] * fps)
@@ -742,11 +752,29 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
         chunks = chunks or cap.build_chunks(retime_transcript(transcript, edl), preset,
                                             out_w, out_h)
         if chunks:
+            # Order measured, not assumed. Building the captions BEFORE the edit
+            # was tried and is worse to watch: the user gets a timeline they do
+            # not recognise for forty seconds and then their edit appears fully
+            # formed in one second, which looks like nothing happened. This way
+            # it reads as three acts - your video gets cut, the captions get
+            # written one by one, here it is finished - and the middle act is
+            # the one that looks like a machine editing, which is the point.
             set_progress(tr("captioning"), 85, tr("captioning_n", len(chunks)))
-            out = resolve_captions.build(bridge_post, bridge_get, timeline, chunks,
-                                         preset, workdir or Path(video).parent,
-                                         out_w, out_h, fps, anim=anim)
+            out = resolve_captions.build_subs(
+                bridge_post, bridge_get, timeline, chunks, preset,
+                workdir or Path(video).parent, out_w, out_h, fps,
+                log=lambda m: set_progress(tr("captioning"), 88, m), anim=anim)
+            if out.get("timeline"):
+                set_progress(tr("captioning"), 96, tr("nesting"))
+                resolve_captions.nest_subs(bridge_post, bridge_get, timeline,
+                                           out["timeline"])
             made += " " + tr("captions_made", out["captions"])
+    # Back to the top and on the Edit page. The playhead is left wherever the
+    # last caption went, which is the middle of the timeline, and a finished
+    # edit that opens halfway through does not look finished. This is the last
+    # frame of the show and it costs two calls.
+    bridge_post("/page", {"page": "edit"})
+    bridge_post("/playhead", {"timecode": start_tc})
     bridge_post("/project/save", {})
     return made
 

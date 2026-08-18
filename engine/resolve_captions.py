@@ -83,20 +83,25 @@ def _events(chunks, fps, start_frame):
     return plan
 
 
-def build(post, get, timeline_name, chunks, preset_name, work_dir,
-          width=1920, height=1080, fps=30.0, log=None, anim=""):
-    """Build <timeline_name>_Subs and nest it over V2 of <timeline_name>.
+def build_subs(post, get, timeline_name, chunks, preset_name, work_dir,
+               width=1920, height=1080, fps=30.0, log=None, anim=""):
+    """Build <timeline_name>_Subs, full of captions, and leave it there.
 
-    `post` and `get` are the engine's two bridge callers. Returns a summary dict.
+    Split from the nesting so the caller decides when each half happens, which
+    matters because this output exists to be WATCHED. Building the captions
+    before the edit was tried and measured and it is worse: the user spends
+    forty seconds on a timeline they do not recognise and then their edit
+    appears fully formed in one second, which looks like nothing happened.
+    Built after, it reads as three acts, and the middle one is the one that
+    looks like a machine editing.
+
+    `post` and `get` are the engine's two bridge callers.
     """
     def say(msg):
         if log:
             log(msg)
 
-    tl = get("/timeline") or {}
-    start_frame = int(tl.get("startFrame", 0))
-    start_tc = tl.get("startTimecode") or "01:00:00:00"
-    plan = _events(chunks, fps, start_frame)
+    plan = _events(chunks, fps, 0)
     if not plan:
         return {"captions": 0, "timeline": None}
 
@@ -111,6 +116,14 @@ def build(post, get, timeline_name, chunks, preset_name, work_dir,
             break
     if not subs:
         raise RuntimeError("No pude crear el timeline de subtitulos '%s'" % base)
+
+    # Now that the captions timeline exists and is current, its own start is the
+    # clock the titles are placed against. Before the split this read whatever
+    # timeline happened to be open, which was the host; now there is no host yet.
+    tl = get("/timeline") or {}
+    start_frame = int(tl.get("startFrame", 0))
+    start_tc = tl.get("startTimecode") or "01:00:00:00"
+    plan = _events(chunks, fps, start_frame)
 
     # A new timeline is born with the project's shape, and this one ends up
     # NESTED inside the edit. Left at 16:9 inside a vertical edit, Resolve fits
@@ -165,7 +178,17 @@ def build(post, get, timeline_name, chunks, preset_name, work_dir,
     say("%d subtitulos con estilo '%s'%s" % (done, preset_name,
                                           " y animacion '%s'" % anim if anim else ""))
 
-    # 5) Back to the real edit, and drop the caption timeline on top of it.
+    return {"captions": done, "timeline": subs, "preset": preset_name,
+            "anim": anim or "la del estilo"}
+
+
+def nest_subs(post, get, timeline_name, subs):
+    """Drop the finished caption timeline over V2 of the real edit.
+
+    The last thing that happens, so the captions land on a timeline the user is
+    already looking at. Nested rather than copied because a nest stays editable:
+    open it and every caption is still its own Text+.
+    """
     if not switch_to(post, get, timeline_name):
         raise RuntimeError("Los subtitulos estan en '%s' pero no encuentro el timeline '%s'"
                            % (subs, timeline_name))
@@ -173,9 +196,8 @@ def build(post, get, timeline_name, chunks, preset_name, work_dir,
     if int(host.get("trackCount", {}).get("video", 1)) < 2:
         post("/track/add", {"trackType": "video"})
     out = post("/media/insert", {"clipName": subs, "trackIndex": 2,
-                                 "recordFrame": int(host.get("startFrame", start_frame))})
+                                 "recordFrame": int(host.get("startFrame", 0))})
     if not out.get("success"):
         raise RuntimeError("Los subtitulos existen en '%s' pero no pude anidarlos: %s"
                            % (subs, out))
-    return {"captions": done, "timeline": subs, "preset": preset_name,
-            "anim": anim or "la del estilo"}
+    return out
