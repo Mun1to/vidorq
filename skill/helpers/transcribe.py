@@ -21,13 +21,61 @@ Progress goes to stdout as PROGRESO lines so the engine can show a real bar
 instead of a number that never moves.
 """
 import json
+import os
 import sys
 import time
 from pathlib import Path
 
-# Whisper's own working size. Bigger is more accurate and much slower, and the
-# difference on clear speech does not pay for itself.
-MODEL = "small"
+
+def _cuda_on_path():
+    """Put the pip-installed CUDA libraries where Windows will actually look.
+
+    `pip install nvidia-cublas-cu12 nvidia-cudnn-cu12` drops the DLLs under
+    site-packages/nvidia/<lib>/bin, which is on no search path at all, so
+    ctranslate2 reports "cublas64_12.dll is not found" on a machine where the
+    file is sitting right there. os.add_dll_directory is NOT enough: it only
+    covers loads that go through Python's own loader, and ctranslate2 asks
+    Windows directly. PATH is what that reads, and it has to be set BEFORE
+    faster_whisper is imported, which is why this runs at the top of the module
+    and not inside a function.
+    """
+    if os.name != "nt":
+        return []
+    added = []
+    for base in sys.path:
+        root = os.path.join(base, "nvidia")
+        if not os.path.isdir(root):
+            continue
+        for lib in sorted(os.listdir(root)):
+            binv = os.path.join(root, lib, "bin")
+            if os.path.isdir(binv):
+                os.environ["PATH"] = binv + os.pathsep + os.environ.get("PATH", "")
+                try:
+                    os.add_dll_directory(binv)
+                except OSError:
+                    pass
+                added.append(lib)
+        if added:
+            break
+    return added
+
+
+CUDA_DLLS = _cuda_on_path()
+
+# One model per engine, because the trade is not the same on each. Measured on
+# the same ten minute video, transcription time only, model already downloaded:
+#
+#   large-v3-turbo  cuda   23.3 s   98 phrases, 1450 words   <- the GPU one
+#   small           cuda   ~34 s   105 phrases
+#   medium          cuda   49.0 s   99 phrases, 1433 words
+#   small           cpu    ~16 min                            <- the CPU one
+#
+# turbo is the surprise and the whole reason for this: it is FASTER than small
+# and far more accurate, so on a card there is no argument for the small one.
+# On a CPU it would be unbearable, so that path keeps small. What is being
+# maximised here is quality per second, not quality and not seconds.
+GPU_MODEL = "large-v3-turbo"
+CPU_MODEL = "small"
 # Batching is OFF, and that is a decision, not an oversight. It is faster, and
 # on the same 40 second clip it returned TWO phrases where the plain pass
 # returns ten: it glues speech across the silences instead of breaking on them.
@@ -49,9 +97,9 @@ def cpu_model():
     import os
     from faster_whisper import WhisperModel
     threads = max(4, (os.cpu_count() or 4))
-    return (WhisperModel(MODEL, device="cpu", compute_type="int8",
+    return (WhisperModel(CPU_MODEL, device="cpu", compute_type="int8",
                          cpu_threads=threads),
-            "%s int8 cpu (%d hilos)" % (MODEL, threads))
+            "%s int8 cpu (%d hilos)" % (CPU_MODEL, threads))
 
 
 def gpu_model():
@@ -66,8 +114,8 @@ def gpu_model():
     from faster_whisper import WhisperModel
     for compute in ("float16", "int8_float16"):
         try:
-            return (WhisperModel(MODEL, device="cuda", compute_type=compute),
-                    "%s %s cuda" % (MODEL, compute))
+            return (WhisperModel(GPU_MODEL, device="cuda", compute_type=compute),
+                    "%s %s cuda" % (GPU_MODEL, compute))
         except Exception:
             continue
     return None, ""
@@ -117,6 +165,8 @@ def main() -> None:
 
     dur = probe_duration(video)
     print(f"DURACION_SEGUNDOS: {dur:.1f}", flush=True)
+    if CUDA_DLLS:
+        print("CUDA_DLLS: %s" % ", ".join(CUDA_DLLS), flush=True)
 
     t0 = time.time()
     seg_list, lines, info = None, None, None

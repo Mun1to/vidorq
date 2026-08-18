@@ -1,0 +1,20 @@
+# Optional, and worth it: transcription on an NVIDIA card instead of the CPU.
+#
+#     .venv\Scripts\pip install -r requirements-gpu.txt
+#
+# Measured on one 10 minute 43 second video, same machine, RTX 5060:
+#
+#     small           on the CPU     about 16 minutes
+#     large-v3-turbo  on the card    42 seconds
+#
+# So this is not only faster, it also moves the quality up: with a card there is
+# room for the big model, and transcribe.py picks it automatically. Nothing here
+# is required. Without these the engine uses the CPU, says so in the progress
+# line, and produces the same edit more slowly.
+#
+# These are the CUDA maths libraries ctranslate2 links against. They are not in
+# requirements.txt because they are around 600 MB and useless without an NVIDIA
+# card.
+
+nvidia-cublas-cu12
+nvidia-cudnn-cu12

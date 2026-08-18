@@ -52,6 +52,18 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 ```
 
+**Got an NVIDIA card?** One more line, and it is the difference between waiting
+and not waiting:
+
+```
+.venv\Scripts\pip install -r requirements-gpu.txt
+```
+
+Measured on one 10 minute 43 second video: **16 minutes** transcribing on the
+CPU, **42 seconds** on the card, and on the card it uses the big model instead
+of the small one, so it is more accurate as well. Skip it and everything still
+works, just slower.
+
 ### 4. Put Vidorq in Resolve's menu
 
 ```
@@ -81,7 +93,8 @@ If the timeline is the output, you will watch it build itself inside Resolve.
 
 ## What it actually does
 
-**Cuts.** Word-level transcription with local Whisper, then dead air, isolated
+**Cuts.** Word-level transcription with local Whisper (`large-v3-turbo` on a
+graphics card, `small` on a CPU), then dead air, isolated
 filler sounds and repeated takes come out. Cuts land on a still moment rather
 than mid-gesture, and jump cuts get hidden with a small alternating zoom.
 
