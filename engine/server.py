@@ -108,6 +108,10 @@ TEXT = {
         "no_gpu": "Sin GPU para transcribir, va por CPU y tarda mas",
         "moments": "Leyendo lo que pides en momentos concretos...",
         "moments_done": "En momentos concretos: %s",
+        "refining": "Retoque %d: leyendo lo que pides...",
+        "refine_kept": "Sigo sobre el montaje que ya hay (%d tramos). Cambias: %s",
+        "refine_nothing_said": "solo lo de momentos concretos",
+        "history_first": "primera edicion",
         "voice_making": "Poniendo voz a la linea %d de %d...",
         "voice_only_mp4": "%d voz(es) generadas, pero en Resolve no se pueden meter por API: salen solo en el MP4.",
         "nesting": "Poniendo los subtitulos encima de tu edicion...",
@@ -145,6 +149,10 @@ TEXT = {
         "no_gpu": "No GPU for transcription, running on CPU and slower",
         "moments": "Reading what you asked for at specific moments...",
         "moments_done": "At specific moments: %s",
+        "refining": "Change %d: reading what you asked...",
+        "refine_kept": "Carrying on from the edit you have (%d pieces). Changing: %s",
+        "refine_nothing_said": "only the specific moments",
+        "history_first": "first edit",
         "voice_making": "Voicing line %d of %d...",
         "voice_only_mp4": "%d voice line(s) made, but Resolve takes no audio over its API: they only come out in the MP4.",
         "nesting": "Laying the captions over your edit...",
@@ -877,6 +885,56 @@ def to_edited(t, edl):
     return None
 
 
+def to_original(t, edl):
+    """A second of the EDITED timeline, back in the original video's clock.
+
+    The inverse of to_edited, and the thing that makes a second round of prompts
+    mean anything. After one pass the user is looking at the EDIT, so when they
+    say "cut the bit at minute three" they mean minute three of what is on their
+    screen, not of the file they dropped in. Everything downstream still works
+    in original seconds, so this is where the two clocks are reconciled.
+
+    Past the end of the edit it returns None: asking for something after the
+    video ends is a mistake worth dropping, not rounding to the last frame.
+    """
+    left = max(0.0, float(t))
+    for seg in edl:
+        a, b = float(seg["start"]), float(seg["end"])
+        span = b - a
+        if left <= span:
+            return a + left
+        left -= span
+    return None
+
+
+def actions_to_original(acts, edl):
+    """Move a round of actions from edited seconds into the original's clock.
+
+    Done before anything touches the EDL, and in one pass, because the moment
+    the first cut is applied the mapping has changed underneath the rest. An
+    action whose second no longer exists is dropped rather than moved somewhere
+    plausible: a card two seconds off is worse than a card that never appeared,
+    since only one of the two is easy to notice.
+    """
+    out = []
+    for a in acts:
+        at = to_original(float(a["at"]), edl)
+        if at is None:
+            continue
+        moved = dict(a, at=round(at, 3))
+        if "until" in a:
+            until = to_original(float(a["until"]), edl)
+            if until is None:
+                # Hasta el final de lo que hay: pedir "quita desde el minuto 3"
+                # sin decir hasta donde es normal y tiene una respuesta obvia.
+                until = float(edl[-1]["end"])
+            if until <= at:
+                continue
+            moved["until"] = round(until, 3)
+        out.append(moved)
+    return out
+
+
 def apply_actions(edl, acts, log=None):
     """Carry out what the prompt asked for at particular moments.
 
@@ -1012,6 +1070,14 @@ def ai_choice(req=None):
             "baseUrl": req.get("aiBaseUrl") or cfg.get("aiBaseUrl") or ""}
 
 
+def packed_text(transcript):
+    """Las frases en el formato que lee el director, sin pasar por disco."""
+    return "\n".join(
+        "[%07.2f-%07.2f] %s" % (float(x["start"]), float(x["end"]),
+                                str(x.get("text", "")).strip())
+        for x in transcript.get("segments", []))
+
+
 def packed_view(workdir, transcript, video):
     """The compact phrase view the director reads, rebuilt if it went missing.
 
@@ -1111,6 +1177,53 @@ def run_render(cmd, out_file, timeout=7200):
         raise RuntimeError("Fallo renderizando: " + "\n".join(tail)[-400:])
 
 
+SESSION = "sesion.json"
+
+
+def session_save(workdir, state):
+    """What a second round of prompts needs to know, next to the transcript."""
+    try:
+        (Path(workdir) / SESSION).write_text(
+            json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+    except Exception:
+        # Losing the ability to refine is a smaller failure than losing the
+        # edit that was just made, so this never raises.
+        traceback.print_exc()
+
+
+def session_load(workdir):
+    try:
+        return json.loads((Path(workdir) / SESSION).read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def workdir_for(video):
+    return Path(video).parent / "edit" / Path(video).stem[:40]
+
+
+def refine_settings(prompt, base):
+    """Only what the follow-up literally SAID, over what was already chosen.
+
+    Deliberately without a model. On a second round the user types a delta -
+    "make it vertical", "drop that bit" - and a model asked to produce a full
+    plan from four words fills every other field with an opinion, which silently
+    undoes the vertical they set two rounds ago. from_words() reports only what
+    is literally in the sentence, costs nothing and cannot hallucinate.
+    """
+    out = dict(base)
+    said = director.from_words(prompt)
+    for key, value in said.items():
+        if key == "captionAnim" and value == "__any__":
+            out["captionAnim"] = cap.PRESETS[
+                out.get("captionPreset") or cap.DEFAULT_PRESET]["anim"]
+            continue
+        out[key] = value
+    if "captions" in said and not said["captions"]:
+        out["captionAnim"] = ""
+    return out, sorted(said)
+
+
 def run_job(req):
     global _busy
     try:
@@ -1136,11 +1249,37 @@ def run_job(req):
         if not Path(video).is_file():
             raise ValueError(tr("no_video", video))
 
+        # Second round and beyond. The user has watched the edit and is asking
+        # for a change to THAT, so nothing is decided from scratch: the settings
+        # carry over, the transcript is already on disk, and the cuts that are
+        # there stay there unless this sentence says otherwise.
+        again = bool(req.get("refine")) and bool(
+            session_load(workdir_for(video)).get("edl"))
+        keep_edl, history, turn = None, [], 1
+        if again:
+            past = session_load(workdir_for(video))
+            keep_edl = past["edl"]
+            history = past.get("history") or []
+            turn = len(history) + 1
+            base = past.get("settings") or {}
+            fresh, said = refine_settings(prompt, base)
+            ratio = fresh.get("ratio", ratio)
+            transition = fresh.get("transition", transition)
+            captions = fresh.get("captions", captions)
+            caption_preset = fresh.get("captionPreset") or caption_preset
+            caption_anim = fresh.get("captionAnim", caption_anim)
+            output = fresh.get("output") or output
+            if req.get("output"):
+                output = req["output"]
+            set_progress(tr("refining", turn), 8,
+                         tr("refine_kept", len(keep_edl),
+                            ", ".join(said) if said else tr("refine_nothing_said")))
+
         # A prompt decides the whole edit, not just the cuts: the shape of the
         # frame, the caption look, its entrance, the joins. Before this the
         # prompt could ask for a vertical short and be handed a wide one.
         plan = None
-        if prompt:
+        if prompt and not again:
             set_progress(tr("directing"), 6)
             plan = director.look(prompt, ai_choice(req),
                                  req.get("directorModel") or None, _lang,
@@ -1194,7 +1333,11 @@ def run_job(req):
         # correction, and a podcast does not want its camera flinching.
         shake = bool(req.get("shake"))
         report = {}
-        if prompt:
+        if again:
+            # Los cortes que ya hay se respetan: esta frase es un retoque, no
+            # una edicion nueva. Lo que la frase pida se aplica ENCIMA.
+            edl = [dict(x) for x in keep_edl]
+        elif prompt:
             packed = packed_view(workdir, transcript, video)
             if look.get("shots"):
                 # The model reads the video instead of watching it: the visual
@@ -1253,11 +1396,22 @@ def run_job(req):
         if prompt:
             set_progress(tr("moments"), 59, tr("framing_help"))
             try:
+                # En un retoque el reloj es el del MONTAJE, que es lo unico
+                # que el usuario esta viendo. Asi que se le ensena la
+                # transcripcion ya recortada y sus segundos se traducen despues
+                # al video original, que es donde vive el EDL.
+                if again:
+                    packed_now = packed_text(retime_transcript(transcript, edl))
+                    span = sum(float(x["end"]) - float(x["start"]) for x in edl)
+                else:
+                    packed_now = packed_view(workdir, transcript, video)
+                    span = float(transcript.get("duration", 0))
                 acts = director.actions(
-                    prompt, packed_view(workdir, transcript, video),
-                    float(transcript.get("duration", 0)), ai_choice(req),
+                    prompt, packed_now, span, ai_choice(req),
                     req.get("directorModel") or None,
                     log=lambda m: set_progress(tr("moments"), 59, m))
+                if again and acts:
+                    acts = actions_to_original(acts, edl)
                 if acts:
                     want_titles, want_voice = apply_actions(
                         edl, acts,
@@ -1402,6 +1556,20 @@ def run_job(req):
             run_render(cmd, out_file)
             result = str(out_file)
 
+        # Lo que hace falta para que la SIGUIENTE frase sea un retoque y no una
+        # edicion desde cero. Se guarda al final, con el EDL ya definitivo.
+        session_save(workdir, {
+            "video": video,
+            "edl": edl,
+            "settings": {"ratio": ratio, "transition": transition,
+                         "captions": captions, "captionPreset": caption_preset,
+                         "captionAnim": caption_anim, "cuts": preset,
+                         "output": output},
+            "history": (history if again else []) + ([prompt] if prompt else
+                                                     [tr("history_first")]),
+            "result": result,
+        })
+
         if srt_paths:
             result += "  |  " + tr("srt_made", ", ".join(Path(p).name for p in srt_paths))
         set_progress(tr("done"), 100, result=result)
@@ -1507,6 +1675,20 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 traceback.print_exc()
                 self._send({"error": str(e)[:300]}, 500)
+        elif self.path.startswith("/session"):
+            # Lo que se ha pedido hasta ahora sobre este video, para que la
+            # ventana pueda seguir la conversacion despues de cerrarse.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            video = (q.get("video") or [""])[0]
+            if not video:
+                self._send({"history": [], "can": False})
+            else:
+                st = session_load(workdir_for(video))
+                self._send({"history": st.get("history") or [],
+                            "settings": st.get("settings") or {},
+                            "result": st.get("result", ""),
+                            "can": bool(st.get("edl"))})
         elif self.path == "/clips":
             # No bridge_status() gate on purpose. That check allows two seconds,
             # and the moment this gets asked is app startup, when Resolve is busy

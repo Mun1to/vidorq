@@ -423,6 +423,34 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
    porque el pie es del modal entero y este boton es solo de esta pestana. */
 .inline-foot { border-top: 0; padding: 4px 0 0; }
 .hint { font-size: 12px; color: var(--muted); }
+
+/* Seguir editando. Vive DENTRO de la pantalla de "listo" a proposito: el sitio
+   donde antes solo se podia empezar otro video es justo donde a uno se le
+   ocurre el primer cambio. */
+.more-chat {
+  width: min(560px, 100%); display: flex; flex-direction: column; gap: 9px;
+  margin-top: 4px;
+}
+.more-chat .row { display: flex; gap: 8px; }
+.more-chat input {
+  flex: 1; background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 9px; padding: 11px 13px; color: var(--text); font: inherit;
+}
+.more-chat input:focus { outline: none; border-color: var(--accent); }
+.more-chat .cta.inline { width: auto; padding: 11px 18px; white-space: nowrap; }
+/* Lo ya pedido, en orden. Es la memoria de la sesion puesta a la vista: sin
+   esto no se sabe si un cambio se aplico o se perdio. */
+.chat-log {
+  list-style: none; display: flex; flex-direction: column; gap: 5px;
+  /* Alto de tres filas justas. Un multiplo exacto de (fila + hueco) para que
+     el recorte caiga SIEMPRE entre dos filas y nunca por la mitad de una. */
+  text-align: left; max-height: 122px; overflow-y: auto; scroll-behavior: smooth;
+}
+.chat-log li {
+  font-size: 12.5px; color: var(--text-dim); background: var(--panel2);
+  border: 1px solid var(--line-soft); border-radius: 8px; padding: 7px 11px;
+}
+.chat-log li::before { content: counter(list-item) ". "; color: var(--faint); }
 /* Un fallo del proveedor de voz se lee como un fallo, no como una nota. */
 .under.bad { color: var(--bad); }
 

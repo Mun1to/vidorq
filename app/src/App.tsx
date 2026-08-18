@@ -77,6 +77,12 @@ function App() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
+  // La conversacion sobre ESTE video: lo que ya se ha pedido y lo que se esta
+  // escribiendo ahora. Vidorq no editaba una vez, editaba UNA sola vez: al
+  // terminar solo se podia empezar otro video, que es como un editor que se
+  // levanta y se va en cuanto pone el primer corte.
+  const [chat, setChat] = useState<string[]>([]);
+  const [followUp, setFollowUp] = useState("");
   const [galOpen, setGalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
@@ -93,6 +99,7 @@ function App() {
   const [wsOpen, setWsOpen] = useState(false);
   const [view, setView] = useState<View>("edit");
   const wsRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLOListElement>(null);
 
   // Drag & drop nativo de Tauri (rutas reales); en navegador normal se usa el campo de ruta
   useEffect(() => {
@@ -195,6 +202,35 @@ function App() {
 
   useEffect(() => { setPreviewReady(false); }, [previewUrl]);
 
+  // Al elegir un video se recupera lo que ya se le pidio, para poder seguir la
+  // conversacion aunque la ventana se haya cerrado por el medio.
+  // Tambien al terminar: una edicion NUEVA empieza la conversacion de cero en
+  // el motor, y sin volver a preguntar la ventana seguia ensenando la lista de
+  // la sesion anterior. Dos memorias que no coinciden son peor que ninguna.
+  useEffect(() => {
+    if (!video) { setChat([]); return; }
+    if (phase === "running") return;
+    apiGet<{ history: string[] }>(`/session?video=${encodeURIComponent(video)}`)
+      .then((d) => setChat(d.history || []))
+      .catch(() => setChat([]));
+  }, [video, phase]);
+
+  // La lista crece hacia abajo y se recorta por arriba, asi que sin esto lo
+  // ultimo que pediste queda medio tapado por la caja de escribir: se ve una
+  // fila cortada por la mitad, que es la pinta exacta de algo roto.
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chat, phase]);
+
+  function askMore() {
+    const q = followUp.trim();
+    if (!q || phase === "running") return;
+    setChat((c) => [...c, q]);
+    setFollowUp("");
+    startEdit(q);
+  }
+
   // Progreso
   useEffect(() => {
     if (phase !== "running") return;
@@ -222,12 +258,16 @@ function App() {
   const fileName = useMemo(() => video.split(/[\\/]/).pop() ?? "", [video]);
   const canEdit = video !== "" && engineUp === true && phase !== "running";
 
-  async function startEdit() {
+  async function startEdit(refine = "") {
     setPhase("running");
     setProgress({ step: t("run.working"), percent: 2 });
     try {
       const j = await apiPost<{ ok?: boolean; error?: string }>("/edit", {
-        video, preset, captions, output, prompt: proOpen ? prompt : "", lang,
+        video, preset, captions, output,
+        // En un retoque manda la frase nueva; el resto de ajustes los recuerda
+        // el motor, que es quien tiene el montaje.
+        prompt: refine || (proOpen ? prompt : ""), lang,
+        refine: refine ? true : undefined,
         captionPreset: capStyle, captionAnim: capAnim,
         vision: seeVideo, shake, translate: transLang, translateCaptions: burnTrans,
         transition, ratio, cropX,
@@ -336,9 +376,36 @@ function App() {
                 {output === "resolve" ? t("run.doneResolve") : t("run.doneMp4")}
               </p>
               <div className="path">{progress.result}</div>
+
+              {/* Aqui no se acaba nada: es donde se sigue editando. Lo que se
+                  escriba se aplica SOBRE este montaje, sin volver a transcribir
+                  ni a decidir los cortes desde cero. */}
+              <div className="more-chat">
+                {chat.length > 0 && (
+                  <ol className="chat-log" ref={logRef}>
+                    {chat.map((c, i) => <li key={i}>{c}</li>)}
+                  </ol>
+                )}
+                <div className="row">
+                  <input
+                    value={followUp}
+                    onChange={(e) => setFollowUp(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") askMore(); }}
+                    placeholder={t("more.ph")}
+                    autoFocus
+                  />
+                  <button className="cta inline" onClick={askMore}
+                          disabled={!followUp.trim()}>
+                    <IconSpark size={15} className="icon" />{t("more.go")}
+                  </button>
+                </div>
+                <small className="under">{t("more.note")}</small>
+              </div>
+
               <div className="run-actions">
-                <button className="cta inline" onClick={() => {
+                <button className="ghost" onClick={() => {
                   setPhase("idle"); setProgress({ step: "", percent: 0 }); setVideo("");
+                  setChat([]); setFollowUp("");
                 }}>
                   <IconVideo size={15} className="icon" />{t("run.again")}
                 </button>
@@ -616,7 +683,7 @@ function App() {
             )}
           </div>
 
-          <button className="cta" disabled={!canEdit} onClick={startEdit}>
+          <button className="cta" disabled={!canEdit} onClick={() => startEdit()}>
             <IconPlay size={15} className="icon" />{t("cta.edit")}
           </button>
         </section>

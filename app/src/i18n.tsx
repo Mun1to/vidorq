@@ -92,6 +92,9 @@ const es = {
   "run.doneResolve": "Timeline editable en DaVinci Resolve",
   "run.doneMp4": "Vídeo renderizado",
   "run.again": "Editar otro vídeo",
+  "more.ph": "¿Qué cambio? \"ponlo en vertical\", \"quita el trozo del minuto 3\", \"pon un cartel en el segundo 12\"...",
+  "more.go": "Aplicar",
+  "more.note": "Se aplica sobre este montaje. No vuelve a transcribir, así que tarda segundos en vez de minutos.",
 
   "guide.title": "Empezar con Resolve",
   "guide.sub": "Tres cosas y ya editas dentro de DaVinci. Esta pantalla comprueba sola si están hechas, así que no tienes que fiarte de nadie.",
@@ -264,6 +267,9 @@ const en: Record<keyof typeof es, string> = {
   "run.doneResolve": "Editable timeline in DaVinci Resolve",
   "run.doneMp4": "Video rendered",
   "run.again": "Edit another video",
+  "more.ph": "What should change? \"make it vertical\", \"drop the bit at minute 3\", \"put a card at second 12\"...",
+  "more.go": "Apply",
+  "more.note": "Applied on top of this edit. It does not transcribe again, so it takes seconds instead of minutes.",
 
   "guide.title": "Start with Resolve",
   "guide.sub": "Three things and you are editing inside DaVinci. This screen checks them by itself, so you do not have to take anyone's word for it.",
