@@ -64,6 +64,7 @@ import resolve_captions  # noqa: E402
 import faces  # noqa: E402
 import providers  # noqa: E402
 import looks  # noqa: E402
+import overlays  # noqa: E402
 import previews  # noqa: E402
 import speech  # noqa: E402
 
@@ -119,6 +120,9 @@ TEXT = {
         "painting": "Coloreando en Resolve...",
         "painting_help": "Una correccion primaria por clip, que puedes seguir tocando a mano",
         "painted": "%d clips con el filtro '%s'",
+        "overlaying": "Poniendo las transiciones...",
+        "overlaying_help": "Una capa animada en cada corte, en su propia pista",
+        "overlaid": "%d transiciones '%s'",
         "refining": "Retoque %d: leyendo lo que pides...",
         "refine_kept": "Sigo sobre el montaje que ya hay (%d tramos). Cambias: %s",
         "refine_nothing_said": "solo lo de momentos concretos",
@@ -170,6 +174,9 @@ TEXT = {
         "painting": "Grading in Resolve...",
         "painting_help": "One primary correction per clip, still yours to adjust by hand",
         "painted": "%d clips with the '%s' look",
+        "overlaying": "Putting the transitions in...",
+        "overlaying_help": "One animated layer on every cut, on its own track",
+        "overlaid": "%d '%s' transitions",
         "refining": "Change %d: reading what you asked...",
         "refine_kept": "Carrying on from the edit you have (%d pieces). Changing: %s",
         "refine_nothing_said": "only the specific moments",
@@ -875,7 +882,7 @@ def paint_clips(look, n, log=None):
 
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
                    workdir=None, anim="", chunks=None, ratio="source",
-                   drop=None, look=""):
+                   drop=None, look="", transition="none"):
     """Builds the edit in Resolve. Returns (what to tell the user, names made)."""
     name = Path(video).stem[:40]
     # La version anterior se va ANTES de crear la nueva, para que el nombre bueno
@@ -927,7 +934,14 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
             if not got.get("success"):
                 raise RuntimeError("Resolve no acepto %s=%s: %s"
                                    % (key, value, got.get("error", got)))
-    start_tc = (bridge_get("/timeline") or {}).get("startTimecode") or "01:00:00:00"
+    tl_now = bridge_get("/timeline") or {}
+    start_tc = tl_now.get("startTimecode") or "01:00:00:00"
+    start_frame = int(tl_now.get("startFrame", 0))
+    # El reloj del TIMELINE, no el del video. Son numeros distintos y usar el
+    # equivocado tuerce todo lo que se coloque por frames: es el mismo fallo que
+    # descolocaba los subtitulos dos minutos y medio al final de un video de
+    # diez, y aqui descolocaria cada transicion de su corte.
+    tl_fps = resolve_captions.timeline_fps(tl_now, fps)
     record = 0
     for seg in edl:
         sf = round(seg["start"] * fps)
@@ -958,6 +972,16 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
                                              "clipIndex": i, "properties": props})
 
     made = tr("timeline_made", timeline)
+    if transition in overlays.AS_OVERLAY and len(edl) > 1:
+        set_progress(tr("overlaying"), 78, tr("overlaying_help"))
+        plan = overlays.at_cuts(edl, transition, tl_fps, start_frame)
+        for ev in plan:
+            ev["fps"] = tl_fps
+        n = resolve_captions.place_overlays(bridge_post, bridge_get_slow, plan,
+                                            workdir or Path(video).parent,
+                                            out_w, out_h)
+        made += " " + tr("overlaid", n, transition) if n else ""
+
     if look and look != looks.DEFAULT:
         set_progress(tr("painting"), 80, tr("painting_help"))
         paint_clips(look, len(edl),
@@ -1343,8 +1367,11 @@ def workdir_for(video):
 # puede de esa cosa.
 CAPABILITIES = {
     "resolve": {
-        # La API de scripting no tiene transiciones. Punto.
-        "transition": (),
+        # La API no tiene transiciones, pero una capa animada encima de cada
+        # corte hace las que solo tapan: fundido a negro, a blanco y destello.
+        # La disolvencia, el barrido y el deslizamiento necesitan mezclar los
+        # DOS planos a la vez y por ahi no se puede pasar.
+        "transition": tuple(overlays.AS_OVERLAY),
         "voice": False,     # tampoco admite meter audio
         "shake": False,     # ni keyframes de encuadre por llamada
     },
@@ -1367,13 +1394,16 @@ def can_do(output, what, value=None):
 # Como se le explica a una persona lo que no cabe en su salida, y que hacer.
 CANNOT_WHY = {
     "es": {
-        "transition": "Resolve no admite transiciones por su API, solo salen en el MP4.",
+        "transition": "Esa transicion necesita mezclar los dos planos, y eso Resolve "
+                      "no lo hace por API. En Resolve puedo poner fundido a negro, a "
+                      "blanco o destello; las demas salen en el MP4.",
         "voice": "Resolve no admite meter audio por su API, la voz solo sale en el MP4.",
         "shake": "El temblor necesita keyframes de encuadre, que Resolve no da por API.",
     },
     "en": {
-        "transition": "Resolve takes no transitions over its API; they only come out "
-                      "in the MP4.",
+        "transition": "That transition has to blend both shots, which Resolve will "
+                      "not do over its API. In Resolve it can dip to black, dip to "
+                      "white or flash; the rest come out in the MP4.",
         "voice": "Resolve takes no audio over its API; the voice only comes out in "
                  "the MP4.",
         "shake": "The shake needs framing keyframes, which Resolve will not set over "
@@ -1806,7 +1836,7 @@ def run_job(req):
                 video, edl, transcript, captions, caption_preset, workdir,
                 caption_anim, translated_chunks, ratio,
                 drop=(session_load(workdir).get("timelines") or []) if again else [],
-                look=look)
+                look=look, transition=transition)
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
                 # come back looking finished and be missing the voice, which is

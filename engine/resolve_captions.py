@@ -253,6 +253,60 @@ def _place_slow(post, get, plan, start_frame, start_tc, fps, say):
             "ripple": False})
 
 
+def place_overlays(post, get, plan, work_dir, width, height, track=3):
+    """Pone capas animadas en una pista de arriba, sin tocar la edicion.
+
+    `plan` viene de overlays.at_cuts(): frame, duracion y tipo. La pista se crea
+    si no esta. Mismo mecanismo que los subtitulos, y por la misma razon: es lo
+    unico que coloca algo en un frame exacto sin mover el cabezal ni empujar lo
+    que ya hay.
+
+    Devuelve cuantas se pusieron. Si el puente no sabe colocar por frame,
+    devuelve 0 y se dice: una transicion que no esta es mejor callada que
+    fingida.
+    """
+    import overlays
+    if not plan:
+        return 0
+    # Las pistas se crean de una en una hasta llegar a la que hace falta. V1 es
+    # la edicion, V2 los subtitulos anidados, V3 esto.
+    have = int(((get("/timeline") or {}).get("trackCount") or {}).get("video", 1))
+    for _ in range(max(0, track - have)):
+        post("/track/add", {"trackType": "video"})
+
+    fps_guess = 30.0
+    try:
+        support = support_clip(work_dir, plan[0].get("fps") or fps_guess)
+    except Exception:
+        return 0
+    pool = (get("/mediapool") or {}).get("clips") or []
+    if not any(x.get("name") == support.name for x in pool):
+        if not post("/media/import", {"filePaths": [str(support)]}).get("success"):
+            return 0
+
+    comp_dir = Path(work_dir) / "overlays"
+    comp_dir.mkdir(parents=True, exist_ok=True)
+    placed = 0
+    for i, ev in enumerate(plan):
+        got = post("/media/insert", {"clipName": support.name, "trackIndex": track,
+                                     "recordFrame": int(ev["frame"]),
+                                     "startFrame": 0, "endFrame": int(ev["dur"])})
+        if not got.get("success"):
+            return placed
+        placed += 1
+
+    clips = (get("/timeline/clips?track_type=video&track_index=%d" % track)
+             or {}).get("clips", [])
+    for i, (ev, clip) in enumerate(zip(plan, clips)):
+        dur = max(2, int(clip.get("duration", ev["dur"])))
+        path = comp_dir / ("ov_%03d.comp" % i)
+        overlays.to_comp(path, ev["kind"], width, height, dur)
+        post("/clip/fusion/import", {"trackType": "video", "trackIndex": track,
+                                     "clipIndex": i,
+                                     "path": str(path).replace("\\", "/")})
+    return placed
+
+
 def build_subs(post, get, timeline_name, chunks, preset_name, work_dir,
                width=1920, height=1080, fps=30.0, log=None, anim=""):
     """Build <timeline_name>_Subs, full of captions, and leave it there.
