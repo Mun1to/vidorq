@@ -98,11 +98,14 @@ def _hosted(ai, system, user, tokens):
     model and not the vendor: knowing it was `claude-sonnet-5` or `llama3.1:8b`
     is the useful half.
     """
-    model = ai.get("model") or providers.PROVIDERS[ai["provider"]]["default"]
+    p = providers.PROVIDERS[ai["provider"]]
+    model = ai.get("model") or p["default"]
     text = providers.complete(ai["provider"], model, system, user,
                               key=ai.get("key", ""), tokens=tokens,
                               base_url=ai.get("baseUrl", ""))
-    return text, model
+    # Una CLI elige su propio modelo y no lo dice, asi que ahi el nombre util es
+    # el de la herramienta. Devolver cadena vacia dejaba el "lo decidio" en blanco.
+    return text, (model or p["label"])
 
 
 def _is_hosted(ai):

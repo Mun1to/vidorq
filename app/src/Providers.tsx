@@ -11,6 +11,8 @@ export interface Provider {
   keyUrl: string;
   default: string;
   custom: boolean;
+  cli: boolean;
+  installed: boolean;
   note: string;
 }
 
@@ -104,6 +106,8 @@ export default function Providers() {
               key={p.id}
               className={provider === p.id ? "sel" : ""}
               onClick={() => pick(p.id)}
+              disabled={!p.installed}
+              title={p.installed ? p.note : t("prov.cli.missing")}
             >
               {p.label}
               {data.hasKey.includes(p.id) && <span className="dot" />}
@@ -150,6 +154,9 @@ export default function Providers() {
         </section>
       )}
 
+      {info?.cli ? (
+        <p className="hint">{t("prov.cli.model")}</p>
+      ) : (
       <section className="field">
         <label>{t("prov.model")}</label>
         <div className="row">
@@ -172,6 +179,7 @@ export default function Providers() {
           <small className="under">{models.length} {t("prov.found")}</small>
         )}
       </section>
+      )}
 
       <div className="modal-foot inline-foot">
         <button className="cta" onClick={save}>
