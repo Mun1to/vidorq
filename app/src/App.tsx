@@ -5,6 +5,7 @@ import Brand from "./Brand";
 import Settings from "./Settings";
 import Guia from "./Guia";
 import Gallery from "./Gallery";
+import Chat, { Turn } from "./Chat";
 import logo from "./assets/logo.png";
 import {
   IconAlert, IconBook, IconBrand, IconCheck, IconChevron, IconClock, IconDrop,
@@ -81,8 +82,9 @@ function App() {
   // escribiendo ahora. Vidorq no editaba una vez, editaba UNA sola vez: al
   // terminar solo se podia empezar otro video, que es como un editor que se
   // levanta y se va en cuanto pone el primer corte.
-  const [chat, setChat] = useState<string[]>([]);
+  const [chat, setChat] = useState<Turn[]>([]);
   const [followUp, setFollowUp] = useState("");
+  const [setup, setSetup] = useState(false);
   const [galOpen, setGalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
@@ -99,7 +101,6 @@ function App() {
   const [wsOpen, setWsOpen] = useState(false);
   const [view, setView] = useState<View>("edit");
   const wsRef = useRef<HTMLDivElement>(null);
-  const logRef = useRef<HTMLOListElement>(null);
 
   // Drag & drop nativo de Tauri (rutas reales); en navegador normal se usa el campo de ruta
   useEffect(() => {
@@ -210,25 +211,35 @@ function App() {
   useEffect(() => {
     if (!video) { setChat([]); return; }
     if (phase === "running") return;
-    apiGet<{ history: string[] }>(`/session?video=${encodeURIComponent(video)}`)
+    apiGet<{ history: Turn[] }>(`/session?video=${encodeURIComponent(video)}`)
       .then((d) => setChat(d.history || []))
       .catch(() => setChat([]));
   }, [video, phase]);
 
-  // La lista crece hacia abajo y se recorta por arriba, asi que sin esto lo
-  // ultimo que pediste queda medio tapado por la caja de escribir: se ve una
-  // fila cortada por la mitad, que es la pinta exacta de algo roto.
-  useEffect(() => {
-    const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [chat, phase]);
-
-  function askMore() {
-    const q = followUp.trim();
+  function askMore(text?: string) {
+    const q = (text ?? followUp).trim();
     if (!q || phase === "running") return;
-    setChat((c) => [...c, q]);
+    // Se pinta ya, sin esperar al motor: el mensaje propio tiene que aparecer
+    // en el momento de enviarlo o parece que no se ha enviado. La respuesta la
+    // trae despues /session, que es quien tiene la verdad.
+    setChat((c) => [...c, { you: q }]);
     setFollowUp("");
     startEdit(q);
+  }
+
+  // Un boton de la respuesta: "hazlo en MP4" relanza la MISMA frase con la otra
+  // salida, en vez de obligar a escribirla de nuevo y a buscar el interruptor.
+  function takeOffer(kind: string) {
+    if (kind !== "mp4" || phase === "running") return;
+    const last = [...chat].reverse().find((c) => c.you)?.you || "";
+    setOutput("mp4");
+    if (!last) return;
+    // La salida va explicita en la llamada: setOutput no ha llegado todavia al
+    // estado que lee startEdit, y esperar un render para eso es como se cuelan
+    // los fallos que solo pasan la primera vez.
+    setChat((c) => [...c, { you: last }]);
+    setFollowUp("");
+    startEdit(last, "mp4");
   }
 
   // Progreso
@@ -257,13 +268,20 @@ function App() {
 
   const fileName = useMemo(() => video.split(/[\\/]/).pop() ?? "", [video]);
   const canEdit = video !== "" && engineUp === true && phase !== "running";
+  // El chat manda en cuanto este video tiene conversacion, aunque la ventana se
+  // haya cerrado por el medio: para eso se guarda. La pantalla de "Listo" con su
+  // tick se queda para la primera vez, que es cuando hace falta celebrar que ha
+  // salido algo. `setup` es la puerta de vuelta a los ajustes, porque la galeria
+  // de estilos vive alli y no se puede quedar encerrada detras del chat.
+  const chatting = view === "edit" && chat.length > 0 && !setup;
 
-  async function startEdit(refine = "") {
+  async function startEdit(refine = "", forceOutput?: Output) {
+    setSetup(false);
     setPhase("running");
     setProgress({ step: t("run.working"), percent: 2 });
     try {
       const j = await apiPost<{ ok?: boolean; error?: string }>("/edit", {
-        video, preset, captions, output,
+        video, preset, captions, output: forceOutput || output,
         // En un retoque manda la frase nueva; el resto de ajustes los recuerda
         // el motor, que es quien tiene el montaje.
         prompt: refine || (proOpen ? prompt : ""), lang,
@@ -357,6 +375,25 @@ function App() {
           <h2>{t("history.title")}</h2>
           <p className="stepn">{t("history.sub")}</p>
         </section>
+      ) : chatting ? (
+        <Chat
+          title={fileName || t("head.title")}
+          turns={chat}
+          draft={followUp}
+          onDraft={setFollowUp}
+          onSend={() => askMore()}
+          onOffer={takeOffer}
+          onSetup={() => setSetup(true)}
+          onNewVideo={() => {
+            setPhase("idle"); setProgress({ step: "", percent: 0 }); setVideo("");
+            setChat([]); setFollowUp(""); setSetup(false);
+          }}
+          running={phase === "running"}
+          step={progress.step}
+          detail={progress.detail}
+          percent={progress.percent}
+          error={progress.error}
+        />
       ) : working ? (
         <section className="run">
           {phase === "running" ? (
@@ -377,15 +414,9 @@ function App() {
               </p>
               <div className="path">{progress.result}</div>
 
-              {/* Aqui no se acaba nada: es donde se sigue editando. Lo que se
-                  escriba se aplica SOBRE este montaje, sin volver a transcribir
-                  ni a decidir los cortes desde cero. */}
+              {/* Aqui no se acaba nada: es donde se sigue editando. En cuanto
+                  hay un turno, la pantalla entera pasa a ser el chat. */}
               <div className="more-chat">
-                {chat.length > 0 && (
-                  <ol className="chat-log" ref={logRef}>
-                    {chat.map((c, i) => <li key={i}>{c}</li>)}
-                  </ol>
-                )}
                 <div className="row">
                   <input
                     value={followUp}
@@ -394,7 +425,7 @@ function App() {
                     placeholder={t("more.ph")}
                     autoFocus
                   />
-                  <button className="cta inline" onClick={askMore}
+                  <button className="cta inline" onClick={() => askMore()}
                           disabled={!followUp.trim()}>
                     <IconSpark size={15} className="icon" />{t("more.go")}
                   </button>

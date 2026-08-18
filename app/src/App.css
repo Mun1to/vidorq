@@ -424,9 +424,96 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .inline-foot { border-top: 0; padding: 4px 0 0; }
 .hint { font-size: 12px; color: var(--muted); }
 
-/* Seguir editando. Vive DENTRO de la pantalla de "listo" a proposito: el sitio
-   donde antes solo se podia empezar otro video es justo donde a uno se le
-   ocurre el primer cambio. */
+/* ---------- el chat ----------
+   La conversacion es la pantalla, no un panel debajo de un tick verde. Tres
+   franjas: cabecera fija, mensajes que ruedan, y el redactor abajo siempre a
+   la vista, para que escribir el siguiente cambio no obligue a buscar nada. */
+.chat {
+  display: flex; flex-direction: column;
+  /* Alto completo y min-height 0: sin lo segundo el cuerpo empuja y la barra
+     de scroll no aparece nunca, que es el mismo fallo que ya tenia el modal. */
+  height: 100%; min-height: 0; overflow: hidden;
+}
+.chat-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 16px 22px; border-bottom: 1px solid var(--line-soft);
+  background: var(--bg);
+}
+.chat-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.chat-title strong {
+  font-size: 14px; font-weight: 650; letter-spacing: -.2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat-logo { width: 22px; height: 22px; border-radius: 6px; flex: none; }
+.chat-acts { display: flex; gap: 8px; flex: none; }
+
+.chat-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 20px 22px; display: flex; flex-direction: column; gap: 16px;
+}
+.turn { display: flex; flex-direction: column; gap: 9px; }
+
+.bubble {
+  max-width: min(560px, 88%); border-radius: 14px; padding: 11px 14px;
+  font-size: 13px; line-height: 1.5;
+}
+/* Lo tuyo a la derecha y con el color de marca; lo de Vidorq a la izquierda
+   sobre el panel. Es la unica pista que hace falta para saber quien habla. */
+.bubble.you {
+  align-self: flex-end; background: var(--accent); color: #fff;
+  border-bottom-right-radius: 5px;
+}
+.bubble.them {
+  align-self: flex-start; background: var(--panel); border: 1px solid var(--line);
+  border-bottom-left-radius: 5px; display: flex; gap: 10px;
+}
+.bubble.them.bad { border-color: var(--bad); }
+.bubble-logo { width: 19px; height: 19px; border-radius: 5px; flex: none; margin-top: 1px; }
+.bubble-text { display: flex; flex-direction: column; gap: 7px; min-width: 0; flex: 1; }
+.bubble-text .track { margin: 2px 0; }
+
+.done-line, .warn-line {
+  display: flex; align-items: flex-start; gap: 7px; color: var(--text-dim);
+}
+.done-line .icon.ok { color: var(--ok); flex: none; margin-top: 2px; }
+.warn-line { color: var(--muted); }
+.warn-line .icon { color: #e0a33a; flex: none; margin-top: 2px; }
+
+/* La ruta del archivo o el nombre del timeline: monoespaciada y capaz de
+   partirse, porque una ruta de Windows no cabe en una burbuja. */
+.bubble-path {
+  font-size: 11.5px; color: var(--faint); background: var(--panel2);
+  border-radius: 7px; padding: 7px 9px; word-break: break-all;
+}
+
+/* La alternativa, dentro de la propia respuesta. Un limite que te ofrece la
+   salida deja de ser un muro. */
+.offer {
+  align-self: flex-start; display: flex; align-items: center; gap: 7px;
+  background: var(--accent-fill); border: 1px solid var(--accent);
+  color: var(--accent-soft); border-radius: 9px; padding: 7px 12px;
+  font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.offer:hover { background: var(--accent); color: #fff; }
+
+.chat-foot {
+  display: flex; gap: 9px; padding: 14px 22px 18px;
+  border-top: 1px solid var(--line-soft); background: var(--bg);
+}
+.chat-foot input {
+  flex: 1; background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 10px; padding: 12px 14px; color: var(--text); font: inherit;
+}
+.chat-foot input:focus { outline: none; border-color: var(--accent); }
+.chat-foot input:disabled { opacity: .55; }
+.chat-foot .cta.inline { width: auto; padding: 12px 20px; white-space: nowrap; }
+.chat-body::-webkit-scrollbar { width: 10px; }
+.chat-body::-webkit-scrollbar-thumb {
+  background: var(--line); border-radius: 6px; border: 3px solid var(--bg);
+}
+.chat-body::-webkit-scrollbar-track { background: transparent; }
+
+/* Lo que queda del panel de la primera vez: solo el redactor bajo el tick. */
 .more-chat {
   width: min(560px, 100%); display: flex; flex-direction: column; gap: 9px;
   margin-top: 4px;
@@ -438,19 +525,6 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .more-chat input:focus { outline: none; border-color: var(--accent); }
 .more-chat .cta.inline { width: auto; padding: 11px 18px; white-space: nowrap; }
-/* Lo ya pedido, en orden. Es la memoria de la sesion puesta a la vista: sin
-   esto no se sabe si un cambio se aplico o se perdio. */
-.chat-log {
-  list-style: none; display: flex; flex-direction: column; gap: 5px;
-  /* Alto de tres filas justas. Un multiplo exacto de (fila + hueco) para que
-     el recorte caiga SIEMPRE entre dos filas y nunca por la mitad de una. */
-  text-align: left; max-height: 122px; overflow-y: auto; scroll-behavior: smooth;
-}
-.chat-log li {
-  font-size: 12.5px; color: var(--text-dim); background: var(--panel2);
-  border: 1px solid var(--line-soft); border-radius: 8px; padding: 7px 11px;
-}
-.chat-log li::before { content: counter(list-item) ". "; color: var(--faint); }
 /* Un fallo del proveedor de voz se lee como un fallo, no como una nota. */
 .under.bad { color: var(--bad); }
 

@@ -94,6 +94,9 @@ const es = {
   "run.again": "Editar otro vídeo",
   "more.ph": "¿Qué cambio? \"ponlo en vertical\", \"quita el trozo del minuto 3\", \"pon un cartel en el segundo 12\"...",
   "more.go": "Aplicar",
+  "chat.unknown": "Esto no sé hacerlo:",
+  "chat.offer.mp4": "Hacerlo en MP4",
+  "chat.setup": "Ajustes del vídeo",
   "more.note": "Se aplica sobre este montaje. No vuelve a transcribir, así que tarda segundos en vez de minutos.",
 
   "guide.title": "Empezar con Resolve",
@@ -269,6 +272,9 @@ const en: Record<keyof typeof es, string> = {
   "run.again": "Edit another video",
   "more.ph": "What should change? \"make it vertical\", \"drop the bit at minute 3\", \"put a card at second 12\"...",
   "more.go": "Apply",
+  "chat.unknown": "I do not know how to do this:",
+  "chat.offer.mp4": "Do it as an MP4",
+  "chat.setup": "Video settings",
   "more.note": "Applied on top of this edit. It does not transcribe again, so it takes seconds instead of minutes.",
 
   "guide.title": "Start with Resolve",
