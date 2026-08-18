@@ -53,6 +53,7 @@ import vision  # noqa: E402
 import translate as tl  # noqa: E402
 import director  # noqa: E402
 import resolve_captions  # noqa: E402
+import faces  # noqa: E402
 
 _lock = threading.Lock()
 _progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": ""}
@@ -88,6 +89,10 @@ TEXT = {
         "directed": "%s decidio: %s",
         "no_deps": ("Al motor le falta %s. Lo han arrancado con el Python "
                     "equivocado: cierralo y usa engine\\start_engine.bat"),
+        "framing": "Buscando la cara para encuadrar...",
+        "framing_help": "Detector local, milisegundos por fotograma",
+        "framed": "Encuadre sobre la cara en %d de %d tramos",
+        "framed_none": "Sin caras: recorte centrado",
     },
     "en": {
         "busy": "There is already an edit running",
@@ -114,6 +119,10 @@ TEXT = {
         "directed": "%s decided: %s",
         "no_deps": ("The engine is missing %s. It was started with the wrong "
                     "Python: close it and use engine\\start_engine.bat"),
+        "framing": "Finding the face to frame on...",
+        "framing_help": "Local detector, milliseconds per frame",
+        "framed": "Framed on the face in %d of %d cuts",
+        "framed_none": "No faces found: centred crop",
     },
 }
 
@@ -861,6 +870,27 @@ def run_job(req):
                 edl = mark_questions(transcript, edl)
         if not edl:
             raise RuntimeError("El EDL salio vacio; no hay nada que conservar")
+
+        # 3b) Which third of the width to keep. Only worth the decoding when the
+        #     output is a different shape than the source, because a 16:9 out of
+        #     a 16:9 crops nothing and there is nothing to aim. A user who moved
+        #     the crop slider gets what they moved it to: a person who framed it
+        #     by hand has already answered the question.
+        hand_framed = abs(float(req.get("cropX", 0.5)) - 0.5) > 0.01
+        if ratio and ratio != "source" and not hand_framed and faces.available():
+            set_progress(tr("framing"), 60, tr("framing_help"))
+            try:
+                hits = faces.frame_edl(video, edl,
+                                       default=float(req.get("cropX", 0.5)),
+                                       log=lambda m: set_progress(tr("framing"), 60, m))
+                set_progress(tr("framing"), 61,
+                             tr("framed", hits, len(edl)) if hits
+                             else tr("framed_none"))
+            except Exception as e:
+                # A crop that centres is a worse crop, not a failed edit.
+                traceback.print_exc()
+                set_progress(tr("framing"), 61, "sin encuadrar: %s" % str(e)[:120])
+
         edl_path = workdir / "edl.json"
         edl_path.write_text(json.dumps({"segments": edl}, indent=1), encoding="utf-8")
         kept = sum(s["end"] - s["start"] for s in edl)

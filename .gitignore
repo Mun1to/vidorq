@@ -25,8 +25,11 @@ edit/
 renders/
 footage/
 
-# AI models (downloaded on first use)
+# AI models (downloaded on first use). The face detector is the exception:
+# 227 KB, its own MIT licence, and bundling it is what lets a vertical crop
+# aim at a face with the network unplugged.
 models/
+!skill/models/
 
 # OS / editor noise
 .DS_Store

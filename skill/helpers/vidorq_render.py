@@ -144,9 +144,11 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
         # burning them before the resize would soften them.
         if (crop_w, crop_h) != (w, h):
             # Per segment if the EDL says so, otherwise whatever the user chose.
-            # There is no automatic subject tracking here on purpose: measured, it
-            # was wrong often enough to put a head outside the frame, and a wrong
-            # guess is worse than a predictable centre. See docs/INTELIGENCIA.md.
+            # The engine fills frame_x with where the face actually is, using a
+            # face detector rather than a guess; see skill/helpers/faces.py. One
+            # value per cut and not per frame on purpose: a static crop reads as
+            # a deliberate shot, while a crop that drifts needs easing or it
+            # looks seasick. See docs/INTELIGENCIA.md.
             fx = float(seg.get("frame_x", crop_x))
             x0 = max(0, min(w - crop_w, int(round((w - crop_w) * fx)))) // 2 * 2
             y0 = (h - crop_h) // 2 // 2 * 2
