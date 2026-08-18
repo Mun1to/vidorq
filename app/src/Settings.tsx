@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { apiPost } from "./api";
 import { useLang } from "./i18n";
-import { IconCheck, IconKey, IconPlug } from "./Icons";
+import { IconKey, IconPlug } from "./Icons";
+import Providers from "./Providers";
 
 const AGENTS: { name: string; how: string }[] = [
   {
@@ -29,17 +29,7 @@ const AGENTS: { name: string; how: string }[] = [
 export default function Settings({ onClose }: { onClose: () => void }) {
   const { t } = useLang();
   const [tab, setTab] = useState<"keys" | "agents">("keys");
-  const [anthropic, setAnthropic] = useState("");
-  const [gemini, setGemini] = useState("");
-  const [openai, setOpenai] = useState("");
-  const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState("");
-
-  async function save() {
-    await apiPost("/config", { anthropicKey: anthropic, geminiKey: gemini, openaiKey: openai });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-  }
 
   function copy(name: string, text: string) {
     navigator.clipboard?.writeText(text).catch(() => {});
@@ -64,26 +54,7 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
         <div className="modal-body">
           {tab === "keys" ? (
-            <>
-              <p className="hint">{t("set.keys.sub")}</p>
-              <section className="field">
-                <label>Anthropic (Claude)</label>
-                <small className="under">{t("set.anthropic.sub")}</small>
-                <input type="password" value={anthropic} onChange={(e) => setAnthropic(e.target.value)}
-                       placeholder="sk-ant-..." />
-              </section>
-              <section className="field">
-                <label>Google (Gemini)</label>
-                <small className="under">{t("set.gemini.sub")}</small>
-                <input type="password" value={gemini} onChange={(e) => setGemini(e.target.value)}
-                       placeholder="AIza..." />
-              </section>
-              <section className="field">
-                <label>OpenAI <span className="opt-tag">{t("alternative")}</span></label>
-                <input type="password" value={openai} onChange={(e) => setOpenai(e.target.value)}
-                       placeholder="sk-..." />
-              </section>
-            </>
+            <Providers />
           ) : (
             <>
               <p className="hint">{t("set.agents.sub")}</p>
@@ -104,11 +75,6 @@ export default function Settings({ onClose }: { onClose: () => void }) {
 
         <div className="modal-foot">
           <button className="ghost" onClick={onClose}>{t("close")}</button>
-          {tab === "keys" && (
-            <button className="cta" onClick={save}>
-              {saved ? <><IconCheck size={15} className="icon" />{t("saved")}</> : t("set.save")}
-            </button>
-          )}
         </div>
       </div>
     </div>
