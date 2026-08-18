@@ -64,6 +64,7 @@ import resolve_captions  # noqa: E402
 import faces  # noqa: E402
 import providers  # noqa: E402
 import previews  # noqa: E402
+import speech  # noqa: E402
 
 _lock = threading.Lock()
 _progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": ""}
@@ -107,6 +108,8 @@ TEXT = {
         "no_gpu": "Sin GPU para transcribir, va por CPU y tarda mas",
         "moments": "Leyendo lo que pides en momentos concretos...",
         "moments_done": "En momentos concretos: %s",
+        "voice_making": "Poniendo voz a la linea %d de %d...",
+        "voice_only_mp4": "%d voz(es) generadas, pero en Resolve no se pueden meter por API: salen solo en el MP4.",
         "nesting": "Poniendo los subtitulos encima de tu edicion...",
     },
     "en": {
@@ -142,6 +145,8 @@ TEXT = {
         "no_gpu": "No GPU for transcription, running on CPU and slower",
         "moments": "Reading what you asked for at specific moments...",
         "moments_done": "At specific moments: %s",
+        "voice_making": "Voicing line %d of %d...",
+        "voice_only_mp4": "%d voice line(s) made, but Resolve takes no audio over its API: they only come out in the MP4.",
         "nesting": "Laying the captions over your edit...",
     },
 }
@@ -876,11 +881,12 @@ def apply_actions(edl, acts, log=None):
     """Carry out what the prompt asked for at particular moments.
 
     Cuts and zooms change the EDL, markers ride along on the segment they land
-    in, and titles are handed back because they cannot be placed until the EDL
-    has stopped moving: a title's second only means something once the cuts that
-    come before it are final.
+    in, and titles and voice lines are handed back because they cannot be placed
+    until the EDL has stopped moving: their second only means something once the
+    cuts that come before it are final.
     """
-    titles, done = [], {"cut": 0, "zoom": 0, "marker": 0, "title": 0}
+    titles, spoken = [], []
+    done = {"cut": 0, "zoom": 0, "marker": 0, "title": 0, "voice": 0}
     for act in acts:
         kind, at = act["do"], float(act["at"])
         if kind == "cut":
@@ -911,11 +917,14 @@ def apply_actions(edl, acts, log=None):
                     break
         elif kind == "title":
             titles.append(act)
+        elif kind == "voice":
+            spoken.append(act)
     done["title"] = len(titles)
+    done["voice"] = len(spoken)
     if log:
         log(", ".join("%d %s" % (n, k) for k, n in done.items() if n) or
             "nada que aplicar")
-    return titles
+    return titles, spoken
 
 
 def titles_into(chunks, titles, edl):
@@ -1240,7 +1249,7 @@ def run_job(req):
         # 3c) What the prompt asked for at particular moments. After the cuts
         #     are decided and before anything downstream reads the EDL, because
         #     a cut here moves every second that comes after it.
-        want_titles = []
+        want_titles, want_voice = [], []
         if prompt:
             set_progress(tr("moments"), 59, tr("framing_help"))
             try:
@@ -1250,7 +1259,7 @@ def run_job(req):
                     req.get("directorModel") or None,
                     log=lambda m: set_progress(tr("moments"), 59, m))
                 if acts:
-                    want_titles = apply_actions(
+                    want_titles, want_voice = apply_actions(
                         edl, acts,
                         log=lambda m: set_progress(tr("decided"), 59,
                                                    tr("moments_done", m)))
@@ -1324,6 +1333,33 @@ def run_job(req):
             translated_chunks = titles_into(base, want_titles, edl)
             captions = True
 
+        # 4c) The spoken lines get made now, once the EDL is final, because a
+        #     voice-over is placed by the clock of the EDITED video: every cut
+        #     before it has already moved the second it belongs to.
+        voice_files = []
+        if want_voice:
+            engine_id = req.get("voiceEngine") or speech.DEFAULT_ENGINE
+            cfg_keys = (load_config().get("keys") or {})
+            e = speech.ENGINES.get(engine_id) or {}
+            for i, act in enumerate(want_voice):
+                at = to_edited(float(act["at"]), edl)
+                if at is None:
+                    continue          # cayo en un trozo que se ha cortado
+                dest = workdir / ("voz_%02d%s" % (i, speech.ext(engine_id)))
+                try:
+                    set_progress(tr("rendering"), 63, tr("voice_making", i + 1,
+                                                         len(want_voice)))
+                    speech.say(act["text"], dest, engine_id,
+                               req.get("voiceId") or "",
+                               cfg_keys.get(e.get("key_id") or "", ""),
+                               req.get("voiceBaseUrl") or "")
+                    voice_files.append({"at": round(at, 3), "path": str(dest)})
+                except Exception as ex:
+                    # One line that could not be spoken must not cost the edit.
+                    traceback.print_exc()
+                    set_progress(tr("rendering"), 63,
+                                 "sin voz en %.1fs: %s" % (at, str(ex)[:120]))
+
         # 5) Execute on the chosen backend
         if output == "resolve":
             set_progress(tr("building"), 65,
@@ -1333,6 +1369,11 @@ def run_job(req):
                                    "y Workspace > Scripts > Vidorq")
             result = output_resolve(video, edl, transcript, captions, caption_preset,
                                     workdir, caption_anim, translated_chunks, ratio)
+            if voice_files:
+                # Said out loud instead of quietly skipped. The timeline would
+                # come back looking finished and be missing the voice, which is
+                # the worst way to find out.
+                result += "  |  " + tr("voice_only_mp4", len(voice_files))
         else:
             set_progress(tr("rendering"), 65, "Cortes + zooms" + (" + captions" if captions else ""))
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
@@ -1351,6 +1392,11 @@ def run_job(req):
                 ch_path.write_text(json.dumps(translated_chunks, ensure_ascii=False),
                                    encoding="utf-8")
                 cmd += ["--chunks", str(ch_path)]
+            if voice_files:
+                v_path = workdir / "voces.json"
+                v_path.write_text(json.dumps(voice_files, ensure_ascii=False),
+                                  encoding="utf-8")
+                cmd += ["--voices", str(v_path)]
             if not captions:
                 cmd.append("--no-captions")
             run_render(cmd, out_file)
@@ -1490,6 +1536,32 @@ class Handler(BaseHTTPRequestHandler):
                         "model": chosen["model"],
                         "baseUrl": chosen["baseUrl"],
                         "hasKey": sorted(saved)})
+        elif self.path.startswith("/voices"):
+            # Same rule as /providers: it says which engines have a key, never
+            # what the key is.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            one = lambda k, d="": (q.get(k) or [d])[0]  # noqa: E731
+            lang = one("lang", "es")
+            cfg = load_config()
+            keys = cfg.get("keys") or {}
+            engine_id = one("engine") or cfg.get("voiceEngine") or speech.DEFAULT_ENGINE
+            e = speech.ENGINES.get(engine_id) or {}
+            body = {"list": speech.catalogue(lang),
+                    "engine": engine_id,
+                    "voice": cfg.get("voiceId", ""),
+                    "baseUrl": cfg.get("voiceBaseUrl", ""),
+                    "hasKey": sorted(k for k in keys if keys[k])}
+            try:
+                body["voices"] = speech.voices(engine_id,
+                                               keys.get(e.get("key_id") or "", ""),
+                                               cfg.get("voiceBaseUrl", ""))
+            except Exception as ex:
+                # A bad key must not take the settings screen down with it: the
+                # list of engines is still worth drawing.
+                body["voices"] = []
+                body["error"] = str(ex)[:200]
+            self._send(body)
         elif self.path.startswith("/models"):
             # Asked live, so the list is whatever the provider has today rather
             # than whatever was true when this was written.
@@ -1531,8 +1603,14 @@ class Handler(BaseHTTPRequestHandler):
             # whole map would wipe the others.
             incoming = dict(body)
             keys = dict(cfg.get("keys") or {})
+            # The allowed ids are the AI providers PLUS the voice engines, and
+            # missing the second half is how an ElevenLabs key gets accepted by
+            # the screen, dropped on the floor here, and reported later as
+            # "needs an API key" by an engine that was just given one.
+            allowed = set(providers.PROVIDERS) | {
+                e["key_id"] for e in speech.ENGINES.values() if e.get("key_id")}
             for pid, value in (incoming.pop("keys", None) or {}).items():
-                if pid in providers.PROVIDERS:
+                if pid in allowed:
                     # An empty string is how the interface says "forget this one".
                     keys[pid] = value
             if keys:
@@ -1541,7 +1619,7 @@ class Handler(BaseHTTPRequestHandler):
             # otherwise switching provider keeps the old provider's model id
             # forever and the interface offers no way to clear it. Everything
             # else keeps the old rule, where empty means "I am not sending this".
-            for field in ("aiModel", "aiBaseUrl"):
+            for field in ("aiModel", "aiBaseUrl", "voiceId", "voiceBaseUrl"):
                 if field in incoming:
                     cfg[field] = incoming.pop(field)
             cfg.update({k: v for k, v in incoming.items() if v != ""})

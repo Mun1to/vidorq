@@ -423,6 +423,8 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
    porque el pie es del modal entero y este boton es solo de esta pestana. */
 .inline-foot { border-top: 0; padding: 4px 0 0; }
 .hint { font-size: 12px; color: var(--muted); }
+/* Un fallo del proveedor de voz se lee como un fallo, no como una nota. */
+.under.bad { color: var(--bad); }
 
 /* La preview de la combinacion elegida. Se hace con el renderizador de verdad,
    asi que lo que se ve aqui es lo que sale, no una aproximacion dibujada. */

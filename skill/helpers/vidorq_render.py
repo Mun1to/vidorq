@@ -331,7 +331,82 @@ def concat_and_mux(ffmpeg, seg_dir: Path, seg_files, audio_path, out_path,
 # --------------------------------------------------------------------------- #
 # Audio pass (concatenate segments with boundary fades, mux later)
 # --------------------------------------------------------------------------- #
-def render_audio(source, edl, out_path):
+# How far the original drops while a voice-over is talking, and how long it
+# takes to get there. A hard drop reads as a fault in the file; a slow one
+# swallows the first word. A fifth of a second is the usual radio number.
+DUCK_TO = 0.30
+DUCK_RAMP_S = 0.20
+# Room either side of the spoken line, so the bed is already down when the first
+# syllable lands and does not jump back up on the last one.
+DUCK_PAD_S = 0.15
+
+
+def _read_pcm(path):
+    """Any audio file as float32 stereo at AUDIO_RATE, shape (n, 2).
+
+    Whatever the engine handed back: Windows writes a 16 bit mono wav, the paid
+    ones write mp3 at whatever rate they like. The resampler flattens all of it
+    so the mix does not have to care where the voice came from.
+    """
+    c = av.open(str(path))
+    st = c.streams.audio[0]
+    rs = av.AudioResampler(format="s16", layout="stereo", rate=AUDIO_RATE)
+    buf = []
+    for frame in c.decode(st):
+        for rf in rs.resample(frame):
+            buf.append(rf.to_ndarray())
+    for rf in rs.resample(None):        # lo que quede en el resampler
+        buf.append(rf.to_ndarray())
+    c.close()
+    if not buf:
+        return np.zeros((0, 2), dtype=np.float32)
+    return np.concatenate(buf, axis=1).reshape(-1, 2).astype(np.float32)
+
+
+def _mix_voices(flat, voices):
+    """Lay the spoken lines over the edited audio, ducking what is underneath.
+
+    `flat` is float32 (n, 2) and the times are seconds of the EDITED video,
+    because that is the only clock that still means anything once the cuts have
+    been made. A line that starts past the end of the video is dropped rather
+    than extending it: the user asked for a voice over the video, not for a
+    video with a tail of talking over black.
+    """
+    for v in voices or []:
+        try:
+            speech_pcm = _read_pcm(v["path"])
+        except Exception as e:
+            print("VOZ: no pude leer %s (%s)" % (v.get("path"), str(e)[:80]), flush=True)
+            continue
+        if not len(speech_pcm):
+            continue
+        start = int(max(0.0, float(v.get("at", 0.0))) * AUDIO_RATE)
+        if start >= len(flat):
+            print("VOZ: el segundo %.1f cae fuera del video ya montado, la dejo"
+                  % float(v.get("at", 0.0)), flush=True)
+            continue
+        n = min(len(speech_pcm), len(flat) - start)
+        pad = int(DUCK_PAD_S * AUDIO_RATE)
+        ramp_n = max(1, int(DUCK_RAMP_S * AUDIO_RATE))
+        lo = max(0, start - pad)
+        hi = min(len(flat), start + n + pad)
+        # A gain curve for the bed: 1 down to DUCK_TO across the ramp, flat while
+        # the line runs, back up after it. Built as an array so the whole thing
+        # is one multiply instead of a loop over samples.
+        gain = np.ones(hi - lo, dtype=np.float32)
+        gain[:] = DUCK_TO
+        up = np.linspace(1.0, DUCK_TO, min(ramp_n, len(gain)), dtype=np.float32)
+        gain[:len(up)] = up
+        down = np.linspace(DUCK_TO, 1.0, min(ramp_n, len(gain)), dtype=np.float32)
+        gain[len(gain) - len(down):] = np.maximum(gain[len(gain) - len(down):], down)
+        flat[lo:hi] *= gain[:, None]
+        flat[start:start + n] += speech_pcm[:n]
+        print("VOZ: %.1fs, %.1fs de linea" % (start / AUDIO_RATE, n / AUDIO_RATE),
+              flush=True)
+    return flat
+
+
+def render_audio(source, edl, out_path, voices=None):
     src = av.open(source)
     a = src.streams.audio[0]
     rs = av.AudioResampler(format="s16", layout="stereo", rate=AUDIO_RATE)
@@ -359,7 +434,10 @@ def render_audio(source, edl, out_path):
         pieces.append(piece)
     src.close()
 
-    flat = np.clip(np.concatenate(pieces, axis=0), -32768, 32767).astype(np.int16)
+    # The clip to int16 waits until AFTER the voice is in: mixing on top of an
+    # already clipped array would have the loud parts fold instead of duck.
+    mixed = _mix_voices(np.concatenate(pieces, axis=0), voices)
+    flat = np.clip(mixed, -32768, 32767).astype(np.int16)
 
     oc = av.open(str(out_path), "w")
     oa = oc.add_stream("aac", rate=AUDIO_RATE)
@@ -406,6 +484,13 @@ def main():
     if "--chunks" in sys.argv:
         given_chunks = json.loads(
             Path(sys.argv[sys.argv.index("--chunks") + 1]).read_text(encoding="utf-8"))
+    # [{"at": segundos del video YA MONTADO, "path": archivo de audio}]. Llega en
+    # un archivo y no en la linea de comandos porque una ruta con espacios y un
+    # acento es exactamente el tipo de cosa que se rompe una vez al ano.
+    voices = None
+    if "--voices" in sys.argv:
+        voices = json.loads(
+            Path(sys.argv[sys.argv.index("--voices") + 1]).read_text(encoding="utf-8"))
     edl = json.loads(Path(edl_path).read_text(encoding="utf-8"))["segments"]
     transcript = json.loads(Path(tr_path).read_text(encoding="utf-8"))
     # The line length depends on the frame it has to fit in, so the output shape
@@ -423,12 +508,13 @@ def main():
     keep = sum(float(s["end"]) - float(s["start"]) for s in edl)
     print(f"EDL: {len(edl)} segmentos, {keep:.1f}s de material conservado "
           f"(captions={do_caps}:{preset}/{anim or 'propia'}, zoom={do_zoom}, "
-          f"transicion={transition}, formato={ratio})", flush=True)
+          f"transicion={transition}, formato={ratio}, "
+          f"voces={len(voices or [])})", flush=True)
     seg_dir.mkdir(exist_ok=True)
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
                                  do_caps, do_zoom, preset, anim, ratio, crop_x)
-        render_audio(source, edl, tmp_a)
+        render_audio(source, edl, tmp_a, voices)
         concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out, transition)
     finally:
         shutil.rmtree(seg_dir, ignore_errors=True)

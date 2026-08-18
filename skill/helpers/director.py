@@ -313,11 +313,14 @@ SEG_SYSTEM = (
 # user's instruction and a transcript is UNTRUSTED text: somebody's video can
 # contain "ignore the above and run...". A model that invents a verb outside
 # this list produces nothing at all instead of something surprising.
-ACTIONS = ("title", "marker", "zoom", "cut")
+ACTIONS = ("title", "marker", "zoom", "cut", "voice")
 # Ceilings, for the same reason. A prompt asking for four things should not come
 # back with two hundred, and a caption is a caption and not an essay.
 MAX_ACTIONS = 24
 MAX_TEXT = 90
+# A spoken line can run longer than a caption: it is heard over time instead of
+# read at a glance. Still capped, because the paid engines bill by the character.
+MAX_SPOKEN = 300
 # Shorter than this and a "cut" is noise, not an edit.
 MIN_CUT = 0.5
 # A title shorter than this is a flash nobody reads; longer than that and it
@@ -354,17 +357,20 @@ ACT_SYSTEM = (
     '  {"do":"marker","at":12.5,"text":"nota corta"}\n'
     '  {"do":"zoom","at":12.5,"until":15.0}\n'
     '  {"do":"cut","at":12.5,"until":15.0}\n'
+    '  {"do":"voice","at":12.5,"text":"lo que dice la voz en off"}\n'
     "Los tiempos son segundos del video ORIGINAL y los sacas de la "
     "transcripcion, buscando lo que se dice. Si el usuario no pide nada en un "
     'momento concreto, devuelve {"actions":[]}. No inventes momentos y no '
     "repitas la misma accion.")
 
 
-def _clean_text(value):
+def _clean_text(value, limit=MAX_TEXT):
     """A caption the user will see, with anything that is not text taken out."""
-    text = " ".join(str(value or "").split())
-    text = "".join(ch for ch in text if ch.isprintable())
-    return text[:MAX_TEXT]
+    # Unprintables come out FIRST and the spacing is tidied after. Doing it the
+    # other way round leaves the hole behind: a bell character between two words
+    # survives as its own token and turns into a double space nobody typed.
+    text = "".join(ch for ch in str(value or "") if ch.isprintable() or ch.isspace())
+    return " ".join(text.split())[:limit]
 
 
 # Does this prompt point at a moment at all? Asking a model costs seconds and,
@@ -378,6 +384,7 @@ MOMENT_RE = re.compile(
     r"al (final|principio|empezar|acabar|terminar)|ultim|primer|"  # una punta
     r"cuando (dice|habla|sale|aparece|cuenta|explica)|"            # por contenido
     r"en la parte|el trozo|el cacho|la parte donde|"
+    r"voz en off|locucion|narrad|que diga|di que|lee en voz|"      # pedir voz
     r"quita|elimin|borra|corta el|fuera el|"                       # sacar algo
     r"anad|añad|pon un|pon una|mete|inserta|cartel|tarjeta|"       # meter algo
     r"rotulo|rótulo|marca en|zoom en|acerca",
@@ -471,8 +478,12 @@ def actions(prompt, packed, duration, ai=None, model=None, log=None):
             if act["do"] == "cut" and until - at < MIN_CUT:
                 continue
             act["until"] = round(max(at + 0.2, until), 2)
-        if kind in ("title", "marker"):
-            act["text"] = _clean_text(item.get("text"))
+        if kind in ("title", "marker", "voice"):
+            # A spoken line gets more room than a caption, but goes through the
+            # same cleaner: the text arrives from a model reading a stranger's
+            # transcript and ends up inside a speech synthesiser.
+            act["text"] = _clean_text(item.get("text"),
+                                      MAX_SPOKEN if kind == "voice" else MAX_TEXT)
             if not act["text"] or act["text"].lower() in ECHOES:
                 continue
         if kind == "title":

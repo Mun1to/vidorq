@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLang } from "./i18n";
-import { IconKey, IconPlug } from "./Icons";
+import { IconKey, IconMic, IconPlug } from "./Icons";
 import Providers from "./Providers";
+import Voice from "./Voice";
 
 const AGENTS: { name: string; how: string }[] = [
   {
@@ -28,7 +29,7 @@ const AGENTS: { name: string; how: string }[] = [
 
 export default function Settings({ onClose }: { onClose: () => void }) {
   const { t } = useLang();
-  const [tab, setTab] = useState<"keys" | "agents">("keys");
+  const [tab, setTab] = useState<"keys" | "voice" | "agents">("keys");
   const [copied, setCopied] = useState("");
 
   function copy(name: string, text: string) {
@@ -46,6 +47,9 @@ export default function Settings({ onClose }: { onClose: () => void }) {
             <button className={tab === "keys" ? "sel" : ""} onClick={() => setTab("keys")}>
               <IconKey size={14} className="icon" />{t("set.keys")}
             </button>
+            <button className={tab === "voice" ? "sel" : ""} onClick={() => setTab("voice")}>
+              <IconMic size={14} className="icon" />{t("set.voice")}
+            </button>
             <button className={tab === "agents" ? "sel" : ""} onClick={() => setTab("agents")}>
               <IconPlug size={14} className="icon" />{t("set.agents")}
             </button>
@@ -55,6 +59,8 @@ export default function Settings({ onClose }: { onClose: () => void }) {
         <div className="modal-body">
           {tab === "keys" ? (
             <Providers />
+          ) : tab === "voice" ? (
+            <Voice />
           ) : (
             <>
               <p className="hint">{t("set.agents.sub")}</p>
