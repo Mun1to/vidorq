@@ -851,11 +851,42 @@ def drop_timelines(names):
     Only names this program created and wrote down are ever passed in. It never
     goes hunting for things that look like its own work, because a timeline
     somebody made by hand can look exactly like one of ours.
+
+    Two rules learned by watching Resolve die: never delete the timeline that is
+    currently open, and never delete a pile of them in one call.
     """
     if not names:
         return 0
-    got = bridge_post("/mediapool/clips/delete", {"clipNames": list(names)})
-    return int(got.get("deleted") or 0)
+    doomed = set(names)
+
+    # Primero, quitarse de encima el que se va a borrar. Resolve se CIERRA si le
+    # borras el timeline que tiene delante, y ese es justo el caso normal: la
+    # ronda anterior termino dejandolo abierto con el cabezal puesto. Visto en
+    # vivo el 2026-08-19, con la ventana de "DaVinci Resolve quit unexpectedly".
+    if (bridge_get("/timeline") or {}).get("name") in doomed:
+        total = int((bridge_get("/project") or {}).get("timelineCount", 0))
+        movido = False
+        for idx in range(1, total + 1):
+            got = bridge_post("/timeline/switch", {"index": idx})
+            if got.get("timeline") and got["timeline"] not in doomed:
+                movido = True
+                break
+        if not movido:
+            # No hay donde ponerse: en el proyecto solo estan los que iban a
+            # caer. Un timeline de sobra estorba; perder Resolve a mitad de una
+            # edicion no se parece en nada.
+            return 0
+
+    # De uno en uno, no en bloque. Veintidos de golpe fue lo que lo tiro, y asi
+    # un fallo se queda en un timeline en vez de llevarse la sesion entera.
+    gone = 0
+    for name in names:
+        try:
+            got = bridge_post("/mediapool/clips/delete", {"clipNames": [name]})
+            gone += int(got.get("deleted") or 0)
+        except Exception:
+            traceback.print_exc()
+    return gone
 
 
 def paint_clips(look, n, log=None):
