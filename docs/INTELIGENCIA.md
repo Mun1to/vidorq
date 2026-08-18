@@ -558,6 +558,104 @@ timeline hecho a mano puede parecerlo exactamente.
 Medido: la primera edición lleva el proyecto de 5 timelines a 7, y el cambio siguiente lo
 **deja en 7** reusando el mismo nombre.
 
+## 8c. Que entienda, y que conteste (`director.change` + `CAPABILITIES`)
+
+Munir escribió *«pon transiciones en cada corte»* y Vidorq rehizo la misma edición, volvió
+a colocar los mismos subtítulos, y no dijo nada. Tres fallos encadenados:
+
+1. **No entendió.** Los ajustes de un retoque salían solo de `from_words()`, y sus reglas
+   para transiciones eran dos: *disolvencia* y *fundido a negro*. «Transiciones» no encajaba
+   con **nada**.
+2. **Aunque hubiera entendido, no se podía.** La transición solo se pasaba al render MP4; en
+   la salida a Resolve se caía en silencio.
+3. **Al no entender nada, trabajó igual.** Rehacer el montaje entero para entregar un vídeo
+   idéntico.
+
+### El delta, no el plano entero
+
+`director.change(prompt, actual)` recibe **los ajustes que ya hay** y un **menú cerrado**, y
+devuelve solo las claves que cambian. Es distinto de `look()` a propósito: allí no hay nada
+elegido y se pide un plan completo; aquí ya hay un vídeo montado. Pedirle un plan entero a
+un modelo por una frase de cuatro palabras es como pedir que rehaga la casa porque quieres
+mover una silla: rellena todo lo demás con su opinión y te deshace el estilo de hace dos
+rondas.
+
+También se le pregunta **qué NO sabe hacer**. Un modelo con un sitio donde poner «eso no
+está en la lista» deja de tener que inventarse algo, que es de donde salen las respuestas
+raras.
+
+Las **palabras siguen mandando** sobre el modelo: son exactas, cuestan cero y ya estaba
+medido que aciertan donde el modelo se despista.
+
+Medido con Claude Code, partiendo de vertical/neon/rebote:
+
+| frase | qué devuelve |
+| --- | --- |
+| *pon transiciones en cada corte* | `{"transition": "dissolve"}` en 9,9 s, y **nada más** |
+| *quita los subtitulos* | `{"captions": false}` |
+| *ponle musica epica y subelo a youtube* | nada, y las dos cosas que no puede |
+| *dejalo como esta* | nada |
+
+### `CAPABILITIES`: una tabla, no una condición escondida
+
+Qué sabe hacer cada salida, en un sitio. Un turno calcula qué ha cambiado, luego cuáles de
+esos cambios **esta salida sabe llevar a cabo**, y si no sobrevive ninguno y no se pidió
+nada en un momento concreto, **contesta y para**. No se rehace nada.
+
+El aviso es **del turno que lo pidió**. Sin ese filtro, poner una transición en el turno 2
+hacía que el turno 5 siguiera diciendo «no puedo poner transiciones» por un ajuste que nadie
+había vuelto a mencionar, y un aviso que se repite es un aviso que se deja de leer.
+
+## 8d. Filtros de color (`skill/helpers/looks.py`)
+
+Ocho miradas, cada una escrita **una sola vez** como cuatro números de CDL (pendiente,
+desplazamiento, potencia, saturación). La fórmula es pública y determinista, y eso es lo que
+permite lo importante: **las dos salidas salen de los mismos números**.
+
+- **Resolve**: `item.SetCDL` por clip. Cae en la página de color como una corrección
+  primaria normal, que se puede abrir y seguir tocando. Un LUT sería una caja negra encima
+  del plano.
+- **MP4**: un `.cube` generado con esa misma fórmula, cacheado, y aplicado con `lut3d`.
+
+**Lo que prueba que no mienten:** mismo filtro, mismo fotograma, y el peor canal se separa
+**10 de 255**, el resto entre 2 y 5. La prueba de control lo cierra: **sin ningún filtro**,
+el mismo fotograma ya se separa 10, 7, 1 y 5. Esa distancia es la gestión de color de
+Resolve sobre el original, y el filtro **no añade nada**.
+
+Dos trampas medidas por el camino: la ruta del `.cube` va con **una** barra delante de los
+dos puntos (`file='C\:/...'`), porque sin escapar ffmpeg parte el filtro y con dos barras
+tampoco vale; y `("look", "bn", ...)` chocaba con la regla del fundido a negro, así que
+*«ponlo en blanco y negro»* pedía además una transición que nadie había pedido.
+
+## 8e. Animaciones generadas (`skill/helpers/overlays.py`)
+
+*«En Resolve no hay transiciones por API»* era verdad y era también el final de la
+conversación. Solo es verdad para las que **mezclan los dos planos**. Un fundido a negro no
+mezcla nada: **tapa**, y tapar es una capa encima del corte con su alfa animada.
+
+Es el mismo mecanismo de los subtítulos rápidos: `/media/insert` en una pista propia, frame
+exacto, duración exacta, sin mover el cabezal. Y funciona sobre un clip de vídeo cualquiera
+por la misma razón: **estas comps no tienen MediaIn**, así que el clip de debajo no entra en
+el grafo.
+
+| | en Resolve | en MP4 |
+| --- | --- | --- |
+| fundido a negro, a blanco, destello | **sí**, capa encima del corte | sí |
+| disolvencia, barrido, deslizamiento | no: hay que mezclar dos planos | sí |
+
+Cada capa se **centra en la unión**, para que el plano cambie mientras la pantalla está
+tapada, y se recorta a la mitad de su vecino más corto para que un corte rápido no se la
+coma entera.
+
+**El vocabulario es cerrado a propósito.** La IA elige de la lista y rellena parámetros;
+nunca escribe Fusion. La frase que está leyendo salió de la transcripción del vídeo de otro
+(regla AL), y a un modelo al que se le deja escribir nodos se le deja escribir cualquier
+cosa.
+
+Medido en una edición real: 6 trozos en V1, 5 capas en V3, y el fotograma del centro de la
+primera se exporta con brillo **0,0** mientras los de 30 fotogramas a cada lado están en
+51,7 y 60,0.
+
 ## 9. La voz en off (`skill/helpers/speech.py`)
 
 *"pon una voz en off en el segundo 5 que diga: atento a esto que viene"*, y en el video

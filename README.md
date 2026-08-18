@@ -107,9 +107,11 @@ picture.
 227 KB detector that runs on the CPU, so a vertical short does not cut the
 speaker out of frame. There is a manual slider when you would rather choose.
 
-**It keeps editing.** The screen at the end is not a dead end, it is where the
-work continues: type the next change and it is applied on top of the edit that
-exists. No re-transcribing, no re-deciding the cuts, and the settings carry
+**It keeps editing, and it answers.** The screen at the end is not a dead end,
+it is a conversation: type the next change and it is applied on top of the edit
+that exists, and every turn comes back saying what it did, what it could not do
+here and why, and what it did not understand. When something only works in the
+other output it offers to switch, instead of quietly doing nothing. No re-transcribing, no re-deciding the cuts, and the settings carry
 over. On a 30 s clip the first pass took 98 s and every change after it took
 7.5 s. Times are read on the clock of the EDIT, not the original file, because
 that is what you are looking at by then. In Resolve the previous version is
@@ -129,6 +131,16 @@ picture before you commit to it, made by the same renderer that makes the final
 video, on your own footage, with the crop aimed where it will really be aimed.
 The gallery puts all ten looks on one wall and the nine entrances animating over
 the one you picked, so choosing is looking rather than reading names.
+
+**Colour.** Eight filters, each defined once as ASC CDL numbers, so the MP4 and
+the Resolve timeline come out of the same maths. In Resolve they land as an
+ordinary primary correction you can keep adjusting by hand, not a baked-in look.
+
+**Transitions.** Dissolve, wipe, slide and the rest in the MP4. In Resolve, the
+ones that only cover the cut - dip to black, dip to white, flash - are built as
+animated layers on their own track, because Resolve's API has no transitions of
+its own. The ones that need both shots blended stay MP4-only, and Vidorq says
+so rather than dropping them.
 
 **Voice.** A prompt can ask for a voice-over at a given second. Windows' own
 synthesiser ships as the default, so it works with no key and no internet;
@@ -182,7 +194,9 @@ Antigravity, open the repo and ask the agent to read `skill/SKILL.md`.
 Resolve Free's scripting API is missing things, and pretending otherwise wastes
 your afternoon. Measured on 21.0.4.5:
 
-- **No transitions by API.** They exist in the MP4 output only.
+- **No transitions by API.** Worked around for the ones that only cover the
+  cut, which are built as animated layers instead. Dissolve, wipe and slide
+  have to blend both shots and stay MP4-only.
 - **No audio by API**, so a voice-over also comes out in the MP4 only. Vidorq
   says so when it finishes rather than handing back a silent timeline that
   looks done.
