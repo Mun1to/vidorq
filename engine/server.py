@@ -759,9 +759,41 @@ def resolve_clips():
     return out
 
 
+def drop_timelines(names):
+    """Throw away timelines Vidorq itself made on an earlier round.
+
+    A change used to leave the previous version behind, and each round leaves
+    TWO of them: the edit and its nested caption track. Five changes and the
+    project holds ten timelines nobody asked for.
+
+    There is no /timeline/delete on the bridge. But in Resolve a timeline sits
+    in the media pool like any other item, and MediaPool.DeleteClips takes it.
+    Measured: two names in, {"success": true, "deleted": 2}, both gone.
+
+    Only names this program created and wrote down are ever passed in. It never
+    goes hunting for things that look like its own work, because a timeline
+    somebody made by hand can look exactly like one of ours.
+    """
+    if not names:
+        return 0
+    got = bridge_post("/mediapool/clips/delete", {"clipNames": list(names)})
+    return int(got.get("deleted") or 0)
+
+
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
-                   workdir=None, anim="", chunks=None, ratio="source"):
+                   workdir=None, anim="", chunks=None, ratio="source",
+                   drop=None):
+    """Builds the edit in Resolve. Returns (what to tell the user, names made)."""
     name = Path(video).stem[:40]
+    # La version anterior se va ANTES de crear la nueva, para que el nombre bueno
+    # quede libre y el timeline no acabe llamandose "..._4" sin motivo.
+    if drop:
+        try:
+            drop_timelines(drop)
+        except Exception:
+            # Un timeline viejo que no se pudo borrar es suciedad, no un fallo.
+            traceback.print_exc()
+    mine = []
     fps, width, height = video_shape(video)
     out_w, out_h = out_frame(ratio, width, height)
     # The whole point of the Resolve output is watching the edit appear, and
@@ -785,6 +817,7 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
             break
     if not timeline:
         raise RuntimeError("No pude crear un timeline para '%s' en Resolve" % name)
+    mine.append(timeline)
     if (out_w, out_h) != (width, height):
         # A vertical timeline holding a wide clip letterboxes it, so the timeline
         # is reshaped and every clip is zoomed just enough to fill the new frame.
@@ -851,6 +884,7 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
                 workdir or Path(video).parent, out_w, out_h, fps,
                 log=lambda m: set_progress(tr("captioning"), 88, m), anim=anim)
             if out.get("timeline"):
+                mine.append(out["timeline"])
                 set_progress(tr("captioning"), 96, tr("nesting"))
                 resolve_captions.nest_subs(bridge_post, bridge_get_slow,
                                            timeline, out["timeline"])
@@ -862,7 +896,7 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     bridge_post("/page", {"page": "edit"})
     bridge_post("/playhead", {"timecode": start_tc})
     bridge_post("/project/save", {})
-    return made
+    return made, mine
 
 
 def to_edited(t, edl):
@@ -1490,6 +1524,7 @@ def run_job(req):
         # 4c) The spoken lines get made now, once the EDL is final, because a
         #     voice-over is placed by the clock of the EDITED video: every cut
         #     before it has already moved the second it belongs to.
+        made_names = []
         voice_files = []
         if want_voice:
             engine_id = req.get("voiceEngine") or speech.DEFAULT_ENGINE
@@ -1521,8 +1556,13 @@ def run_job(req):
             if not bridge_status()["bridge"]:
                 raise RuntimeError("No pude hablar con Resolve. Abre Resolve, un proyecto, "
                                    "y Workspace > Scripts > Vidorq")
-            result = output_resolve(video, edl, transcript, captions, caption_preset,
-                                    workdir, caption_anim, translated_chunks, ratio)
+            # En un retoque lo que hay que ver es la version nueva, no una
+            # coleccion de versiones. Los nombres a borrar salen del estado de la
+            # sesion, escritos por la ronda que los creo.
+            result, made_names = output_resolve(
+                video, edl, transcript, captions, caption_preset, workdir,
+                caption_anim, translated_chunks, ratio,
+                drop=(session_load(workdir).get("timelines") or []) if again else [])
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
                 # come back looking finished and be missing the voice, which is
@@ -1567,6 +1607,7 @@ def run_job(req):
                          "output": output},
             "history": (history if again else []) + ([prompt] if prompt else
                                                      [tr("history_first")]),
+            "timelines": made_names,
             "result": result,
         })
 
