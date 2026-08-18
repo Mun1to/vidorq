@@ -93,6 +93,7 @@ TEXT = {
         "cut_report": "%d cortes, %d muletillas fuera, %d tomas repetidas",
         "snapped": ", %d cortes movidos a un momento quieto",
         "jumps": ", %d saltos tapados cambiando el encuadre",
+        "beats": ", %d cortes sobre el movimiento",
         "translating": "Traduciendo los subtitulos a %s...",
         "srt_made": "Subtitulos guardados en %s",
         "directing": "Leyendo lo que has pedido...",
@@ -127,6 +128,7 @@ TEXT = {
         "cut_report": "%d cuts, %d filler words out, %d repeated takes",
         "snapped": ", %d cuts moved onto a still moment",
         "jumps": ", %d jump cuts hidden by changing the framing",
+        "beats": ", %d cuts placed on the action",
         "translating": "Translating the captions into %s...",
         "srt_made": "Captions saved to %s",
         "directing": "Reading what you asked for...",
@@ -385,8 +387,10 @@ def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=Tru
         seg["zoom"] = 1.0
         seg["note"] = ""
     merged, moved = snap_to_picture(merged, track)
+    merged, beat_cuts = cut_on_beats(merged, track)
     merged, hidden = hide_jump_cuts(merged, track)
     return merged, {"takes": dropped, "fillers": fillers, "cuts": len(merged),
+                    "beats": beat_cuts,
                     "snapped": moved, "jumps": hidden}
 
 
@@ -394,6 +398,55 @@ def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=Tru
 # purpose: enough that the join stops reading as a glitch, not so much that it
 # announces itself as an effect.
 JUMP_ZOOM = 1.07
+
+
+# A beat has to sit this far inside a segment to be worth cutting on. Cutting a
+# third of a second from either edge produces a flash, not an edit.
+BEAT_MARGIN_S = 0.8
+# How far in the tighter side of a beat cut sits. The two halves of a beat cut
+# are CONTIGUOUS - nothing was removed - so without a difference in framing the
+# split renders identically and the cut does not exist. Alternating in and out
+# across the beat is the punch-in every vlog editor does on an action, and 1.09
+# is enough to read as a new shot without looking like a zoom effect.
+BEAT_ZOOM = 1.09
+
+
+def cut_on_beats(edl, track, log=None):
+    """Split a shot where the picture does something, so the action gets a cut.
+
+    Speech says WHERE a cut is allowed; it says nothing about where one is
+    wanted. A jump, a whip pan, a hand thrown at the lens - an editor cuts on
+    those, and the cut is invisible because the motion covers it. Without this
+    Vidorq only ever cut at silences, so a ten second take with a jump in the
+    middle stayed one flat block.
+
+    The split alone changes nothing on screen; what makes it read as a cut is
+    hide_jump_cuts afterwards, which gives the two halves different framing.
+    That is why this runs BEFORE it.
+    """
+    if not track or not edl:
+        return edl, 0
+    marks = vision.beats(track)
+    if not marks:
+        return edl, 0
+    out, made = [], 0
+    for seg in edl:
+        a, b = float(seg["start"]), float(seg["end"])
+        inside = [t for t in marks if a + BEAT_MARGIN_S <= t <= b - BEAT_MARGIN_S]
+        if not inside:
+            out.append(seg)
+            continue
+        at, tight = a, False
+        for t in inside:
+            out.append(dict(seg, start=round(at, 3), end=round(t, 3),
+                            zoom=BEAT_ZOOM if tight else float(seg.get("zoom", 1.0))))
+            at, tight = t, not tight
+            made += 1
+        out.append(dict(seg, start=round(at, 3), end=round(b, 3),
+                        zoom=BEAT_ZOOM if tight else float(seg.get("zoom", 1.0))))
+    if log and made:
+        log("%d cortes puestos sobre el movimiento" % made)
+    return out, made
 
 
 def hide_jump_cuts(edl, track, zoom=JUMP_ZOOM):
@@ -1207,6 +1260,8 @@ def run_job(req):
                                 report.get("takes", 0)) + ")"
         if report.get("snapped"):
             detail += tr("snapped", report["snapped"])
+        if report.get("beats"):
+            detail += tr("beats", report["beats"])
         if report.get("jumps"):
             detail += tr("jumps", report["jumps"])
         set_progress(tr("decided"), 58, detail)

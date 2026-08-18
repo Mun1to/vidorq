@@ -316,6 +316,48 @@ def looks_same(track, t1, t2, limit=SAME_SHOT):
                         - np.array(b, dtype="float32")).mean()) < limit
 
 
+# How much louder than usual the picture has to get to count as a beat. The
+# median is the video's own resting level, so this adapts to a locked-off tripod
+# and to a handheld vlog without a number that only works on one of them.
+BEAT_OVER_MEDIAN = 4.0
+# Two beats closer than this are the same event seen twice: a jump is a landing,
+# a wobble and a settle, and it deserves one cut, not three.
+BEAT_APART_S = 1.2
+
+
+def beats(track, over=BEAT_OVER_MEDIAN, apart=BEAT_APART_S):
+    """The moments the picture does something, loudest first, then in time order.
+
+    A jump, a whip of the camera, a hand thrown at the lens. These are where an
+    editor cuts, and for a good reason that has nothing to do with taste: the
+    motion hides the join. It is the same fact hide_jump_cuts leans on, used
+    forwards instead of defensively.
+
+    Local maxima only, and spaced out: a jump produces a run of loud frames and
+    all of them are the same event.
+    """
+    import numpy as np
+    pts = [p for p in track if "diff" in p]
+    if len(pts) < 5:
+        return []
+    d = np.array([p["diff"] for p in pts], dtype="float32")
+    med = float(np.median(d))
+    if med <= 0:
+        return []
+    limit = med * over
+    picked = []
+    for i in range(1, len(pts) - 1):
+        if d[i] < limit or d[i] < d[i - 1] or d[i] < d[i + 1]:
+            continue
+        picked.append((float(d[i]), float(pts[i]["t"])))
+    picked.sort(reverse=True)                       # el mas fuerte manda
+    out = []
+    for strength, t in picked:
+        if all(abs(t - x) >= apart for x in out):
+            out.append(t)
+    return sorted(out)
+
+
 def motion_at(track, t):
     """How much the picture is moving at a given second."""
     if not track:

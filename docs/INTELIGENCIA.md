@@ -160,6 +160,29 @@ renderizar 1075 fotogramas         ~30 s   (NVENC)
 La vista y la traducción son **opcionales** (`vision`, `translate` en `/edit`), porque en un
 vídeo de una hora la parte del modelo se va a minutos y no todo el mundo la quiere siempre.
 
+## Cortar sobre el movimiento (`vision.beats` + `cut_on_beats`)
+
+El habla dice **donde se puede** cortar; no dice donde se **quiere**. Un salto, un latigazo
+de camara, una mano lanzada al objetivo: ahi es donde corta un editor, y el corte queda
+invisible porque el movimiento lo tapa. Es el mismo hecho en el que se apoya el punto 5,
+usado hacia delante en vez de a la defensiva.
+
+Sin esto Vidorq solo cortaba en los silencios, asi que una toma de diez segundos con un
+salto en medio se quedaba en un bloque plano.
+
+**Como se encuentra el golpe:** maximos locales del movimiento por encima de **4 veces la
+mediana del propio video**, que es su nivel de reposo, asi que vale igual para un tripode
+que para un vlog a pulso. Y separados **1,2 s**, porque un salto son un aterrizaje, un
+bamboleo y un asiento, y merece un corte, no tres. Medido sobre 40 s reales: **7 golpes**,
+uno cada 5,7 segundos, y el mas fuerte (12 veces la mediana) era la camara yendose a la
+cara. Comprobado exportando el fotograma y mirandolo.
+
+**El corte solo no se ve, y eso costo un intento.** Los dos lados de un corte sobre un
+golpe son **contiguos**, no se ha quitado nada, asi que se renderizan identicos y el corte
+no existe. Lo que lo hace visible es alternar el encuadre a los dos lados (`BEAT_ZOOM =
+1.09`), que es el punch-in que hace cualquier editor de vlog sobre una accion. Verificado
+sacando los dos fotogramas del corte y comparandolos.
+
 ## 5. Tapar los jump cuts
 
 Lo que más separa un vídeo cortado de un vídeo **editado**. Si quitas un silencio de un
