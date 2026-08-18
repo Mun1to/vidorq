@@ -27,6 +27,7 @@ import re
 import urllib.request
 
 import captions as cap
+import looks
 import providers
 from vision import available_models, ollama_host
 
@@ -191,13 +192,15 @@ def _change_system(current, lang="es"):
         "  captions: true o false\n"
         "  captionPreset: %s\n"
         "  captionAnim: %s\n"
-        "  cuts: %s\n\n"
+        "  cuts: %s\n"
+        "  look: %s\n\n"
         "En 'no_puedo' pon con tus palabras lo que el usuario ha pedido y no "
         "cabe en ninguna de esas claves. Si lo entiendes todo, dejalo vacio. Si "
         "no hay que cambiar ningun ajuste, devuelve 'cambia' vacio: eso es una "
         "respuesta correcta, no un fallo."
         % (json.dumps(current, ensure_ascii=False),
-           ", ".join(RATIOS), ", ".join(TRANSITIONS), styles, anims, ", ".join(CUTS)))
+           ", ".join(RATIOS), ", ".join(TRANSITIONS), styles, anims,
+           ", ".join(CUTS), ", ".join(looks.PRESETS)))
 
 
 def change(prompt, current, ai=None, model=None, log=None):
@@ -235,6 +238,8 @@ def change(prompt, current, ai=None, model=None, log=None):
         out["captionAnim"] = delta["captionAnim"]
     if delta.get("cuts") in CUTS:
         out["cuts"] = delta["cuts"]
+    if delta.get("look") in looks.PRESETS:
+        out["look"] = delta["look"]
     # Un delta que repite lo que ya habia no es un cambio, y contarlo como tal
     # hace que Vidorq diga "he puesto vertical" cuando ya estaba vertical.
     out = {k: v for k, v in out.items() if current.get(k) != v}
@@ -265,11 +270,21 @@ WORD_RULES = (
     ("cuts", "montage", r"resumen|mejores momentos|highlight|montaje|best bits|"
                         r"lo mejor\b"),
     ("cuts", "podcast", r"podcast|entrevista|preguntas y respuestas|\bq&a\b"),
-    ("transition", "dip", r"fundido a negro|dip to black|a negro|\bnegro\b"),
+    # Sin un "negro" suelto: "ponlo en blanco y negro" es un filtro de color, y
+    # con el comodin salia ademas un fundido a negro que nadie habia pedido.
+    ("transition", "dip", r"fundido a negro|dip to black|a negro"),
     ("transition", "white", r"fundido a blanco|dip to white|a blanco|\bflash\b|destello"),
     ("transition", "wipe", r"barrido|\bwipe\b"),
     ("transition", "slide", r"deslizamient|\bslide\b|desliza"),
     ("transition", "dissolve", r"disolvenc|\bfundido\b|cross ?dissolve"),
+    ("look", "bn", r"blanco y negro|\bb\W?n\b|monocrom|sin color|gris"),
+    ("look", "cine", r"\bcine\b|cinematograf|film look|\bpelicula\b|\bpelícula\b"),
+    ("look", "calido", r"\bcalid|\bcálid|mas calor|tono calido|atardecer|dorad"),
+    ("look", "frio", r"\bfrio\b|\bfrío\b|azulad|tono frio|mas frio"),
+    ("look", "verano", r"\bverano\b|veranieg|saturad|mas color|vivo|vibrante"),
+    ("look", "noche", r"\bnoche\b|nocturn|oscuro|\bdark\b"),
+    ("look", "vintage", r"vintage|retro|\bantiguo\b|años 80|anos 80|\bviejo\b"),
+    ("look", "none", r"sin filtro|quita el filtro|sin color grading|color normal"),
     # El generico va el ULTIMO, porque las reglas se leen en orden y la primera
     # que toca una clave gana: "fundido a negro" tiene que ganar a "transicion".
     # Sin esta linea, "pon transiciones en cada corte" no encajaba con NADA y el

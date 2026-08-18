@@ -63,6 +63,7 @@ import director  # noqa: E402
 import resolve_captions  # noqa: E402
 import faces  # noqa: E402
 import providers  # noqa: E402
+import looks  # noqa: E402
 import previews  # noqa: E402
 import speech  # noqa: E402
 
@@ -115,6 +116,9 @@ TEXT = {
         "did_caps": "%d subtitulos",
         "did_titles": "%d carteles",
         "did_voice": "%d voz en off",
+        "painting": "Coloreando en Resolve...",
+        "painting_help": "Una correccion primaria por clip, que puedes seguir tocando a mano",
+        "painted": "%d clips con el filtro '%s'",
         "refining": "Retoque %d: leyendo lo que pides...",
         "refine_kept": "Sigo sobre el montaje que ya hay (%d tramos). Cambias: %s",
         "refine_nothing_said": "solo lo de momentos concretos",
@@ -163,6 +167,9 @@ TEXT = {
         "did_caps": "%d captions",
         "did_titles": "%d cards",
         "did_voice": "%d voice line(s)",
+        "painting": "Grading in Resolve...",
+        "painting_help": "One primary correction per clip, still yours to adjust by hand",
+        "painted": "%d clips with the '%s' look",
         "refining": "Change %d: reading what you asked...",
         "refine_kept": "Carrying on from the edit you have (%d pieces). Changing: %s",
         "refine_nothing_said": "only the specific moments",
@@ -844,9 +851,31 @@ def drop_timelines(names):
     return int(got.get("deleted") or 0)
 
 
+def paint_clips(look, n, log=None):
+    """El filtro de color, clip a clip, con el CDL nativo de Resolve.
+
+    Los mismos numeros que el .cube del MP4 (skill/helpers/looks.py), asi que
+    las dos salidas se ven igual. Va por CDL y no por LUT a proposito: queda en
+    la pagina de color como una correccion primaria normal, que se puede abrir y
+    seguir tocando a mano. Un LUT seria una caja negra encima del plano.
+    """
+    if not look or look == looks.DEFAULT:
+        return 0
+    cdl = looks.resolve_cdl(look)
+    done = 0
+    for i in range(n):
+        got = bridge_post("/color/set-cdl", {"trackType": "video", "trackIndex": 1,
+                                             "clipIndex": i, "cdl": cdl})
+        if got.get("success"):
+            done += 1
+    if log:
+        log(tr("painted", done, look))
+    return done
+
+
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
                    workdir=None, anim="", chunks=None, ratio="source",
-                   drop=None):
+                   drop=None, look=""):
     """Builds the edit in Resolve. Returns (what to tell the user, names made)."""
     name = Path(video).stem[:40]
     # La version anterior se va ANTES de crear la nueva, para que el nombre bueno
@@ -929,6 +958,11 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
                                              "clipIndex": i, "properties": props})
 
     made = tr("timeline_made", timeline)
+    if look and look != looks.DEFAULT:
+        set_progress(tr("painting"), 80, tr("painting_help"))
+        paint_clips(look, len(edl),
+                    log=lambda m: set_progress(tr("painting"), 82, m))
+
     if captions:
         # Caption times have to follow the CUT video, not the original, so the
         # transcript is folded onto the edit before the chunks are built.
@@ -1353,9 +1387,11 @@ CANNOT_WHY = {
 # y no el de la cosa.
 SETTING_WORDS = {
     "es": {"ratio": "formato", "transition": "transicion", "captions": "subtitulos",
-           "captionPreset": "estilo", "captionAnim": "entrada", "cuts": "corte"},
+           "captionPreset": "estilo", "captionAnim": "entrada", "cuts": "corte",
+           "look": "color"},
     "en": {"ratio": "frame", "transition": "transition", "captions": "captions",
-           "captionPreset": "look", "captionAnim": "entrance", "cuts": "cut"},
+           "captionPreset": "look", "captionAnim": "entrance", "cuts": "cut",
+           "look": "colour"},
 }
 
 
@@ -1436,6 +1472,9 @@ def run_job(req):
         prompt = (req.get("prompt") or "").strip()
         ratio = req.get("ratio") or "source"
         transition = req.get("transition") or "none"
+        look = req.get("look") or ""
+        if look not in looks.PRESETS:
+            look = ""
         # The look of the captions. An unknown name falls back to the default
         # instead of failing an edit that has already been transcribed.
         caption_preset = req.get("captionPreset") or profile_load().get(
@@ -1474,6 +1513,7 @@ def run_job(req):
             captions = fresh.get("captions", captions)
             caption_preset = fresh.get("captionPreset") or caption_preset
             caption_anim = fresh.get("captionAnim", caption_anim)
+            look = fresh.get("look", look)
             output = fresh.get("output") or output
             if req.get("output"):
                 output = req["output"]
@@ -1493,6 +1533,7 @@ def run_job(req):
                                  log=lambda m: set_progress(tr("directing"), 7, m))
             ratio = plan["ratio"]
             transition = plan["transition"]
+            look = plan.get("look") or look
             captions = plan["captions"]
             caption_preset = plan["captionPreset"]
             caption_anim = plan["captionAnim"]
@@ -1764,7 +1805,8 @@ def run_job(req):
             result, made_names = output_resolve(
                 video, edl, transcript, captions, caption_preset, workdir,
                 caption_anim, translated_chunks, ratio,
-                drop=(session_load(workdir).get("timelines") or []) if again else [])
+                drop=(session_load(workdir).get("timelines") or []) if again else [],
+                look=look)
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
                 # come back looking finished and be missing the voice, which is
@@ -1783,6 +1825,8 @@ def run_job(req):
                     cmd += ["--crop-x", str(float(req["cropX"]))]
             if caption_anim:
                 cmd += ["--anim", caption_anim]
+            if look:
+                cmd += ["--look", look]
             if translated_chunks:
                 ch_path = workdir / "chunks_traducidos.json"
                 ch_path.write_text(json.dumps(translated_chunks, ensure_ascii=False),
@@ -1803,7 +1847,7 @@ def run_job(req):
         settings_now = {"ratio": ratio, "transition": transition,
                         "captions": captions, "captionPreset": caption_preset,
                         "captionAnim": caption_anim, "cuts": preset,
-                        "output": output}
+                        "look": look, "output": output}
         # Lo que ha pasado en este turno, contado. Se guarda con la sesion para
         # que la conversacion siga estando ahi despues de cerrar la ventana.
         did = said_it(changed, settings_now) if again else []
@@ -2036,6 +2080,7 @@ class Handler(BaseHTTPRequestHandler):
                         "anims": cap.anim_list(lang),
                         "animOf": {k: v["anim"] for k, v in cap.PRESETS.items()},
                         "langs": tl.LANGS,
+                        "looks": looks.catalogue(lang),
                         "transitions": TRANSITION_LABELS.get(lang, TRANSITION_LABELS["es"]),
                         "ratios": RATIO_LABELS.get(lang, RATIO_LABELS["es"])})
         else:

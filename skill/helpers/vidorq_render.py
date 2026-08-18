@@ -37,6 +37,7 @@ import av
 import numpy as np
 
 import captions as cap
+import looks
 
 AUDIO_RATE = 48000
 FADE_MS = 30
@@ -164,7 +165,8 @@ def shake_crop(zw, zh, zx, zy, secs=SHAKE_SECONDS, hz=SHAKE_HZ):
 
 
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
-                 preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5):
+                 preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5,
+                 look=""):
     src = av.open(source)
     vs = src.streams.video[0]
     w, h = vs.codec_context.width, vs.codec_context.height
@@ -174,6 +176,10 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
     if (out_w, out_h) != (w, h):
         print("RATIO: %s -> recorte %dx%d, salida %dx%d" % (ratio, crop_w, crop_h,
                                                             out_w, out_h), flush=True)
+
+    look_vf = looks.ffmpeg_filter(look) if look else None
+    if look_vf:
+        print("LOOK: %s" % look, flush=True)
 
     total = sum(max(1, round((float(s["end"]) - float(s["start"])) * fps))
                 for s in edl)
@@ -215,6 +221,11 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
                 vf.append(f"crop={zw}:{zh}:{zx}:{zy}")
         if vf:
             vf.append(f"scale={out_w}:{out_h}:flags=lanczos")
+        # El color va DESPUES del reencuadre y ANTES de los subtitulos: despues,
+        # porque asi se colorean menos pixeles; antes, porque un subtitulo
+        # blanco tiene que seguir siendo blanco y no salir teñido del filtro.
+        if look_vf:
+            vf.append(look_vf)
         if do_caps:
             cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, s, e, out_w, out_h,
                        preset, anim)
@@ -487,6 +498,9 @@ def main():
     # [{"at": segundos del video YA MONTADO, "path": archivo de audio}]. Llega en
     # un archivo y no en la linea de comandos porque una ruta con espacios y un
     # acento es exactamente el tipo de cosa que se rompe una vez al ano.
+    look = ""
+    if "--look" in sys.argv:
+        look = sys.argv[sys.argv.index("--look") + 1]
     voices = None
     if "--voices" in sys.argv:
         voices = json.loads(
@@ -508,12 +522,13 @@ def main():
     keep = sum(float(s["end"]) - float(s["start"]) for s in edl)
     print(f"EDL: {len(edl)} segmentos, {keep:.1f}s de material conservado "
           f"(captions={do_caps}:{preset}/{anim or 'propia'}, zoom={do_zoom}, "
-          f"transicion={transition}, formato={ratio}, "
+          f"transicion={transition}, formato={ratio}, color={look or 'ninguno'}, "
           f"voces={len(voices or [])})", flush=True)
     seg_dir.mkdir(exist_ok=True)
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
-                                 do_caps, do_zoom, preset, anim, ratio, crop_x)
+                                 do_caps, do_zoom, preset, anim, ratio, crop_x,
+                                 look)
         render_audio(source, edl, tmp_a, voices)
         concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out, transition)
     finally:
