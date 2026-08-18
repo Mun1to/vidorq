@@ -630,11 +630,62 @@ def edl_from_prompt(prompt, packed, key):
 # --------------------------------------------------------------------------- #
 # Output backends
 # --------------------------------------------------------------------------- #
+# One connection to the bridge, kept open, instead of a new one per call.
+#
+# Measured against the real bridge: a request that does nothing at all costs
+# 41.5 ms with a fresh connection and 2.0 ms on a reused one. Putting one
+# caption on a Resolve timeline takes three calls, and a ten minute video has
+# 751 captions, so the handshake alone was over a minute of pure waiting.
+#
+# urllib opens and closes a socket every time and offers no way not to, hence
+# http.client directly. It is guarded by a lock because the engine answers on
+# threads and a shared connection is not thread safe: two requests interleaved
+# on one socket come back as each other's answers.
+_bridge_conn = None
+_bridge_lock = threading.Lock()
+
+# And the host is written as 127.0.0.1 on purpose, never "localhost". Measured
+# on this machine: the same request through the name takes 2082 ms against
+# 41 ms through the address, because the resolver tries IPv6 first and waits
+# for it to fail. Two seconds a call, times 2253 calls, is forty minutes.
+BRIDGE_HOST, BRIDGE_PORT = "127.0.0.1", 9876
+
+
+def _bridge_call(method, path, body=None, timeout=30):
+    """One request on the shared connection, reopening it if it went away."""
+    global _bridge_conn
+    import http.client
+    data = json.dumps(body or {}).encode() if method == "POST" else None
+    head = {"Content-Type": "application/json"} if data is not None else {}
+    with _bridge_lock:
+        for attempt in (1, 2):
+            try:
+                if _bridge_conn is None:
+                    _bridge_conn = http.client.HTTPConnection(
+                        BRIDGE_HOST, BRIDGE_PORT, timeout=timeout)
+                # The timeout belongs to the socket, and it changes per call:
+                # two seconds for "are you alive", three minutes for "list the
+                # clips". Setting it on the live connection avoids reopening.
+                if _bridge_conn.sock is not None:
+                    _bridge_conn.sock.settimeout(timeout)
+                _bridge_conn.timeout = timeout
+                _bridge_conn.request(method, path, data, head)
+                return json.loads(_bridge_conn.getresponse().read().decode())
+            except Exception:
+                # A dead connection looks exactly like a dead bridge from here,
+                # so the first failure always earns one clean retry.
+                try:
+                    _bridge_conn.close()
+                except Exception:
+                    pass
+                _bridge_conn = None
+                if attempt == 2:
+                    raise
+    return {}
+
+
 def bridge_post(path, body):
-    req = urllib.request.Request(BRIDGE + path, data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"}, method="POST")
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read().decode())
+    return _bridge_call("POST", path, body, timeout=30)
 
 
 # How long to wait when the answer is a whole timeline. Two seconds is right for
@@ -654,8 +705,7 @@ def bridge_get_slow(path):
 def bridge_get(path, timeout=2):
     """One GET to the bridge, or None if it is down or has nothing to say."""
     try:
-        with urllib.request.urlopen(BRIDGE + path, timeout=timeout) as r:
-            data = json.loads(r.read().decode())
+        data = _bridge_call("GET", path, timeout=timeout)
     except Exception:
         return None
     return None if isinstance(data, dict) and data.get("error") else data
