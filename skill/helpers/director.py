@@ -265,7 +265,12 @@ WORD_RULES = (
     ("ratio", "square", r"\bcuadrad|\bsquare\b|1\s*[:x/]\s*1"),
     ("ratio", "portrait", r"4\s*[:x/]\s*5|\bretrato\b"),
     ("ratio", "wide", r"\bhorizontal|\bapaisad|16\s*[:x/]\s*9|\bwide\b"),
-    ("captions", False, r"sin subt[ií]tul|no subt[ií]tul|sin caption|no caption"),
+    # Ojo con el orden y con los verbos: esta regla va ANTES que la de poner,
+    # porque la de poner solo mira si aparece la palabra "subtitulo". Durante un
+    # tiempo aqui solo estaban "sin" y "no", asi que "quita los subtitulos"
+    # caia en la siguiente y los ENCENDIA.
+    ("captions", False, r"(sin|no|quita|quitar|fuera|borra|borrar|elimina|eliminar|"
+                        r"remove)\b[^.]{0,14}(subt[ií]tul|caption)"),
     ("captions", True, r"subt[ií]tul|caption|\brotul"),
     ("cuts", "montage", r"resumen|mejores momentos|highlight|montaje|best bits|"
                         r"lo mejor\b"),
@@ -285,12 +290,75 @@ WORD_RULES = (
     ("look", "noche", r"\bnoche\b|nocturn|oscuro|\bdark\b"),
     ("look", "vintage", r"vintage|retro|\bantiguo\b|años 80|anos 80|\bviejo\b"),
     ("look", "none", r"sin filtro|quita el filtro|sin color grading|color normal"),
-    # El generico va el ULTIMO, porque las reglas se leen en orden y la primera
-    # que toca una clave gana: "fundido a negro" tiene que ganar a "transicion".
-    # Sin esta linea, "pon transiciones en cada corte" no encajaba con NADA y el
-    # retoque se quedaba sin entender nada mientras rehacia el video entero.
-    ("transition", "dissolve", r"transicion|transición|transiciones"),
+    # Aqui NO va una regla generica para "transicion". La hubo, y devolvia
+    # "disolvencia", que es adivinar: la palabra dice que quieres una
+    # transicion, no cual. Ahora esa frase la recoge vague() y se pregunta,
+    # que ademas es la unica forma de que alguien vea que hay seis.
 )
+
+# Frases que nombran una CATEGORIA sin decir cual. "Pon transiciones" dice que
+# quieres transiciones, no cuales; "recorta bien el video" puede ser cambiar el
+# formato o quitar trozos. Antes esto se resolvia adivinando (transicion ->
+# disolvencia) o rindiendose ("no se hacer eso"), y las dos son peores que la
+# respuesta obvia, que es preguntar.
+#
+# Se mira DESPUES de las reglas literales: si la frase ya dijo "fundido a
+# negro", no hay nada que preguntar.
+VAGUE_RULES = (
+    ("transition", r"transicion|transición|transiciones|\btransition"),
+    ("captionPreset", r"subt[ií]tul|caption|\brotul"),
+    ("look", r"filtro|color grading|\bcolor\b(?!.*(negro|blanco))|\btono\b|"
+             r"\bfiltros\b|\blook\b"),
+    ("ratio", r"recorta|recortar|reencuadr|\bformato\b|\bencuadre\b"),
+    ("captionAnim", r"animaci[oó]n|animad|movimiento del texto"),
+)
+
+
+# Quitar algo no es pedir una opcion. "Quita los subtitulos" nombra la categoria
+# y no hay nada que preguntar: ya esta dicho lo que hay que hacer con ella.
+DROP_RE = re.compile(r"\bquita|\bquitar|\bsin\b|\bfuera\b|\bborra|\belimin|"
+                     r"\bno (quiero|pongas|me pongas)|\bremove\b|\bno\b \w+ (subt|caption)",
+                     re.I)
+
+# Elegir el estilo cierra la pregunta del estilo, no la de la entrada: son dos
+# decisiones y la segunda se encadena.
+#
+# `captions` NO cierra nada, y eso es deliberado: "ponle subtitulos" dice que
+# los quieres, no cuales, y ahi es donde hay que enseñar los diez estilos. El
+# caso contrario, "quita los subtitulos", ya lo para DROP_RE antes de llegar
+# aqui.
+FAMILY = {"captionPreset": ("captionAnim",)}
+
+# Que se pregunta DESPUES de elegir algo. Elegir un estilo de subtitulo deja
+# abierta la entrada, que es la conversacion natural: cuales, y como entran.
+NEXT_ASK = {"captionPreset": ["captionAnim"]}
+
+
+def vague(prompt, already):
+    """Que categorias nombra la frase sin decir cual, para poder preguntarlo.
+
+    `already` son las claves que ya quedaron decididas (por las palabras o por
+    el modelo); esas no se preguntan, que seria hacer repetir algo ya dicho.
+    """
+    low = " " + (prompt or "").lower() + " "
+    # Una eleccion ya pulsada no es vaga: es la respuesta. Y lleva dentro el
+    # nombre de la categoria ("pick:transition=dip"), asi que sin esta linea se
+    # preguntaba lo mismo otra vez, y otra, sin salida.
+    if low.strip().startswith("pick:"):
+        return []
+    if DROP_RE.search(low):
+        return []
+    cerradas = set(already)
+    for key in list(cerradas):
+        cerradas.update(FAMILY.get(key, ()))
+    out = []
+    for key, pattern in VAGUE_RULES:
+        if key in cerradas:
+            continue
+        if re.search(pattern, low, re.I):
+            out.append(key)
+    return out
+
 
 # A style named outright wins too. The keys are what someone would actually type.
 STYLE_WORDS = {

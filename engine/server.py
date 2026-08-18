@@ -1469,6 +1469,15 @@ def said_it(changed, settings):
         if key == "transition":
             value = (TRANSITION_LABELS.get(_lang, TRANSITION_LABELS["es"])
                      .get(value, value))
+        elif key == "ratio":
+            value = RATIO_LABELS.get(_lang, RATIO_LABELS["es"]).get(value, value)
+        elif key in ("look", "captionPreset", "captionAnim"):
+            # El nombre de la cosa, no su id. "color: bn" es como se llama la
+            # clave por dentro; lo que hay que leer es "Blanco y negro".
+            for opt in choices_for(key, _lang):
+                if opt["id"] == value:
+                    value = opt["label"]
+                    break
         out.append("%s: %s" % (words.get(key, key), value))
     return out
 
@@ -1497,6 +1506,69 @@ def blocked_by_output(output, settings, asked, want_voice=False, want_shake=Fals
     return out
 
 
+# Que se ofrece cuando hay que preguntar por una categoria. Cada opcion es un
+# id del catalogo de verdad, asi que pulsarla no vuelve a pasar por el modelo:
+# se aplica y punto.
+# Como viaja una eleccion pulsada. Es un prompt como cualquier otro para que
+# entre por el mismo sitio que lo demas y no haya un segundo camino que mantener.
+PICK = "pick:"
+
+
+def choices_for(key, lang="es"):
+    if key == "transition":
+        words = TRANSITION_LABELS.get(lang, TRANSITION_LABELS["es"])
+        return [{"id": t, "label": words.get(t, t)}
+                for t in director.TRANSITIONS if t != "none"]
+    if key == "captionPreset":
+        return [{"id": p["id"], "label": p["label"]} for p in cap.preset_list(lang)]
+    if key == "captionAnim":
+        return [{"id": a["id"], "label": a["label"]} for a in cap.anim_list(lang)]
+    if key == "look":
+        return [{"id": l["id"], "label": l["label"]} for l in looks.catalogue(lang)
+                if l["id"] != "none"]
+    if key == "ratio":
+        words = RATIO_LABELS.get(lang, RATIO_LABELS["es"])
+        return [{"id": r, "label": words.get(r, r)} for r in director.RATIOS]
+    return []
+
+
+ASK_WORDS = {
+    "es": {"transition": "¿Que transicion?", "captionPreset": "¿Que estilo de subtitulo?",
+           "captionAnim": "¿Como quieres que entren?", "look": "¿Que filtro de color?",
+           "ratio": "¿Que formato?"},
+    "en": {"transition": "Which transition?", "captionPreset": "Which caption look?",
+           "captionAnim": "How should they come in?", "look": "Which colour filter?",
+           "ratio": "Which frame?"},
+}
+
+
+def said_pick(prompt, lang="es"):
+    """Un boton pulsado, escrito como lo diria una persona.
+
+    Lo que viaja es "pick:transition=dip" porque entra por el mismo sitio que
+    todo lo demas, pero eso en la conversacion se lee como un error de la
+    maquina. Se guarda ya traducido.
+    """
+    key, _, value = prompt[len(PICK):].partition("=")
+    words = SETTING_WORDS.get(lang, SETTING_WORDS["es"])
+    for opt in choices_for(key, lang):
+        if opt["id"] == value:
+            return "%s: %s" % (words.get(key, key), opt["label"])
+    return "%s: %s" % (words.get(key, key), value)
+
+
+def ask_for(keys, lang="es"):
+    """Las preguntas pendientes, listas para pintarse como botones."""
+    words = ASK_WORDS.get(lang, ASK_WORDS["es"])
+    out = []
+    for key in keys:
+        options = choices_for(key, lang)
+        if options:
+            out.append({"what": key, "question": words.get(key, key),
+                        "options": options})
+    return out
+
+
 def refine_settings(prompt, base, ai=None, model=None, log=None):
     """Que ajustes deja esta frase, sobre los que ya habia.
 
@@ -1509,8 +1581,22 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
     Devuelve (ajustes, lo_que_cambio, lo_que_no_entendio).
     """
     out = dict(base)
+    # Una eleccion pulsada en el chat llega ya decidida ("pick:transition=dip").
+    # No pasa por el modelo: preguntarle que quiso decir alguien que acaba de
+    # pulsar un boton es tirar diez segundos y arriesgarse a que conteste otra
+    # cosa.
+    if prompt.startswith(PICK):
+        key, _, value = prompt[len(PICK):].partition("=")
+        return dict(base, **{key: value}), [key], []
     delta, cannot, _why = director.change(prompt, base, ai, model, log)
-    delta.update(director.from_words(prompt))
+    words = director.from_words(prompt)
+    delta.update(words)
+    # Lo que la frase nombra sin concretar se PREGUNTA, y por eso la suposicion
+    # del modelo para esa clave se cae aqui. Que el modelo conteste "disolvencia"
+    # a "pon transiciones" no significa que tu lo hayas dicho, y aplicarlo seria
+    # volver a adivinar por otro camino.
+    for key in director.vague(prompt, set(words)):
+        delta.pop(key, None)
     for key, value in delta.items():
         if key == "captionAnim" and value == "__any__":
             out["captionAnim"] = cap.PRESETS[
@@ -1718,6 +1804,20 @@ def run_job(req):
                 want_voice=False, want_shake=bool(req.get("shake")))
             dead = {b["what"] for b in blocked}
             useful = [k for k in changed if k not in dead]
+            # Categorias nombradas sin decir cual. "Pon transiciones" dice que
+            # quieres transiciones, no cuales. Antes se adivinaba (disolvencia) o
+            # se decia que no se entendia; las dos son peores que preguntar, y
+            # preguntar es ademas la unica que ensena lo que hay.
+            pending = ask_for(director.vague(prompt or "",
+                                             set(director.from_words(prompt or ""))),
+                              _lang)
+            if pending and not (prompt and director.wants_moments(prompt)):
+                answer = {"you": prompt, "did": [], "cannot": blocked,
+                          "unknown": [], "ask": pending, "offer": {}, "ok": False}
+                past["history"] = history + [answer]
+                session_save(workdir_for(video), past)
+                set_progress(tr("done"), 100, result=pending[0]["question"])
+                return
             if not useful and not (prompt and director.wants_moments(prompt)):
                 answer = {"you": prompt, "did": [], "cannot": blocked,
                           "unknown": not_understood,
@@ -1908,6 +2008,10 @@ def run_job(req):
 
         # Lo que hace falta para que la SIGUIENTE frase sea un retoque y no una
         # edicion desde cero. Se guarda al final, con el EDL ya definitivo.
+        # Que se acaba de elegir con un boton, si fue eso. Sirve para encadenar:
+        # elegido el estilo, la pregunta natural es como entran.
+        picked = (prompt[len(PICK):].partition("=")[0]
+                  if prompt.startswith(PICK) else "")
         settings_now = {"ratio": ratio, "transition": transition,
                         "captions": captions, "captionPreset": caption_preset,
                         "captionAnim": caption_anim, "cuts": preset,
@@ -1928,10 +2032,20 @@ def run_job(req):
         blocked = blocked_by_output(output, settings_now, set(changed),
                                     want_voice=bool(want_voice),
                                     want_shake=bool(req.get("shake")))
-        answer = {"you": prompt or tr("history_first"),
+        answer = {"you": (said_pick(prompt, _lang) if prompt.startswith(PICK)
+                          else (prompt or tr("history_first"))),
                   "did": [x for x in did if x],
                   "cannot": blocked,
                   "unknown": not_understood,
+                  # Se ha hecho algo Y ademas queda algo por concretar: se hace
+                  # lo que se entendio y se pregunta lo otro, en vez de parar el
+                  # trabajo por una duda que no lo impedia.
+                  "ask": (ask_for(director.NEXT_ASK[picked], _lang)
+                          if picked in director.NEXT_ASK
+                          else ask_for(director.vague(
+                              prompt or "", set(director.from_words(prompt or ""))),
+                              _lang))
+                         if again else [],
                   "offer": ({"kind": "mp4"} if blocked else {}),
                   "result": result,
                   "ok": True}

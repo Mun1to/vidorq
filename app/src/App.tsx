@@ -87,6 +87,10 @@ function App() {
   // levanta y se va en cuanto pone el primer corte.
   const [chat, setChat] = useState<Turn[]>([]);
   const [followUp, setFollowUp] = useState("");
+  // Lo que has escrito y todavia no ha corrido. El motor hace un trabajo cada
+  // vez, y antes el segundo mensaje se comia un 409 y desaparecia: la burbuja
+  // se quedaba puesta y no contestaba nadie. Ahora se hacen en fila.
+  const [queue, setQueue] = useState<string[]>([]);
   const [setup, setSetup] = useState(false);
   const [galOpen, setGalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -217,20 +221,45 @@ function App() {
     if (!video) { setChat([]); return; }
     if (phase === "running") return;
     apiGet<{ history: Turn[] }>(`/session?video=${encodeURIComponent(video)}`)
-      .then((d) => setChat(d.history || []))
-      .catch(() => setChat([]));
+      // Lo que sigue en la fila todavia no existe para el motor, asi que se
+      // vuelve a poner detras: sin esto, tus mensajes en espera desaparecian de
+      // la pantalla en cuanto contestaba el turno anterior.
+      .then((d) => setChat([...(d.history || []), ...queue.map((y) => ({ you: y }))]))
+      .catch(() => {});
   }, [video, phase]);
+
+  // Lo que se ensena de un boton pulsado hasta que contesta el motor.
+  function niceP(raw: string) {
+    const [what, id] = raw.slice(5).split("=");
+    const lista = what === "look" ? colours
+      : what === "captionAnim" ? capAnims
+      : what === "captionPreset" ? capStyles : [];
+    const hit = lista.find((x) => x.id === id);
+    return hit ? hit.label : (transitions[id] || ratios[id] || id);
+  }
 
   function askMore(text?: string) {
     const q = (text ?? followUp).trim();
-    if (!q || phase === "running") return;
+    if (!q) return;
     // Se pinta ya, sin esperar al motor: el mensaje propio tiene que aparecer
     // en el momento de enviarlo o parece que no se ha enviado. La respuesta la
     // trae despues /session, que es quien tiene la verdad.
-    setChat((c) => [...c, { you: q }]);
+    // La burbuja se pinta ya. Si es un boton, con su texto y no con el codigo
+    // que viaja por debajo; el motor la reescribe igual al guardarla.
+    setChat((c) => [...c, { you: q.startsWith("pick:") ? niceP(q) : q }]);
     setFollowUp("");
-    startEdit(q);
+    if (phase === "running") setQueue((qq) => [...qq, q]);
+    else startEdit(q);
   }
+
+  // Al terminar un turno, el siguiente de la fila. Sin esto, escribir tres
+  // cosas seguidas ejecutaba una y perdia dos.
+  useEffect(() => {
+    if (phase === "running" || queue.length === 0) return;
+    const [next, ...rest] = queue;
+    setQueue(rest);
+    startEdit(next);
+  }, [phase, queue]);
 
   // Un boton de la respuesta: "hazlo en MP4" relanza la MISMA frase con la otra
   // salida, en vez de obligar a escribirla de nuevo y a buscar el interruptor.
@@ -386,8 +415,9 @@ function App() {
           turns={chat}
           draft={followUp}
           onDraft={setFollowUp}
-          onSend={() => askMore()}
+          onSend={(text) => askMore(text)}
           onOffer={takeOffer}
+          onPick={(what, id) => askMore(`pick:${what}=${id}`)}
           onSetup={() => setSetup(true)}
           onNewVideo={() => {
             setPhase("idle"); setProgress({ step: "", percent: 0 }); setVideo("");

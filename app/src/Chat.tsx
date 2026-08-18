@@ -4,23 +4,48 @@ import { IconAlert, IconCheck, IconSliders, IconSpark, IconVideo } from "./Icons
 import logo from "./assets/logo.png";
 
 /** Un turno de la conversacion, tal y como lo guarda el motor en sesion.json. */
+export interface Ask {
+  what: string;
+  question: string;
+  options: { id: string; label: string }[];
+}
+
 export interface Turn {
   you: string;
   did?: string[];
   cannot?: { what: string; value?: string; why: string }[];
   unknown?: string[];
+  ask?: Ask[];
   offer?: { kind?: string };
   result?: string;
   ok?: boolean;
 }
+
+/** Atajos sobre el redactor: lo que la gente pide una y otra vez, a un toque.
+ *
+ *  Cada uno manda una frase normal, la misma que se podria escribir. Asi no hay
+ *  dos caminos que mantener: el boton no sabe nada que el chat no sepa, y lo
+ *  que pasa despues es lo mismo que si lo hubieras tecleado. Los que nombran
+ *  una categoria sin decir cual acaban en la pregunta con sus opciones, que es
+ *  justo lo que se quiere de un atajo: enseñarte lo que hay. */
+export const SHORTCUTS: { key: string; send: string }[] = [
+  { key: "sc.transition", send: "pon transiciones en cada corte" },
+  { key: "sc.look", send: "ponle un filtro de color" },
+  { key: "sc.captions", send: "ponle subtitulos" },
+  { key: "sc.anim", send: "cambia la animacion de los subtitulos" },
+  { key: "sc.vertical", send: "ponlo en vertical" },
+  { key: "sc.zoom", send: "haz un zoom en el segundo " },
+  { key: "sc.piece", send: "quita el trozo del minuto " },
+];
 
 interface Props {
   title: string;
   turns: Turn[];
   draft: string;
   onDraft: (v: string) => void;
-  onSend: () => void;
+  onSend: (text?: string) => void;
   onOffer: (kind: string) => void;
+  onPick: (what: string, id: string) => void;
   onSetup: () => void;
   onNewVideo: () => void;
   running: boolean;
@@ -43,7 +68,7 @@ interface Props {
  * lado. Un limite que ademas te ofrece la salida deja de ser un muro.
  */
 export default function Chat({
-  title, turns, draft, onDraft, onSend, onOffer, onSetup, onNewVideo,
+  title, turns, draft, onDraft, onSend, onOffer, onPick, onSetup, onNewVideo,
   running, step, detail, percent, error,
 }: Props) {
   const { t } = useLang();
@@ -79,7 +104,7 @@ export default function Chat({
             <p className="bubble you">{turn.you}</p>
 
             {(turn.did?.length || turn.cannot?.length || turn.unknown?.length
-              || turn.result) && (
+              || turn.ask?.length || turn.result) && (
               <div className="bubble them">
                 <img src={logo} alt="" className="bubble-logo" />
                 <div className="bubble-text">
@@ -100,6 +125,19 @@ export default function Chat({
                       {t("chat.unknown")} {turn.unknown.join("; ")}
                     </p>
                   )}
+                  {turn.ask?.map((a, k) => (
+                    <div className="ask" key={k}>
+                      <span className="ask-q">{a.question}</span>
+                      <div className="ask-opts">
+                        {a.options.map((o) => (
+                          <button key={o.id} className="offer small"
+                                  onClick={() => onPick(a.what, o.id)}>
+                            {o.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                   {turn.result && <code className="bubble-path">{turn.result}</code>}
                   {turn.offer?.kind === "mp4" && (
                     <button className="offer" onClick={() => onOffer("mp4")}>
@@ -137,17 +175,26 @@ export default function Chat({
         <div ref={endRef} />
       </div>
 
+      <div className="chips">
+        {SHORTCUTS.map((sc) => (
+          <button key={sc.key} onClick={() => {
+            // Los que acaban en espacio piden un numero: se dejan escritos en
+            // el redactor para que solo haya que completarlos.
+            if (sc.send.endsWith(" ")) onDraft(sc.send);
+            else onSend(sc.send);
+          }}>{t(sc.key as never)}</button>
+        ))}
+      </div>
+
       <div className="chat-foot">
         <input
           value={draft}
           onChange={(e) => onDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onSend(); }}
           placeholder={t("more.ph")}
-          disabled={running}
           autoFocus
         />
-        <button className="cta inline" onClick={onSend}
-                disabled={running || !draft.trim()}>
+        <button className="cta inline" onClick={() => onSend()} disabled={!draft.trim()}>
           <IconSpark size={15} className="icon" />{t("more.go")}
         </button>
       </div>
