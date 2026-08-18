@@ -692,6 +692,34 @@ def retime_transcript(transcript, edl):
     return {"duration": offset, "segments": segments}
 
 
+def packed_view(workdir, transcript, video):
+    """The compact phrase view the director reads, rebuilt if it went missing.
+
+    transcribe.py writes it next to transcript.json, but the engine reuses a
+    cached transcript by looking only for transcript.json. A workdir that kept
+    one file and lost the other used to take the edit down at this line, and the
+    error named a markdown file, which explains nothing to anyone. It is only
+    the transcript in fewer characters, so it can simply be written again.
+    """
+    path = Path(workdir) / "takes_packed.md"
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        pass
+    segs = transcript.get("segments", [])
+    text = ("# Transcripcion empaquetada\n\nVideo: %s\nDuracion: %.1fs | "
+            "Frases: %d | Idioma: %s\n\n" % (video, float(transcript.get("duration", 0)),
+                                             len(segs), transcript.get("language", "")))
+    text += "\n".join("[%07.2f-%07.2f] %s" % (float(s["start"]), float(s["end"]),
+                                              str(s.get("text", "")).strip())
+                      for s in segs)
+    try:
+        path.write_text(text, encoding="utf-8")
+    except OSError:
+        pass
+    return text
+
+
 # --------------------------------------------------------------------------- #
 # The job
 # --------------------------------------------------------------------------- #
@@ -803,7 +831,7 @@ def run_job(req):
         report = {}
         if prompt:
             key = load_config().get("anthropicKey", "")
-            packed = (workdir / "takes_packed.md").read_text(encoding="utf-8")
+            packed = packed_view(workdir, transcript, video)
             if look.get("shots"):
                 # The model reads the video instead of watching it: the visual
                 # track goes in next to the words, in the same shape.
