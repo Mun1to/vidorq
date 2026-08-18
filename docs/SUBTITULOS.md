@@ -26,6 +26,68 @@ Los 10 estilos: `pop`, `punch`, `marker`, `bar`, `glass`, `minimal`, `neon`, `em
 La app los pide al motor en `GET /captions/presets?lang=es`, así que **añadir uno es
 añadir un diccionario**: la interfaz se entera sola.
 
+## La galería: los 10 × 9 en una pared, y no en una lista de nombres
+
+Una fila de botones dice «Brasa» y «Halo». Ninguno de los dos significa nada hasta que se
+ve, que es la razón de que exista `skill/helpers/previews.py`. Hasta ahora solo se podía
+ver **uno cada vez**: eliges, esperas, miras, vuelves a elegir.
+
+La galería (`app/src/Gallery.tsx`, se abre desde la cabecera de la preview) enseña los
+**10 estilos** a la vez y las **9 entradas** animándose sobre el look que tengas elegido.
+Cada baldosa es un render de verdad sobre **tu** metraje: mismo ASS, mismo recorte, mismo
+detector de caras.
+
+### La baldosa es un primer plano, y tiene que serlo
+
+Primera pared que se montó: **cinco de los diez estilos eran una mancha ilegible**.
+
+El número: un subtítulo `minimal` mide un **3,4 % del ancho del cuadro** de alto. En una
+baldosa de 198 px eso son **menos de siete píxeles**. Y como el subtítulo es una fracción
+fija del cuadro, la única palanca para agrandarlo dentro de una baldosa de ancho fijo es
+**enseñar menos cuadro**.
+
+De ahí `BAND_W = 0.62` y `BAND_H = 0.70` en `previews.py`:
+
+- **El ancho manda.** Es el que decide el tamaño de la letra, porque la baldosa está
+  limitada por su ancho. La línea de muestra es corta y va centrada, y hasta `pop`, el más
+  gordo, ocupa un 42 %: con un 62 % sobra sitio para el halo, que se pinta fuera de las
+  letras.
+- **El alto es gratis.** No cambia el tamaño de la letra, solo la forma de la baldosa. Con
+  el recorte apretado a la mitad inferior, las diez baldosas de un vídeo hablando enseñaban
+  **el mismo par de vaqueros**. Subirlo a dos tercios devuelve a la persona al cuadro sin
+  coste.
+- **El recorte va DESPUÉS del filtro `subtitles`**, nunca antes: libass coloca el subtítulo
+  respecto al cuadro que le dan, así que recortar primero movería el subtítulo en vez de
+  encuadrarlo.
+
+El cuadro entero se sigue viendo en la preview de debajo, que responde a otra pregunta
+(«¿cómo va a quedar?»). Son dos trabajos distintos y por eso se ven distinto.
+
+### Dos cosas que se rompieron por el camino
+
+**Diecinueve peticiones a la vez.** Una galería pide todo de golpe, y los diecinueve hilos
+fallaban la caché de caras **en el mismo instante**: cada uno lanzaba su propia pasada de
+siete detecciones sobre el mismo archivo. Además compartían una carpeta de trabajo por
+salida, así que el primero en terminar la borraba debajo del segundo. Un `threading.Lock`
+alrededor de la pasada y carpetas con `uuid`. Medido en frío sobre un clip de 10 minutos:
+**19 previews en 3,5 s, una sola pasada de caras, cero carpetas huérfanas**.
+
+**La clave de caché no llevaba la banda.** Solo decía «sí o no», no *cuánto*. Resultado:
+cambiar `BAND_H` y seguir sirviendo el recorte de antes, o sea **una preview que miente**,
+que es justo lo único que este módulo no puede hacer. Ahora las fracciones van dentro de
+la clave (`_band_key`).
+
+### Lo que cuesta
+
+| | frío | después |
+| --- | --- | --- |
+| 10 estilos | 2,0 s | 0 |
+| 9 entradas (WebP animado) | 4,4 s | 0 |
+| las 19 en paralelo | **3,5 s** | 0 |
+
+Todo cacheado en disco bajo una clave hecha con lo que entró, así que la galería solo se
+paga la primera vez que se abre con ese vídeo.
+
 ## Los tres muros de Resolve Free, y por dónde se pasa
 
 Esto es lo que hace que los subtítulos animados sean posibles en la versión gratuita.

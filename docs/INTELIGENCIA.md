@@ -369,7 +369,7 @@ palabras, que en la prueba seguian acertando el vertical en 0,3 s.
 El punto 6 decide cosas **globales**: formato, estilo, transicion. Esto decide lo que
 pasa **en un segundo concreto**: *"pon un cartel que diga SUSCRIBETE en el segundo 12"*.
 
-Cuatro verbos, y son una lista cerrada:
+Cinco verbos, y son una lista cerrada:
 
 | verbo | que hace |
 | --- | --- |
@@ -377,6 +377,7 @@ Cuatro verbos, y son una lista cerrada:
 | `marker` | una marca en el timeline de Resolve |
 | `zoom` | acerca ese tramo |
 | `cut` | quita ese trozo |
+| `voice` | una voz en off que dice tu texto ahi (ver el punto 9) |
 
 Los tiempos van en segundos del video **original**, que es el unico reloj que el usuario
 ve; `to_edited()` los traslada al montaje, porque cada corte de delante mueve todo lo que
@@ -469,6 +470,71 @@ el sujeto quedaba cortado por el borde derecho; ahora entra entero. Sigue habien
 Un aviso medido: para vertical, el estilo de subtitulo se sube a `pop` si el elegido era
 demasiado fino, porque un short se ve en un movil a un brazo de distancia y un `minimal` de
 53 px alli no es un subtitulo, es una nota al pie.
+
+## 9. La voz en off (`skill/helpers/speech.py`)
+
+*"pon una voz en off en el segundo 5 que diga: atento a esto que viene"*, y en el video
+acabado hay alguien diciendolo.
+
+Mismo reparto que los proveedores de texto: **lo que viene de fabrica funciona sin clave y
+sin cuenta**, y pagar solo compra una version mejor de algo que ya esta.
+
+| motor | clave | como suena |
+| --- | --- | --- |
+| **`windows`** | no | la del propio equipo, via `System.Speech`. Gratis, sin internet, y suena a 2009. **El de serie** |
+| `elevenlabs` | si | la mejor del mercado hoy, y la que clona la tuya. Se paga por caracteres |
+| `openai` | si | la misma clave que ya usas para los prompts. Barata |
+| `custom` | si | cualquier endpoint con un `/audio/speech` al estilo de OpenAI |
+
+### Una linea hablada es texto de un desconocido metido en un programa
+
+La frase sale de la transcripcion, o de un modelo leyendo la transcripcion, o sea que sale
+del **video de otro**, y acaba siendo argumento de un proceso. Por eso **no se interpola
+nunca en una linea de comandos**: el texto, la voz y la ruta de salida se escriben en tres
+archivos UTF-8 y a PowerShell se le dice que los lea. No hay comillas que escapar mal
+porque no hay comillas.
+
+Medido: con la linea `Hola`; Remove-Item -Recurse -Force ...docs ; $(New-Item ... pwned.txt)`
+el sintetizador **leyo la puntuacion en voz alta**. Ni fichero creado ni carpeta borrada.
+
+### Se hace despues de los cortes, no antes
+
+Una voz en off se coloca por el reloj del video **ya montado**, y cada corte de delante ya
+ha movido el segundo al que pertenece. Asi que se sintetiza cuando el EDL esta cerrado, y
+el `at` pasa por `to_edited()` como todo lo demas. Una linea que caiga en un trozo cortado
+se descarta; una que caiga pasado el final del video se descarta tambien, en vez de alargar
+el video con una cola de alguien hablando sobre negro.
+
+### El original se agacha debajo
+
+`DUCK_TO = 0.30`, con `0.20 s` de rampa a cada lado y `0.15 s` de margen antes y despues.
+Los tres numeros son de radio de toda la vida: una bajada seca se lee como un fallo del
+archivo y una lenta se come la primera silaba. La curva se construye como un array de
+numpy y se aplica de una multiplicacion, no en un bucle por muestras.
+
+Un detalle que importa: la voz se suma **antes** del recorte a int16. Mezclar encima de una
+senal ya recortada haria que los picos se doblen en vez de agacharse.
+
+### Lo que no hace
+
+**En Resolve no hay voz.** La API de scripting no admite meter audio, igual que no admite
+transiciones. Se dice en pantalla al terminar (`voice_only_mp4`) en vez de devolver un
+timeline con pinta de acabado y en silencio.
+
+### Medido de punta a punta
+
+Clip de 30 s, modelo local, prompt *"pon una voz en off en el segundo 5 que diga: atento a
+esto que viene"*:
+
+| paso | resultado |
+| --- | --- |
+| `director.actions` | `{"do":"voice","at":10.0,"text":"atento a esto"}` en **11 s** |
+| `speech.say` | 0,8 s de proceso, 3,5 s de audio |
+| el mp4 final | correlacion **0,608** con la linea sintetizada en su sitio |
+| la cama debajo | **6907 -> 2882** de RMS mientras habla, y vuelve sola |
+
+Una correlacion de 0,6 con la onda sintetizada no se consigue por casualidad: la voz esta
+dentro del archivo, no en un log que dice que si.
 
 ## Cabos sueltos honestos
 

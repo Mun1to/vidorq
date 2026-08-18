@@ -110,14 +110,23 @@ speaker out of frame. There is a manual slider when you would rather choose.
 **Prompts.** "vertical, short style, animated subtitles" sets the frame shape,
 the subtitle style, the animation, the transition and the kind of cut. It also
 takes instructions aimed at **one moment**: "put a card saying SUBSCRIBE at
-second 12", "zoom in where he talks about the price", "cut that bit out". It
+second 12", "zoom in where he talks about the price", "cut that bit out",
+"put a voice at second 5 saying watch this". It
 works with **no API key** on a local model, and it never trusts the model
 blindly: verbs come from a closed list, times are checked against the real
 length, and anything invented produces nothing at all.
 
-**Previews.** Every look, entrance and crop is shown as a picture before you
-commit to it, made by the same renderer that makes the final video, on your own
-footage, with the crop aimed where it will really be aimed.
+**Previews and the gallery.** Every look, entrance and crop is shown as a
+picture before you commit to it, made by the same renderer that makes the final
+video, on your own footage, with the crop aimed where it will really be aimed.
+The gallery puts all ten looks on one wall and the nine entrances animating over
+the one you picked, so choosing is looking rather than reading names.
+
+**Voice.** A prompt can ask for a voice-over at a given second. Windows' own
+synthesiser ships as the default, so it works with no key and no internet;
+**ElevenLabs**, **OpenAI** and any OpenAI-compatible `/audio/speech` endpoint
+are there when it needs to sound like a person. The original audio ducks
+underneath the line. MP4 output only.
 
 ## Which AI thinks about your prompt
 
@@ -132,6 +141,9 @@ nothing leaves the computer. In `Settings > Model and AI` you can point it at:
 | **OpenRouter** | one key, hundreds of models |
 | Google Gemini | |
 | **OpenAI-compatible** | give it a base URL: Groq, DeepSeek, xAI, LM Studio, llama.cpp |
+
+`Settings > Voice` is the same idea for speech: Windows' own voice by default,
+then ElevenLabs, OpenAI or any OpenAI-compatible endpoint.
 
 The model list is asked of the provider live, so it is whatever they have today.
 Keys are stored per provider in `%APPDATA%/Vidorq/config.json`, outside this
@@ -155,6 +167,9 @@ Resolve Free's scripting API is missing things, and pretending otherwise wastes
 your afternoon. Measured on 21.0.4.5:
 
 - **No transitions by API.** They exist in the MP4 output only.
+- **No audio by API**, so a voice-over also comes out in the MP4 only. Vidorq
+  says so when it finishes rather than handing back a silent timeline that
+  looks done.
 - **No typewriter reveal.** Text+ accepts the parameters and ignores them.
 - **No gradient fill** inside a title comp. It crashed Resolve, so it is not
   attempted.
