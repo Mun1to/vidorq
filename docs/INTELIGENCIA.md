@@ -97,6 +97,53 @@ que sea, el render **vuelve al concat sin pérdida** en vez de tirar la edición
 **En Resolve no hay transiciones**, y esa limitación de la API sigue en pie tal cual: no hay
 forma de añadirlas por script. Lo que Vidorq monta en Resolve son cortes.
 
+## Transcribir: la parte lenta, y lo que la arregla
+
+Es el primer paso y el mas largo, asi que es el que el usuario se queda mirando.
+Estaba escrito a fuego con `device="cpu"` en un equipo con una RTX 5060 al lado.
+
+Medido sobre el mismo video de **10 minutos 43**, solo el tiempo de transcribir:
+
+| motor | modelo | tiempo |
+| --- | --- | --- |
+| CPU 16 hilos | `small` | **~16 minutos** |
+| tarjeta | `small` | 34 s |
+| tarjeta | `medium` | 49 s |
+| **tarjeta** | **`large-v3-turbo`** | **42 s de punta a punta** (23 s de transcripcion) |
+
+La sorpresa es que **`large-v3-turbo` es mas rapido que `small`** y ademas mucho mas
+preciso, asi que en tarjeta no hay discusion: `GPU_MODEL = "large-v3-turbo"`, y el camino
+de CPU se queda en `small` porque el grande alli seria insoportable. Lo que se maximiza es
+**calidad por segundo**, no la calidad sola ni los segundos solos.
+
+### Tres trampas, las tres medidas
+
+**Cargar el modelo en CUDA no demuestra nada.** `WhisperModel(device="cuda")` se construye
+tan tranquilo en una maquina sin las librerias de calculo, y revienta **a mitad** de la
+primera transcripcion con `cublas64_12.dll is not found`. La prueba de verdad es el primer
+trozo de audio, asi que la vuelta a CPU se decide ahi y no antes.
+
+**Las DLL de pip no estan en ninguna ruta de busqueda.** `pip install nvidia-cublas-cu12
+nvidia-cudnn-cu12` las deja en `site-packages/nvidia/<lib>/bin`, y ctranslate2 sigue
+diciendo que no las encuentra teniendolas al lado. **`os.add_dll_directory` NO basta**:
+solo cubre las cargas que pasan por el cargador de Python, y ctranslate2 se lo pide a
+Windows directamente. Lo que lee Windows es el `PATH`, y hay que ponerlo **antes** de
+importar `faster_whisper`, por eso se hace arriba del modulo y no dentro de una funcion.
+
+**El modo por lotes esta apagado a proposito.** Es mas rapido, y sobre el mismo clip de 40
+segundos devolvia **2 frases donde salen 12**: pega el habla por encima de los silencios.
+Vidorq corta en limites de frase y el director lee la lista de frases, asi que frases mas
+gordas son cortes mas gordos y menos material para razonar. Velocidad que estropea la
+edicion no es velocidad.
+
+### La barra ahora se mueve
+
+El motor lanzaba la transcripcion con `capture_output`, asi que **todas** las lineas de
+progreso morian dentro de la tuberia y la barra se quedaba en el 10% durante minutos. Una
+barra que no se mueve es peor que no tener barra: es la unica prueba que tiene el usuario
+de que el programa sigue vivo. Ahora se relee en directo y ademas dice que motor le ha
+tocado.
+
 ## Lo que cuesta, en números reales
 
 Sobre un recorte de 40 s con voz y cámara en mano:
