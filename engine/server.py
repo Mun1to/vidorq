@@ -45,6 +45,14 @@ CONFIG_DIR = Path(os.environ.get("APPDATA", ".")) / "Vidorq"
 CONFIG = CONFIG_DIR / "config.json"
 BRIDGE = "http://127.0.0.1:9876"
 
+# Windows gives every child process its own console window when the parent has
+# none, and the parent here has none: Resolve starts the engine with pythonw so
+# nothing flashes. The result was the opposite, a console blinking on screen for
+# every single ffmpeg, and with one ffmpeg per preview that is a blink on every
+# button press. CREATE_NO_WINDOW is what stops it, and it does not exist off
+# Windows, hence the getattr.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 # The caption presets and the filler-word lists live with the renderers that use
 # them, so the engine borrows them instead of keeping a second copy.
 sys.path.insert(0, str(HELPERS))
@@ -926,7 +934,8 @@ def packed_view(workdir, transcript, video):
 def run_render(cmd, out_file, timeout=7200):
     """Run the renderer relaying its PROGRESS lines to /progress in real time."""
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                            text=True, encoding="utf-8", errors="replace")
+                            text=True, encoding="utf-8", errors="replace",
+                            creationflags=NO_WINDOW)
     killer = threading.Timer(timeout, proc.kill)
     killer.start()
     tail = deque(maxlen=25)
@@ -1003,7 +1012,8 @@ def run_job(req):
             set_progress(tr("transcribing"), 10,
                          "La primera vez descarga el modelo; puede tardar unos minutos")
             r = subprocess.run([PYTHON, str(HELPERS / "transcribe.py"), video, str(workdir)],
-                               capture_output=True, text=True, timeout=3600)
+                               capture_output=True, text=True, timeout=3600,
+                               creationflags=NO_WINDOW)
             if r.returncode != 0 or not tr_path.exists():
                 raise RuntimeError("Fallo transcribiendo: " + (r.stderr or r.stdout)[-400:])
         transcript = json.loads(tr_path.read_text(encoding="utf-8"))

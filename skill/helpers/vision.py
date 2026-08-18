@@ -109,7 +109,8 @@ def _thumbs_ffmpeg(video, sample_fps):
         [exe, "-hide_banner", "-loglevel", "error", "-nostdin", "-i", str(video),
          "-vf", "fps=%g,scale=%d:%d" % (sample_fps, THUMB_W, THUMB_H),
          "-f", "rawvideo", "-pix_fmt", "gray", "-"],
-        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     out = []
     try:
         while True:

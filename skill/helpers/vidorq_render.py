@@ -41,6 +41,13 @@ import captions as cap
 AUDIO_RATE = 48000
 FADE_MS = 30
 
+# Windows gives every child process its own console window when the parent has
+# none, and the parent here has none: Resolve starts the engine with pythonw so
+# nothing flashes. The result was the opposite, a console blinking on screen for
+# every single ffmpeg, and there is one ffmpeg per segment. CREATE_NO_WINDOW is
+# what stops it, and it does not exist off Windows, hence the getattr.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 # keys ffmpeg -progress writes to stdout; anything else on the merged
 # stdout/stderr stream is kept as the error tail
 PROGRESS_KEYS = ("frame=", "fps=", "stream_", "bitrate=", "total_size=",
@@ -69,7 +76,8 @@ def run_ffmpeg_progress(cmd, cwd: Path, base: int, total: int):
     """Run ffmpeg relaying -progress frame counts as global PROGRESS lines."""
     p = subprocess.Popen(cmd, cwd=str(cwd), stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT, text=True,
-                         encoding="utf-8", errors="replace")
+                         encoding="utf-8", errors="replace",
+                         creationflags=NO_WINDOW)
     frames = 0
     tail = deque(maxlen=15)
     for line in p.stdout:
@@ -228,7 +236,8 @@ def concat_with_transitions(ffmpeg, seg_dir: Path, seg_files, out_path, kind, du
     cmd += ["-filter_complex", ";".join(steps), "-map", "[%s]" % last,
             "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
             "-pix_fmt", "yuv420p", "-an", "-y", str(out_path)]
-    r = subprocess.run(cmd, capture_output=True, text=True)
+    r = subprocess.run(cmd, capture_output=True, text=True,
+                       creationflags=NO_WINDOW)
     if r.returncode != 0:
         print("xfade failed, falling back to hard cuts: %s" % (r.stderr or "")[-200:],
               flush=True)
@@ -264,7 +273,8 @@ def concat_and_mux(ffmpeg, seg_dir: Path, seg_files, audio_path, out_path,
                "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", str(audio_path),
                "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
                "-movflags", "+faststart", "-y", str(out_path)]
-    r = subprocess.run(cmd, cwd=str(seg_dir), capture_output=True, text=True)
+    r = subprocess.run(cmd, cwd=str(seg_dir), capture_output=True, text=True,
+                       creationflags=NO_WINDOW)
     if r.returncode != 0:
         raise RuntimeError("ffmpeg concat failed: " + (r.stderr or "")[-300:])
     print(f"MUX_OK: {out_path}", flush=True)

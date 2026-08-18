@@ -47,6 +47,15 @@ LOOP_FPS = 20
 BLANK = "0x14141a"
 
 
+# Windows gives every child process its own console window when the parent has
+# none, and the parent here has none: Resolve starts the engine with pythonw so
+# nothing flashes. The result was the opposite, a console blinking on screen for
+# every single ffmpeg, and with one ffmpeg per preview that is a blink on every
+# button press. CREATE_NO_WINDOW is what stops it, and it does not exist off
+# Windows, hence the getattr.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 def ffmpeg():
     return shutil.which("ffmpeg")
 
@@ -122,7 +131,7 @@ def _grab_fast(video, at, width=640):
         [exe, "-hide_banner", "-loglevel", "error", "-nostdin",
          "-ss", "%.2f" % at, "-i", video, "-frames:v", "1",
          "-vf", "scale=%d:-2" % width, "-f", "image2pipe", "-vcodec", "mjpeg", "-"],
-        capture_output=True, timeout=60)
+        creationflags=NO_WINDOW, capture_output=True, timeout=60)
     return p.stdout or None
 
 
@@ -229,7 +238,7 @@ def style_still(preset, ratio="source", video="", lang="es", anim=None,
         subprocess.run(
             [exe, "-hide_banner", "-loglevel", "error", "-nostdin"] + src +
             ["-frames:v", "1", "-vf", ",".join(vf), "-y", "out.png"],
-            cwd=str(work), capture_output=True, timeout=90, check=True)
+            cwd=str(work), creationflags=NO_WINDOW, capture_output=True, timeout=90, check=True)
         shutil.move(str(tmp_out), str(dest))
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -261,7 +270,7 @@ def anim_loop(anim, preset=cap.DEFAULT_PRESET, ratio="source", video="",
             [exe, "-hide_banner", "-loglevel", "error", "-nostdin"] + src +
             ["-t", "%.2f" % LOOP_SECONDS, "-vf", ",".join(vf),
              "-loop", "0", "-quality", "70", "-y", "out.webp"],
-            cwd=str(work), capture_output=True, timeout=120, check=True)
+            cwd=str(work), creationflags=NO_WINDOW, capture_output=True, timeout=120, check=True)
         shutil.move(str(work / "out.webp"), str(dest))
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -287,7 +296,7 @@ def ratio_still(ratio, video="", width=1920, height=1080, at=1.0):
     subprocess.run(
         [exe, "-hide_banner", "-loglevel", "error", "-nostdin"] + src +
         ["-frames:v", "1", "-vf", ",".join(vf), "-y", str(tmp)],
-        capture_output=True, timeout=90, check=True)
+        creationflags=NO_WINDOW, capture_output=True, timeout=90, check=True)
     shutil.move(str(tmp), str(dest))
     return dest
 
