@@ -24,6 +24,7 @@ escribir codigo de nodos es un modelo al que se le deja escribir cualquier cosa.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import captions as cap
@@ -50,6 +51,43 @@ KINDS = {
     },
 }
 
+# Los que llevan texto. No son una transicion: no van en el corte, van donde el
+# usuario diga y duran lo que el diga. Comparten catalogo con las de arriba para
+# que la interfaz y el prompt del director tengan una sola lista que leer.
+#
+# Las medidas (`size`, `y`) siguen la escala de captions.py, que es fraccion del
+# ANCHO del cuadro y no del alto. Eso ya esta medido alli y no se rediscute.
+KINDS.update({
+    "rotulo": {
+        "label": {"es": "Rotulo", "en": "Lower third"},
+        "note": {"es": "Una barra abajo con tu texto encima. El de las entrevistas.",
+                 "en": "A bar at the bottom with your text on it. The interview one."},
+        "shape": "text", "y": 0.14, "size": 0.052,
+        "font": "Arial", "style": "Bold",
+        "fill": (1.0, 1.0, 1.0),
+        # r, g, b, alpha, grosor: el panel del Text+, que es la barra.
+        "panel": (0.06, 0.07, 0.10, 0.88, 0.80),
+        "tracking": 0.0, "pop": 0.0,
+    },
+    "chapa": {
+        "label": {"es": "Chapa", "en": "Badge"},
+        "note": {"es": "Una etiqueta pequena arriba, en amarillo. Para avisos cortos.",
+                 "en": "A small tag at the top, in yellow. For short notices."},
+        "shape": "text", "y": 0.86, "size": 0.040,
+        "font": "Arial", "style": "Black",
+        "fill": (0.08, 0.08, 0.08),
+        "panel": (1.0, 0.84, 0.0, 1.0, 0.90),
+        "tracking": 0.02, "pop": 0.18,
+    },
+})
+
+# Los que llevan texto, para poder preguntar por ellos sin ensenar transiciones.
+WITH_TEXT = ("rotulo", "chapa")
+
+# Cuanto dura uno de texto si nadie dice nada. Tres segundos es lo que se tarda
+# en leer un nombre y un cargo sin correr.
+TEXT_SECONDS = 3.0
+
 # Cuanto dura un overlay de transicion, en segundos. Corto: una transicion que
 # se nota mas que el corte es una transicion que estorba.
 SECONDS = {"dip": 0.5, "white": 0.4, "flash": 0.18}
@@ -60,10 +98,11 @@ SECONDS = {"dip": 0.5, "white": 0.4, "flash": 0.18}
 AS_OVERLAY = {"dip": "dip", "white": "white", "flash": "flash"}
 
 
-def kind_list(lang="es"):
+def kind_list(lang="es", only=None):
+    """El catalogo para la interfaz y para el prompt. `only` filtra la familia."""
     return [{"id": k, "label": v["label"].get(lang, v["label"]["en"]),
              "note": v["note"].get(lang, v["note"]["en"])}
-            for k, v in KINDS.items()]
+            for k, v in KINDS.items() if only is None or k in only]
 
 
 def seconds(kind):
@@ -82,14 +121,107 @@ def _fade_keys(dur, peak):
     return [(0, 0.0), (mid, float(peak)), (end, 0.0)]
 
 
-def to_comp(path, kind, w, h, dur):
+def to_comp(path, kind, w, h, dur, text=""):
     """Escribe el .comp de este overlay. Devuelve la ruta.
+
+    Dos formas: un color solido con la opacidad animada (las transiciones) y un
+    Text+ con su barra (el rotulo y la chapa). Decide el propio tipo, no quien
+    llama, para que anadir uno nuevo sea anadir una entrada a KINDS.
+    """
+    k = KINDS.get(kind) or KINDS["dip"]
+    if k.get("shape") == "text":
+        return _text_comp(path, k, kind, w, h, dur, text)
+    return _solid_comp(path, k, kind, w, h, dur)
+
+
+def _text_comp(path, k, kind, w, h, dur, text):
+    """Un Text+ con panel, que entra y sale con su curva.
+
+    El texto viene de lo que ESCRIBIO el usuario en el chat, que es la unica
+    fuente de ordenes de la casa, o de la transcripcion, que es un dato y se
+    dibuja tal cual sin obedecerlo. En los dos casos se escapa antes de entrar
+    en el archivo: una comilla suelta convierte el .comp en algo que Fusion no
+    abre, y ese escapado ya vive en captions._fu_str.
+    """
+    import captions as _cap
+    # Los espacios seguidos dejan una muesca en la barra, porque cada caracter
+    # trae su propio recuadro y el del espacio es estrecho. Se ve en el borde de
+    # arriba y de abajo, y se arregla en el texto, no subiendo mas el grosor.
+    text = re.sub(r"\s+", " ", (text or "")).strip()
+    # El tamano no puede pasarse de ancho: un Text+ NO parte la linea, se sale
+    # del cuadro por los dos lados. El tope es el mismo que usan los subtitulos.
+    size = float(k["size"]) * 2.259 * (_cap.line_ref(w, h) / max(1.0, float(w)))
+    size = min(size, _cap.FIT / (_cap.CHAR_ADVANCE * max(1, len(text or "x"))))
+
+    # Entrada y salida. Aqui no hay eleccion de animacion a proposito: un rotulo
+    # que entra distinto cada vez distrae del video en vez de rotularlo.
+    beat = max(2, min(int(round(dur * 0.18)), 8))
+    last = max(1, dur - 1)
+    fade = [(0, 0.0), (beat, 1.0)]
+    if last > beat + 2:
+        fade += [(max(beat + 1, last - beat), 1.0), (last, 0.0)]
+    tools = _cap._spline("Entra", fade)
+    wires = {"Alpha1": "Entra"}
+    if k.get("pop"):
+        # La chapa aterriza: empieza mas grande y se asienta. El valor final es
+        # el de arriba y no uno mayor, para que no se salga del cuadro al entrar.
+        tools += _cap._spline("Salta", [(0, size * (1.0 + float(k["pop"]))),
+                                        (beat, size)])
+        wires["Size"] = "Salta"
+
+    els = [(1, 0, k["fill"], 1.0, [])]
+    r, g, b, a, th = k["panel"]
+    els.append((2, 3, (r, g, b), a, [
+        "Thickness2 = Input { Value = %.4f, }," % th,
+        "Softness2 = Input { Value = 0.01, },",
+    ]))
+    # El panel se funde con la misma curva, o la barra aparece de golpe y el
+    # texto entra despues encima, que se ve mal y se vio.
+    wires["Alpha2"] = "Entra"
+
+    inputs = _cap._text_inputs(k, {"text": text or ""}, w, h, dur, wires,
+                               size, float(k["y"]), els)
+    comp = (
+        'Composition {\n'
+        '\tCurrentTime = 0,\n'
+        '\tRenderRange = { 0, %d },\n'
+        '\tGlobalRange = { 0, %d },\n'
+        '\tCurrentID = 9,\n'
+        '\tHiQ = true,\n'
+        '\tCustomData = {\n'
+        '\t\tTEMPLATE_ID = "Text+",\n'
+        '\t\tVIDORQ_OVERLAY = "%s"\n'
+        '\t},\n'
+        '\tTools = {\n'
+        '%s'
+        '\t\tTemplate = TextPlus {\n'
+        '\t\t\tInputs = {\n'
+        '\t\t\t\t%s\n'
+        '\t\t\t},\n'
+        '\t\t\tViewInfo = OperatorInfo { Pos = { 220, 49.5 } },\n'
+        '\t\t},\n'
+        '\t\tMediaOut1 = Saver {\n'
+        '\t\t\tInputs = {\n'
+        '\t\t\t\tIndex = Input { Value = "0", },\n'
+        '\t\t\t\tInput = Input { SourceOp = "Template", Source = "Output", },\n'
+        '\t\t\t},\n'
+        '\t\t\tViewInfo = OperatorInfo { Pos = { 385, 49.5 } },\n'
+        '\t\t},\n'
+        '\t},\n'
+        '}\n'
+        % (last, last, kind, tools, inputs)
+    )
+    Path(path).write_text(comp, encoding="utf-8")
+    return Path(path)
+
+
+def _solid_comp(path, k, kind, w, h, dur):
+    """Un color plano que se funde. Es toda la transicion.
 
     Mismo esqueleto que captions.to_comp y la misma BezierSpline, que se reusa
     de alli para no tener dos formas distintas de escribir un keyframe en el
     mismo programa.
     """
-    k = KINDS.get(kind) or KINDS["dip"]
     r, g, b = k["rgb"]
     spline = cap._spline("Fundido", _fade_keys(dur, k["peak"]))
     last = max(1, dur - 1)
@@ -132,6 +264,29 @@ def to_comp(path, kind, w, h, dur):
     )
     Path(path).write_text(comp, encoding="utf-8")
     return Path(path)
+
+
+def at_times(items, fps, start_frame, span=None):
+    """Donde va cada overlay de texto: en su segundo, con su duracion.
+
+    Los segundos de `items` son YA de tiempo de montaje, que es lo unico que
+    significa algo una vez los cortes estan hechos. El que no cabe se cae en
+    silencio: colocarlo fuera del timeline no da error, deja un hueco al final.
+    """
+    out = []
+    for it in items or []:
+        kind = it.get("kind") or "rotulo"
+        if KINDS.get(kind, {}).get("shape") != "text":
+            continue
+        dur = max(2, int(round(float(it.get("secs") or TEXT_SECONDS) * fps)))
+        frame = start_frame + int(round(float(it.get("at", 0.0)) * fps))
+        if frame < start_frame:
+            frame = start_frame
+        if span is not None and frame + dur > start_frame + span:
+            continue
+        out.append({"frame": frame, "dur": dur, "kind": kind,
+                    "text": str(it.get("text") or "")[:90]})
+    return out
 
 
 def at_cuts(edl, kind, fps, start_frame, span=None):
