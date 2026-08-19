@@ -330,7 +330,9 @@ WORD_RULES = (
 # negro", no hay nada que preguntar.
 VAGUE_RULES = (
     ("transition", r"transicion|transición|transiciones|\btransition"),
-    ("captionPreset", r"subt[ií]tul|caption|\brotul"),
+    # Sin "rotul": desde que existe el rotulo de verdad, esa palabra pide UNA
+    # cosa concreta y no la pregunta de que estilo de subtitulo quieres.
+    ("captionPreset", r"subt[ií]tul|caption"),
     ("look", r"filtro|color grading|\bcolor\b(?!.*(negro|blanco))|\btono\b|"
              r"\bfiltros\b|\blook\b"),
     # Nota: "mejora el color" cae aqui por la palabra "color", pero la regla de
@@ -641,12 +643,38 @@ def wants_moments(prompt):
 
 # Pedir una cosa que pasa EN UN SITIO, sin decir en cual. "Haz un zoom" es eso:
 # se entiende el que, falta el donde.
+# Con que pinta se dibuja lo que se pide poner. La clave es la del catalogo de
+# overlays.py; la cadena vacia quiere decir "como hasta ahora", o sea con la
+# misma pinta que los subtitulos, que sigue siendo lo que hace un "cartel".
+TITLE_STYLES = (
+    ("rotulo", r"\br[oó]tulo\b|\brotulo\b|lower ?third|\bfald[oó]n\b|"
+               r"\bbanner\b|barra con (mi|el|su) nombre"),
+    ("chapa", r"\bchapa\b|\betiqueta\b|\bpegatina\b|\bbadge\b|\bsello\b|"
+              r"\bplaca\b"),
+)
+
+
+def title_style(prompt):
+    """Con que pinta van los carteles de esta frase, o "" para la de siempre.
+
+    Uno por frase y no uno por cartel: si alguien pide "un rotulo aqui y otro
+    alla", los dos son rotulos. Un turno que mezclara pintas distintas seria un
+    turno que hay que preguntar, y no ha pasado nunca.
+    """
+    low = " " + (prompt or "").lower() + " "
+    for key, pattern in TITLE_STYLES:
+        if re.search(pattern, low, re.I):
+            return key
+    return ""
+
+
 DEED_RE = re.compile(
     r"\bzoom|\bacerca|\baleja|"
     r"quita (un|el) (trozo|cacho|pedazo|fragmento|tramo)|"
     r"corta (un|el) (trozo|cacho|pedazo|fragmento|tramo)|"
-    r"pon (un|una) (cartel|rotulo|r[oó]tulo|texto|tarjeta|titulo|t[ií]tulo)|"
-    r"mete (un|una) (cartel|rotulo|r[oó]tulo|texto|tarjeta)|"
+    r"pon (un|una) (cartel|rotulo|r[oó]tulo|texto|tarjeta|titulo|t[ií]tulo|"
+    r"chapa|etiqueta|pegatina)|"
+    r"mete (un|una) (cartel|rotulo|r[oó]tulo|texto|tarjeta|chapa|etiqueta)|"
     r"pon (una )?marca|marca(lo)? (aqui|ahi)",
     re.I)
 

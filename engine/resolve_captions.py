@@ -300,7 +300,7 @@ def place_overlays(post, get, plan, work_dir, width, height, track=3):
     for i, (ev, clip) in enumerate(zip(plan, clips)):
         dur = max(2, int(clip.get("duration", ev["dur"])))
         path = comp_dir / ("ov_%03d.comp" % i)
-        overlays.to_comp(path, ev["kind"], width, height, dur)
+        overlays.to_comp(path, ev["kind"], width, height, dur, ev.get("text", ""))
         post("/clip/fusion/import", {"trackType": "video", "trackIndex": track,
                                      "clipIndex": i,
                                      "path": str(path).replace("\\", "/")})

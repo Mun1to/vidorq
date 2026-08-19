@@ -167,6 +167,7 @@ TEXT = {
         "did_cut": "%d tramo",
         "did_caps": "%d subtitulos",
         "did_titles": "%d carteles",
+        "carded": "%d de tipo %s puestos.",
         "did_voice": "%d voz en off",
         "painting": "Coloreando en Resolve...",
         "painting_help": "Una correccion primaria por clip, que puedes seguir tocando a mano",
@@ -228,6 +229,7 @@ TEXT = {
         "did_cut": "%d piece",
         "did_caps": "%d captions",
         "did_titles": "%d cards",
+        "carded": "%d %s placed.",
         "did_voice": "%d voice line(s)",
         "painting": "Grading in Resolve...",
         "painting_help": "One primary correction per clip, still yours to adjust by hand",
@@ -993,7 +995,8 @@ def paint_clips(look, n, log=None, numbers=None):
 
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
                    workdir=None, anim="", chunks=None, ratio="source",
-                   drop=None, look="", transition="none", cdl=None):
+                   drop=None, look="", transition="none", cdl=None,
+                   cards=None, card_style=""):
     """Builds the edit in Resolve. Returns (what to tell the user, names made)."""
     name = Path(video).stem[:40]
     # La version anterior se va ANTES de crear la nueva, para que el nombre bueno
@@ -1083,6 +1086,9 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
                                              "clipIndex": i, "properties": props})
 
     made = tr("timeline_made", timeline)
+    # La pista donde caen los overlays. V1 es la edicion, V2 los subtitulos
+    # anidados, y de V3 para arriba lo que se ponga encima.
+    ov_track = 3
     if transition in overlays.AS_OVERLAY and len(edl) > 1:
         set_progress(tr("overlaying"), 78, tr("overlaying_help"))
         plan = overlays.at_cuts(edl, transition, tl_fps, start_frame)
@@ -1092,6 +1098,24 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
                                             workdir or Path(video).parent,
                                             out_w, out_h)
         made += " " + tr("overlaid", n, transition) if n else ""
+        if n:
+            ov_track = 4
+
+    # Los rotulos y las chapas, cada uno en su segundo del montaje. Van despues
+    # de las transiciones porque las transiciones ya han decidido si la pista 3
+    # esta ocupada.
+    if cards and card_style:
+        set_progress(tr("overlaying"), 79, tr("overlaying_help"))
+        plan = overlays.at_times(
+            [{"at": c["at"], "secs": c.get("secs"), "kind": card_style,
+              "text": c.get("text", "")} for c in cards],
+            tl_fps, start_frame)
+        for ev in plan:
+            ev["fps"] = tl_fps
+        n = resolve_captions.place_overlays(bridge_post, bridge_get_slow, plan,
+                                            workdir or Path(video).parent,
+                                            out_w, out_h, track=ov_track)
+        made += " " + tr("carded", n, card_style) if n else ""
 
     if look and look != looks.DEFAULT:
         set_progress(tr("painting"), 80, tr("painting_help"))
@@ -2272,7 +2296,24 @@ def run_job(req):
         # 4b) The cards the prompt asked for join the captions, so they get the
         #     same look and the same renderer in both backends instead of a
         #     second mechanism that would have to be built twice.
-        if want_titles:
+        # Con que pinta se piden: lo decide la palabra que uso Munir. "Cartel"
+        # es el de siempre; "rotulo" y "chapa" tienen su propia forma y no
+        # pueden ir en la lista de subtitulos, que solo sabe de una pinta.
+        # Solo en Resolve: el MP4 todavia no sabe dibujar la barra, y un rotulo
+        # que se va por el camino de los overlays en el MP4 es un rotulo que no
+        # aparece en ningun sitio. Alli sigue saliendo como un cartel, que es
+        # peor que la barra pero infinitamente mejor que nada.
+        card_style = (director.title_style(prompt)
+                      if want_titles and output == "resolve" else "")
+        cards = []
+        if want_titles and card_style:
+            for t in want_titles:
+                at = to_edited(float(t["at"]), edl)
+                if at is None:
+                    continue          # cayo en un trozo que se ha cortado
+                cards.append({"at": round(at, 3), "secs": float(t.get("secs", 2.0)),
+                              "text": t.get("text", "")})
+        elif want_titles:
             base = translated_chunks or cap.build_chunks(
                 retime_transcript(transcript, edl), caption_preset,
                 *out_frame(ratio, *video_shape(video)[1:]))
@@ -2325,7 +2366,8 @@ def run_job(req):
                 # por otro proyecto no es nuestro para borrarlo, y borrar el
                 # timeline equivocado en Resolve ya se ha visto lo que hace.
                 drop=(past0.get("timelines") or []) if again else [],
-                look=colour, transition=transition, cdl=auto_cdl)
+                look=colour, transition=transition, cdl=auto_cdl,
+                cards=cards, card_style=card_style)
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
                 # come back looking finished and be missing the voice, which is
