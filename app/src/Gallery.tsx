@@ -21,11 +21,12 @@ const RESOLVE_OK = ["dip", "white", "flash"];
  * animado, porque el fotograma en reposo de "Rebote" es identico al de
  * "Ninguna" y ensenarlo quieto es prometer algo que no se ve.
  */
-type Tab = "style" | "anim" | "look" | "ratio" | "transition";
+type Tab = "style" | "anim" | "look" | "ratio" | "transition" | "card";
 
 export default function Gallery({
   styles, anims, animOf, style, anim, ratio, video, colours, colour,
   ratios, transitions, transition, onRatio, onTransition,
+  cards, onCard,
   onStyle, onAnim, onColour, onClose,
 }: {
   styles: CaptionStyle[];
@@ -42,6 +43,8 @@ export default function Gallery({
   transition: string;
   onRatio: (id: string) => void;
   onTransition: (id: string) => void;
+  cards: CaptionStyle[];
+  onCard: (id: string) => void;
   onStyle: (id: string) => void;
   onAnim: (id: string) => void;
   onColour: (id: string) => void;
@@ -74,7 +77,8 @@ export default function Gallery({
   // Al cambiar de pestana o de estilo base, las baldosas de movimiento son
   // otras: se pintan sobre el look elegido.
   useEffect(() => { setReady({}); }, [tab, style, ratio, video]);
-  const gridClass = (tab === "look" || tab === "ratio") ? "grid full" : "grid";
+  const gridClass = (tab === "look" || tab === "ratio" || tab === "card")
+    ? "grid full" : "grid";
 
   const url = useMemo(() => (kind: Tab, id: string) => {
     // band=1: la baldosa es un primer plano de la banda del subtitulo. El
@@ -86,7 +90,9 @@ export default function Gallery({
     // La pestaña de formato pide el cuadro con ESE encuadre, no con el actual.
     const q = new URLSearchParams({ ratio: kind === "ratio" ? id : ratio,
                                     lang, video, kind });
-    if (kind !== "look" && kind !== "ratio") q.set("band", "1");
+    // Un rotulo tampoco se recorta a la banda: lo que hay que ver es DONDE cae
+    // en el cuadro, y la banda esconde justo eso.
+    if (kind !== "look" && kind !== "ratio" && kind !== "card") q.set("band", "1");
     if (kind === "anim") { q.set("id", id); q.set("preset", style); }
     else q.set("id", id);
     return `${ENGINE}/preview?${q.toString()}`;
@@ -96,7 +102,9 @@ export default function Gallery({
   // que el autor del look eligio para el, y casi siempre es la buena.
   const own = anims.find((a) => a.id === animOf[style]);
   const items: { id: string; label: string; note: string; pick: string }[] =
-    tab === "ratio"
+    tab === "card"
+      ? cards.map((c) => ({ ...c, pick: c.id }))
+      : tab === "ratio"
       ? Object.entries(ratios).map(([id, label]) => ({
           id, label, note: t("gal.ratio.sub"), pick: id }))
       : tab === "transition"
@@ -115,7 +123,9 @@ export default function Gallery({
            note: t("captions.anim.ownNote"), pick: "" },
          ...anims.map((a) => ({ ...a, pick: a.id }))];
 
-  const chosen = tab === "look" ? (colour || "none")
+  // Un efecto no es un ajuste puesto: no hay ninguno "elegido" que marcar.
+  const chosen = tab === "card" ? ""
+    : tab === "look" ? (colour || "none")
     : tab === "ratio" ? ratio
     : tab === "transition" ? transition
     : tab === "style" ? style : anim;
@@ -143,12 +153,16 @@ export default function Gallery({
                     onClick={() => setTab("transition")}>
               <IconZap size={14} className="icon" />{t("gal.tr")}
             </button>
+            <button className={tab === "card" ? "sel" : ""} onClick={() => setTab("card")}>
+              <IconSpark size={14} className="icon" />{t("gal.card")}
+            </button>
           </div>
         </div>
 
         <div className="modal-body">
           <p className="hint">
-            {tab === "look" ? t("gal.colour.sub")
+            {tab === "card" ? t("gal.card.hint")
+              : tab === "look" ? t("gal.colour.sub")
               : tab === "ratio" ? t("gal.ratio.hint")
               : tab === "transition" ? t("gal.tr.hint")
               : tab === "style" ? t("gal.looks.sub") : t("gal.moves.sub")}
@@ -161,7 +175,8 @@ export default function Gallery({
                 <button
                   key={key}
                   className={`tile ${sel ? "sel" : ""}`}
-                  onClick={() => (tab === "look" ? onColour(it.pick)
+                  onClick={() => (tab === "card" ? onCard(it.pick)
+                    : tab === "look" ? onColour(it.pick)
                     : tab === "ratio" ? onRatio(it.pick)
                     : tab === "transition" ? onTransition(it.pick)
                     : tab === "style" ? onStyle(it.pick) : onAnim(it.pick))}

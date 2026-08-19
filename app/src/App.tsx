@@ -99,6 +99,10 @@ function App() {
   const [setup, setSetup] = useState(false);
   const [galOpen, setGalOpen] = useState(false);
   const [wordsOpen, setWordsOpen] = useState(false);
+  const [cards, setCards] = useState<CaptionStyle[]>([]);
+  // La caja de "cuentale que quieres", para poder dejar el cursor dentro cuando
+  // una baldosa de la galeria escribe media frase.
+  const sayRef = useRef<HTMLTextAreaElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
   // La guia se abre sola la primera vez, para que nadie tenga que adivinar los pasos de Resolve.
@@ -161,6 +165,7 @@ function App() {
       anims?: CaptionStyle[]; animOf?: Record<string, string>;
       langs?: Record<string, string>; transitions?: Record<string, string>;
       ratios?: Record<string, string>; looks?: CaptionStyle[];
+      cards?: CaptionStyle[];
     }>(`/captions/presets?lang=${lang}`)
       .then((c) => {
         if (!c || !Array.isArray(c.list)) return;
@@ -172,6 +177,7 @@ function App() {
         if (c.transitions) setTransitions(c.transitions);
         if (c.ratios) setRatios(c.ratios);
         if (Array.isArray(c.looks)) setColours(c.looks);
+        if (Array.isArray(c.cards)) setCards(c.cards);
       })
       .catch(() => {
         // El motor puede estar arrancando todavia. Sin este reintento, una
@@ -644,6 +650,7 @@ function App() {
               para quien no quiere escribir nada. */}
           <div className="say">
             <textarea
+              ref={sayRef}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={t("say.ph")}
@@ -865,6 +872,25 @@ function App() {
           colours={colours} colour={colour}
           ratios={ratios} transitions={transitions} transition={transition}
           onRatio={setRatio} onTransition={setTransition}
+          cards={cards}
+          // Un efecto no se "pone": se pide, y lo unico que falta es lo que
+          // tiene que decir. Asi que la baldosa cierra la galeria y deja la
+          // frase empezada donde se escribe, con el cursor al final.
+          onCard={(id) => {
+            setGalOpen(false);
+            const frase = id === "chapa"
+              ? "pon una chapa que diga " : "pon un rotulo que diga ";
+            if (chat.length) { setFollowUp(frase); return; }
+            setPrompt(frase);
+            // Tras el cierre del modal, para que el foco no se lo lleve el velo
+            // al desmontarse.
+            setTimeout(() => {
+              const el = sayRef.current;
+              if (!el) return;
+              el.focus();
+              el.setSelectionRange(el.value.length, el.value.length);
+            }, 60);
+          }}
           onStyle={setCapStyle} onAnim={setCapAnim}
           onColour={(id) => setColour(id === "none" ? "" : id)}
           onClose={() => setGalOpen(false)}

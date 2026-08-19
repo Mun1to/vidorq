@@ -2627,6 +2627,9 @@ class Handler(BaseHTTPRequestHandler):
                 if kind == "look":
                     path = previews.look_still(one("id", looks.DEFAULT), ratio,
                                                video, w, h, at, band)
+                elif kind == "card":
+                    path = previews.card_still(one("id", "rotulo"), ratio,
+                                               video, lang, w, h, at)
                 elif kind == "ratio":
                     path = previews.ratio_still(ratio, video, w, h, at)
                 elif kind == "anim":
@@ -2751,6 +2754,7 @@ class Handler(BaseHTTPRequestHandler):
                         "animOf": {k: v["anim"] for k, v in cap.PRESETS.items()},
                         "langs": tl.LANGS,
                         "looks": looks.catalogue(lang),
+                        "cards": overlays.kind_list(lang, only=overlays.WITH_TEXT),
                         "transitions": TRANSITION_LABELS.get(lang, TRANSITION_LABELS["es"]),
                         "ratios": RATIO_LABELS.get(lang, RATIO_LABELS["es"])})
         else:

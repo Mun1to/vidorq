@@ -266,13 +266,37 @@ def _face_x(video, at):
 # --------------------------------------------------------------------------- #
 # The three kinds
 # --------------------------------------------------------------------------- #
+def card_still(kind, ratio="source", video="", lang="es",
+               width=1920, height=1080, at=1.0):
+    """Una foto de un rotulo o una chapa, hecha por el renderizador de verdad.
+
+    Sin recorte a la banda del subtitulo a proposito: lo que hay que ver de un
+    rotulo es DONDE se pone en el cuadro, y la banda esconde justo eso.
+    """
+    import overlays
+    p = overlays.as_preset(kind)
+    if not p:
+        raise ValueError("'%s' no es un efecto con texto" % kind)
+    muestra = {"es": {"rotulo": "Munir Torres", "chapa": "NUEVO"},
+               "en": {"rotulo": "Your name here", "chapa": "NEW"}}
+    texto = muestra.get(lang, muestra["es"]).get(kind, "Vidorq")
+    return style_still(kind, ratio, video, lang, None, width, height, at,
+                       band=False, p=p, text=texto)
+
+
 def style_still(preset, ratio="source", video="", lang="es", anim=None,
-                width=1920, height=1080, at=1.0, band=False):
-    """A PNG of one caption look, burned in by the real subtitle renderer."""
+                width=1920, height=1080, at=1.0, band=False, p=None, text=None):
+    """A PNG of one caption look, burned in by the real subtitle renderer.
+
+    `p` y `text` son para lo que NO es un estilo de subtitulo (un rotulo, una
+    chapa): el mismo renderizador, otro preset y otra frase de muestra. El resto
+    del camino es identico, que es justo la razon de no escribir una segunda
+    funcion casi igual.
+    """
     out_w, out_h, crop_w, crop_h = _shape(ratio, width, height)
     dest = CACHE / ("style_%s.png" % _key(preset, anim or "", ratio, video, lang,
                                           at, out_w, out_h, PREVIEW_LONG,
-                                          _band_key(band), "still2"))
+                                          _band_key(band), text or "", "still2"))
     if dest.exists():
         return dest
     exe = ffmpeg()
@@ -292,8 +316,12 @@ def style_still(preset, ratio="source", video="", lang="es", anim=None,
         # el primero, que en un estilo con fundido de entrada es justo el
         # instante en el que no se ve nada. Medido: cinco de diez baldosas
         # salian vacias.
-        cap.to_ass(work / "s.ass", [_chunk(lang, 2.0)], 0.0, 2.0,
-                   out_w, out_h, preset, anim, still=True)
+        trozo = _chunk(lang, 2.0)
+        if text:
+            trozo = {"start": 0.0, "end": 2.0, "text": text,
+                     "words": [{"w": text, "s": 0.0, "e": 2.0}]}
+        cap.to_ass(work / "s.ass", [trozo], 0.0, 2.0,
+                   out_w, out_h, preset, anim, still=True, p=p)
         src, real = _source_args(video, at, out_w, out_h)
         vf = _crop_chain(width, height, out_w, out_h, crop_w, crop_h,
                          _face_x(video, at)) if real else []
