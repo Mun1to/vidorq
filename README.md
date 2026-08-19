@@ -117,6 +117,26 @@ over. On a 30 s clip the first pass took 98 s and every change after it took
 that is what you are looking at by then. In Resolve the previous version is
 replaced rather than piled up next to it.
 
+**Edit by reading.** The transcription already carries the second of every word,
+so the panel paints all of them and you find a moment by reading instead of
+dragging the playhead at it. Mark two words and it writes the same sentence you
+could have typed ("cut the bit from second 12 to 19"), so there is one cutting
+mechanism and not two. What the automatic cut already took out is shown struck
+through, and clicking a word moves Resolve's playhead there, which is the part a
+web page cannot do. The other half is **order**: the same panel lists the edit as
+segments with what is said in each one, and you drag them somewhere else. That
+is a permutation of the montage, so no model is asked anything.
+
+**Undo.** The session keeps the montage *and* the settings from before each
+turn, and one button goes back to both. Undoing the cut and leaving you with the
+setting that same turn applied would not be undoing anything. One step, not a
+stack: pressing it twice puts you back where you were.
+
+**History.** Every edit leaves a row: when, which video, which project, what it
+did and how long it took. The ones you stopped and the ones that failed go in
+too, because a list that only kept the successes would tell a false story of the
+day. Clicking a row reopens that video with its whole conversation behind it.
+
 **Prompts.** "vertical, short style, animated subtitles" sets the frame shape,
 the subtitle style, the animation, the transition and the kind of cut. It also
 takes instructions aimed at **one moment**: "put a card saying SUBSCRIBE at
@@ -137,10 +157,13 @@ the Resolve timeline come out of the same maths. In Resolve they land as an
 ordinary primary correction you can keep adjusting by hand, not a baked-in look.
 
 **Transitions.** Dissolve, wipe, slide and the rest in the MP4. In Resolve, the
-ones that only cover the cut - dip to black, dip to white, flash - are built as
+two that only cover the cut - dip to black and dip to white - are built as
 animated layers on their own track, because Resolve's API has no transitions of
-its own. The ones that need both shots blended stay MP4-only, and Vidorq says
-so rather than dropping them.
+its own. Measured on three seams: the frame at each one comes out pure black,
+against 102.60 average brightness two seconds earlier, and it fades rather than
+jumping (138.60, 92.81, 22.78, 56.03, 139.57 across one seam). The ones that
+need both shots blended stay MP4-only, and Vidorq says so rather than dropping
+them.
 
 **Voice.** A prompt can ask for a voice-over at a given second. Windows' own
 synthesiser ships as the default, so it works with no key and no internet;

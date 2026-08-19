@@ -83,9 +83,13 @@ con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en dire
       Medido: reordenado al revés, deshecho, vuelto a reordenar; y con `transition` de `dip`
       a `none`, que es la mitad que se olvida (deshacer el corte y dejarte el ajuste puesto
       no es deshacer).
-- [ ] Spike `ImportFusionComp` con comp dummy en 21 Free (AddFusionComp,
-      GetFusionCompNameList, LoadFusionCompByName, ImportFusionComp, borrar el dummy).
-- [ ] Captions nativos en el timeline vía macro Fusion (patrón AutoSubs), estilo Hormozi.
+- [x] **`ImportFusionComp` en 21 Free** (2026-08): el spike se quedó sin sentido porque el
+      camino entero está en producción. Un `.comp` escrito desde cero, con sus `BezierSpline`
+      dentro, entra y conserva las curvas; verificado por ida y vuelta con `ExportFusionComp`.
+      Es lo que mueve subtítulos, transiciones, rótulos y chapas.
+- [x] **Captions nativos en el timeline** (2026-08): Text+ editables en su propia pista, diez
+      estilos y nueve entradas, los diez mirados fotograma a fotograma DENTRO de Resolve.
+      Detalle medido en `docs/SUBTITULOS.md`.
 - [ ] Zoom suave con easing vía comp Fusion pre-animada (el punch zoom estático ya funciona).
 
 **Sesión**: 🎬 Sesión 3 de `Vidorq-Core/SESIONES.md`. Solo está bloqueada por 2 clics de UI.
@@ -112,16 +116,22 @@ menos de 30 minutos.
 - [x] **Push público descongelado** (2026-08-17): 14 commits publicados en `Mun1to/vidorq` tras
       el OK explícito de Munir, con barrido previo de visibilidad y de docs internos.
 - [ ] Auditoría de consistencia de punta a punta (ambas apps, ambos backends).
-- [ ] README público reescrito: todavía cuenta la instalación vieja de tres scripts.
+- [x] **README público al día** (2026-08-19): ya cuenta la instalación de un clic
+      (`resolve\instalar.ps1` + `Workspace > Scripts > Vidorq`), no la vieja de tres scripts,
+      y lleva editar leyendo, reordenar, deshacer e historial con sus medidas.
 - [ ] Firmar los instaladores para que Windows no los marque como origen desconocido.
-- [ ] README público en inglés con GIF del flujo real.
+- [ ] GIF del flujo real en el README (el texto en inglés ya está; falta la imagen que
+      enseña el timeline montándose solo dentro de Resolve, que es lo que no se puede contar).
 - [ ] Landing con el copy que salió de la investigación: analogía-ancla en el hero,
       contraste explícito "viven fuera / Vidorq vive dentro", CTA final participativo con
       prompts de ejemplo (Gaming montage es literalmente nuestra historia), y sección
       changelog (patrón del ecosistema: changelog = pasado, "próximamente" en bloque aparte).
 - [ ] Vídeo de lanzamiento editado CON Vidorq (dogfooding: la demo es el producto).
 - [ ] Barrido de seguridad: sin secretos, sin keys, sin rutas personales (regla B).
-- [ ] Levantar la congelación del push público (OK explícito de Munir) + vidorq.com.
+- [ ] **`vidorq.com`, y con prisa** (la parte del push ya está hecha, arriba). El nombre
+      lleva publicado en GitHub desde el 2026-08-17 y ahí es donde a VoCript le pillaron el
+      `.com` treinta y siete días después de publicarlo (regla AK). El plazo no lo pone
+      nadie de aquí: comprobar y comprar.
 
 **Sesión**: 📦 Sesión 5. Depende de META A.
 
