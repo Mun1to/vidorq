@@ -1513,6 +1513,33 @@ def run_render(cmd, out_file, timeout=7200):
 SESSION = "sesion.json"
 
 
+def seek_to(at):
+    """Mueve el cabezal de Resolve al segundo `at` del timeline que hay delante.
+
+    El segundo es del MONTAJE, que es justo lo que el timeline abierto ES. Un
+    timeline no empieza en el frame cero sino en su timecode de inicio (Resolve
+    usa 01:00:00:00 casi siempre), asi que hay que sumarselo o el cabezal cae
+    una hora antes de donde toca.
+
+    Si no hay Resolve, no es un error del que haya que quejarse: es que se esta
+    usando el MP4, donde no hay cabezal que mover.
+    """
+    tl = bridge_get("/timeline") or {}
+    if not tl.get("name"):
+        return {"ok": False, "why": "no_resolve"}
+    fps = resolve_captions.timeline_fps(tl, 30.0)
+    start = int(tl.get("startFrame", 0))
+    total = max(0, int(tl.get("endFrame", 0)) - start)
+    f = min(max(0, int(round(max(0.0, at) * fps))), max(0, total - 1))
+    frame = start + f
+    h, resto = divmod(int(frame // fps), 3600)
+    m, sec = divmod(resto, 60)
+    tc = "%02d:%02d:%02d:%02d" % (h, m, sec, int(frame % fps))
+    got = bridge_post("/playhead", {"timecode": tc})
+    return {"ok": bool(got.get("success", True)), "timecode": tc,
+            "timeline": tl.get("name")}
+
+
 def words_of(video):
     """Las palabras de un video, si ya se transcribio alguna vez.
 
@@ -2836,6 +2863,16 @@ class Handler(BaseHTTPRequestHandler):
             set_progress(tr("preparing"), 3)
             threading.Thread(target=run_job, args=(body,), daemon=True).start()
             self._send({"ok": True})
+        elif self.path == "/seek":
+            # Llevar el cabezal de Resolve a un segundo del MONTAJE. Es lo unico
+            # que Vidorq puede hacer y una pagina web no: corre DENTRO de
+            # Resolve. Pulsar una palabra y ver el fotograma es la diferencia
+            # entre leer la transcripcion y editar con ella.
+            try:
+                self._send(seek_to(float(body.get("at", 0.0))))
+            except Exception as e:
+                traceback.print_exc()
+                self._send({"ok": False, "error": str(e)[:200]})
         elif self.path == "/stop":
             # Parar el turno en marcha. Idempotente y sin cuerpo: se puede
             # pulsar dos veces sin que pase nada raro.

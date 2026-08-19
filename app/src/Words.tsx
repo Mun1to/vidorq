@@ -41,7 +41,9 @@ export default function Words({
   // mientras solo se ha marcado el principio.
   const [a, setA] = useState<number | null>(null);
   const [b, setB] = useState<number | null>(null);
+  const [busca, setBusca] = useState("");
   const boxRef = useRef<HTMLDivElement>(null);
+  const cuerpoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let vivo = true;
@@ -87,7 +89,36 @@ export default function Words({
     if (words && words[i].t === null) return;
     if (a === null || b !== null) { setA(i); setB(null); }
     else setB(i);
+    // Y el cabezal de Resolve se va ahi. Esto es lo que una web no puede hacer
+    // y Vidorq si, porque corre DENTRO de Resolve: pulsas una palabra y ves el
+    // fotograma. Sin Resolve delante no pasa nada y no se dice nada, porque en
+    // el MP4 no hay cabezal que mover.
+    const t = words?.[i].t;
+    if (t !== null && t !== undefined) {
+      fetch(`${ENGINE}/seek`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ at: t }),
+      }).catch(() => { /* sin Resolve, sin cabezal */ });
+    }
   }
+
+  // Buscar es lo que convierte mil palabras en algo usable: nadie encuentra
+  // "el trozo del precio" bajando con la rueda. Se marcan todas las que pegan y
+  // se sube la primera a la vista.
+  const pega = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    if (!q || !words) return null;
+    const hits = new Set<number>();
+    words.forEach((x, i) => { if (x.w.toLowerCase().includes(q)) hits.add(i); });
+    return hits;
+  }, [busca, words]);
+
+  useEffect(() => {
+    if (!pega || pega.size === 0) return;
+    const primera = Math.min(...pega);
+    const el = cuerpoRef.current?.querySelector(`[data-i="${primera}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [pega]);
 
   function manda(verbo: string) {
     if (!span) return;
@@ -101,6 +132,8 @@ export default function Words({
            tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{t("words.title")}</h2>
+          <input className="find" value={busca} placeholder={t("words.find")}
+                 onChange={(e) => setBusca(e.target.value)} />
           {span && (
             <button className="link" onClick={() => { setA(null); setB(null); }}>
               {t("words.clear")}
@@ -108,8 +141,11 @@ export default function Words({
           )}
         </div>
 
-        <div className="modal-body">
-          <p className="hint">{t("words.hint")}</p>
+        <div className="modal-body" ref={cuerpoRef}>
+          <p className="hint">
+            {t("words.hint")}
+            {pega && <b className="hits"> {pega.size} {t("words.hits")}</b>}
+          </p>
           {words === null && <p className="hint">{t("words.loading")}</p>}
           {words !== null && words.length === 0 && (
             <p className="hint">{why === "no_transcript" ? t("words.none") : t("words.off")}</p>
@@ -120,8 +156,10 @@ export default function Words({
               const fuera = x.t === null;
               // El espacio va DENTRO del boton para que dos palabras marcadas
               // seguidas se vean como un trozo y no como dos cromos sueltos.
+              const hit = pega?.has(i) ? " hit" : "";
               return (
-                <button key={i} className={`w${dentro ? " sel" : ""}${fuera ? " out" : ""}`}
+                <button key={i} data-i={i}
+                        className={`w${dentro ? " sel" : ""}${fuera ? " out" : ""}${hit}`}
                         title={clock(x.t === null ? x.s : x.t)}
                         aria-pressed={dentro} onClick={() => pulsa(i)}>
                   {x.w}{" "}
