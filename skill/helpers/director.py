@@ -729,6 +729,74 @@ def _ask_timer(prompt, packed, model=None, log=None):
     return ""
 
 
+# Un tramo dicho con todas las letras: "del segundo 7 al 14", "de 7 a 14",
+# "entre el 7 y el 14". Los decimales entran porque el panel de texto los podria
+# mandar algun dia; hoy manda enteros.
+SPAN_RE = re.compile(
+    r"(?:del?|desde el?|entre el?)\s*(?:segundo\s*)?(\d+(?:[.,]\d+)?)\s*"
+    r"(?:hasta el?|al?|a el|y el?|y|-|hasta)\s*(?:segundo\s*)?(\d+(?:[.,]\d+)?)",
+    re.I)
+
+# Que verbo es. El orden importa: "quedate solo con el trozo" lleva la palabra
+# "trozo", que tambien esta en la regla de quitar, asi que quedarse va primero.
+LITERAL_VERBS = (
+    ("keep", r"qu[eé]date solo|dejar? solo|deja solo|qu[eé]date con|solo quiero|"
+             r"quiero solo|qu[ií]tame todo menos|corta todo menos|keep only"),
+    ("zoom", r"\bzoom\b|\bacerca|\baleja"),
+    ("cut", r"\bquita|\bquitar|\bcorta\b|\bcortar\b|\bborra|\belimina|"
+            r"\bfuera\b|\bcut\b"),
+)
+
+
+def literal_actions(prompt, duration):
+    """Lo que la frase ORDENA con sus numeros puestos, sin preguntarle a nadie.
+
+    Devuelve [] cuando la frase no dice las dos cosas (que hacer y entre que dos
+    segundos), que es cuando de verdad hace falta el modelo. Nunca inventa: si
+    los numeros no cuadran con la duracion, se cae y decide el modelo.
+
+    Los segundos son del reloj en que hable el usuario, igual que los del
+    modelo, para que el que llama los traduzca una sola vez y de la misma forma.
+    """
+    low = " " + (prompt or "").lower().strip() + " "
+    if low.strip().startswith("pick:"):
+        return []
+    m = SPAN_RE.search(low)
+    if not m:
+        return []
+    try:
+        a = float(m.group(1).replace(",", "."))
+        b = float(m.group(2).replace(",", "."))
+    except ValueError:
+        return []
+    if b <= a or a < 0 or b > max(1.0, float(duration)) + 0.5:
+        return []
+    b = min(b, float(duration))
+
+    verbo = ""
+    for nombre, patron in LITERAL_VERBS:
+        if re.search(patron, low, re.I):
+            verbo = nombre
+            break
+    if not verbo:
+        return []
+
+    if verbo == "zoom":
+        return [{"do": "zoom", "at": round(a, 2), "until": round(b, 2)}]
+    if verbo == "cut":
+        if b - a < MIN_CUT:
+            return []
+        return [{"do": "cut", "at": round(a, 2), "until": round(b, 2)}]
+    # keep: se tira lo de delante y lo de detras. Los trozos de menos de medio
+    # segundo no se mandan, que es lo mismo que hace la validacion del modelo.
+    fuera = []
+    if a >= MIN_CUT:
+        fuera.append({"do": "cut", "at": 0.0, "until": round(a, 2)})
+    if float(duration) - b >= MIN_CUT:
+        fuera.append({"do": "cut", "at": round(b, 2), "until": round(float(duration), 2)})
+    return fuera
+
+
 def actions(prompt, packed, duration, ai=None, model=None, log=None):
     """What the prompt asks for at particular moments, in SOURCE seconds.
 

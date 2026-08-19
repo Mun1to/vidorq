@@ -167,6 +167,7 @@ TEXT = {
         "did_cut": "%d tramo",
         "did_caps": "%d subtitulos",
         "did_titles": "%d carteles",
+        "literal": "Lo has dicho con los segundos puestos: no hace falta pensarlo.",
         "carded": "%d de tipo %s puestos.",
         "did_voice": "%d voz en off",
         "painting": "Coloreando en Resolve...",
@@ -229,6 +230,7 @@ TEXT = {
         "did_cut": "%d piece",
         "did_caps": "%d captions",
         "did_titles": "%d cards",
+        "literal": "You gave the seconds, so there is nothing to work out.",
         "carded": "%d %s placed.",
         "did_voice": "%d voice line(s)",
         "painting": "Grading in Resolve...",
@@ -2253,10 +2255,20 @@ def run_job(req):
                 else:
                     packed_now = packed_view(workdir, transcript, video)
                     span = float(transcript.get("duration", 0))
-                acts = director.actions(
-                    prompt, packed_now, span, ai_choice(req),
-                    req.get("directorModel") or None,
-                    log=lambda m: set_progress(tr("moments"), 59, m))
+                # Si la frase ya trae el verbo y los dos segundos, se hace y
+                # ya: es aritmetica, no interpretacion. Ahorra los 11-15
+                # segundos del modelo y quita el unico sitio donde un numero
+                # que el usuario acaba de señalar podia leerse mal. Es ademas
+                # la frase que escribe el propio programa desde los atajos y
+                # desde el panel de texto, o sea la mas comun.
+                acts = director.literal_actions(prompt, span)
+                if acts:
+                    set_progress(tr("moments"), 59, tr("literal"))
+                else:
+                    acts = director.actions(
+                        prompt, packed_now, span, ai_choice(req),
+                        req.get("directorModel") or None,
+                        log=lambda m: set_progress(tr("moments"), 59, m))
                 if again and acts:
                     acts = actions_to_original(acts, edl)
                 if acts:

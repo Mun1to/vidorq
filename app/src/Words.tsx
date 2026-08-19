@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ENGINE } from "./api";
 import { useLang } from "./i18n";
-import { IconSpark, IconZap } from "./Icons";
+import { IconScissors, IconSpark, IconZap } from "./Icons";
 
 /**
  * Editar leyendo, que es la forma en que la gente edita de verdad.
@@ -140,6 +140,9 @@ export default function Words({
                 {clock(span.desde)} - {clock(span.hasta)}
                 <em>{span.hasta - span.desde}s</em>
               </span>
+              <button onClick={() => manda("quedate solo")}>
+                <IconScissors size={15} className="icon" />{t("words.keep")}
+              </button>
               <button onClick={() => manda("haz un zoom")}>
                 <IconZap size={15} className="icon" />{t("words.zoom")}
               </button>

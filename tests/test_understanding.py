@@ -149,6 +149,39 @@ WHERE = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Frases que ya traen el verbo y los dos segundos. Esas no las lee un modelo:
+# son aritmetica, y ademas son las que escribe el propio programa desde los
+# atajos y desde el panel de texto. Cada caso es (frase, acciones que salen)
+# sobre un video de 60 segundos.
+# ---------------------------------------------------------------------------
+LITERAL = [
+    ("quita un trozo del segundo 7 al 14",
+     [{"do": "cut", "at": 7.0, "until": 14.0}]),
+    ("quita de 7 a 14", [{"do": "cut", "at": 7.0, "until": 14.0}]),
+    ("haz un zoom del segundo 0 al 5",
+     [{"do": "zoom", "at": 0.0, "until": 5.0}]),
+    # Quedarse con un trozo es tirar lo de delante y lo de detras.
+    ("quedate solo del segundo 10 al 30",
+     [{"do": "cut", "at": 0.0, "until": 10.0},
+      {"do": "cut", "at": 30.0, "until": 60.0}]),
+    ("corta todo menos del segundo 10 al 30",
+     [{"do": "cut", "at": 0.0, "until": 10.0},
+      {"do": "cut", "at": 30.0, "until": 60.0}]),
+    # Y lo que NO es literal tiene que caer al modelo, no resolverse a medias.
+    ("ponlo en vertical", []),
+    ("quita la parte donde me trabo", []),
+    ("pon un cartel que diga HOLA en el segundo 12", []),
+    # Numeros que no pueden ser: fuera del video, o del reves.
+    ("quita un trozo del segundo 7 al 700", []),
+    ("quita un trozo del segundo 14 al 7", []),
+    # Un corte de tres centesimas no es un corte.
+    ("quita un trozo del segundo 7 al 7.2", []),
+    # Una eleccion ya pulsada no se vuelve a leer como frase.
+    ("pick:at=2", []),
+]
+
+
 def main():
     bad = []
 
@@ -188,7 +221,13 @@ def main():
     except Exception as e:
         print("(no pude probar _echoes: %s)" % str(e)[:70])
 
-    total = len(WORDS) + len(VAGUE) + len(WHERE) + echo_n
+    for frase, want in LITERAL:
+        got = director.literal_actions(frase, 60.0)
+        if got != want:
+            bad.append("literal_actions(%r) esperaba %s y devolvio %s"
+                       % (frase, want, got))
+
+    total = len(WORDS) + len(VAGUE) + len(WHERE) + len(LITERAL) + echo_n
     if bad:
         print("%d de %d casos MAL:\n" % (len(bad), total))
         for line in bad:
