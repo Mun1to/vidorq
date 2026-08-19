@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useLang } from "./i18n";
-import { IconAlert, IconCheck, IconSliders, IconSpark, IconVideo } from "./Icons";
+import { IconAlert, IconCheck, IconSliders, IconSpark, IconStop, IconVideo } from "./Icons";
 import logo from "./assets/logo.png";
 
 /** Un turno de la conversacion, tal y como lo guarda el motor en sesion.json. */
@@ -48,6 +48,7 @@ interface Props {
   onPick: (what: string, id: string) => void;
   onSetup: () => void;
   onNewVideo: () => void;
+  onStop: () => void;
   running: boolean;
   step: string;
   detail?: string;
@@ -69,7 +70,7 @@ interface Props {
  */
 export default function Chat({
   title, turns, draft, onDraft, onSend, onOffer, onPick, onSetup, onNewVideo,
-  running, step, detail, percent, error,
+  onStop, running, step, detail, percent, error,
 }: Props) {
   const { t } = useLang();
   const endRef = useRef<HTMLDivElement>(null);
@@ -158,6 +159,11 @@ export default function Chat({
                 <p className="done-line">{step || t("run.working")}</p>
                 <div className="track"><i style={{ width: `${percent}%` }} /></div>
                 {detail && <small className="under">{detail}</small>}
+                {/* El boton de parar va aqui, dentro del turno que trabaja, y
+                    no en una esquina: es donde ya estas mirando. */}
+                <button className="stop small" onClick={onStop}>
+                  <IconStop size={12} className="icon" />{t("run.stop")}
+                </button>
               </div>
             </div>
           </div>
@@ -194,8 +200,12 @@ export default function Chat({
           placeholder={t("more.ph")}
           autoFocus
         />
+        {/* Mientras trabaja, lo que escribas se pone en la fila y se hace
+            despues. Decirlo en el propio boton evita el "no me ha hecho nada":
+            antes ponia "Aplicar" y parecia que lo aplicaba ya. */}
         <button className="cta inline" onClick={() => onSend()} disabled={!draft.trim()}>
-          <IconSpark size={15} className="icon" />{t("more.go")}
+          <IconSpark size={15} className="icon" />
+          {running ? t("more.queue") : t("more.go")}
         </button>
       </div>
     </section>

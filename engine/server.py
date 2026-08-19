@@ -69,8 +69,45 @@ import previews  # noqa: E402
 import speech  # noqa: E402
 
 _lock = threading.Lock()
-_progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": ""}
+_progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": "",
+             "stopped": False}
 _busy = False
+
+# Parar. Un turno puede tardar un minuto y medio, y hasta ahora la unica forma
+# de cancelar una frase mal dicha era esperar a que acabara de trabajar en ella.
+_stop = threading.Event()
+# Lo que corre FUERA de este proceso y no mira ninguna bandera: Whisper y
+# ffmpeg. Se apuntan aqui mientras viven para poder matarlos al parar.
+_live = []
+_live_lock = threading.Lock()
+
+
+class Stopped(Exception):
+    """Lo paro el usuario. No es un error y no se ensena como tal."""
+
+
+def track(proc):
+    with _live_lock:
+        _live.append(proc)
+
+
+def untrack(proc):
+    with _live_lock:
+        if proc in _live:
+            _live.remove(proc)
+
+
+def stop_all():
+    """Poner la bandera y matar lo que ya esta corriendo."""
+    _stop.set()
+    with _live_lock:
+        alive = list(_live)
+    for proc in alive:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    return len(alive)
 
 # El texto que ve el usuario sale de aqui: la interfaz manda su idioma en /edit y el
 # motor responde en ese idioma, para que no se mezclen los dos en la misma pantalla.
@@ -89,6 +126,9 @@ TEXT = {
         "rendering": "Renderizando (GPU)...",
         "building": "Montando timeline en Resolve...",
         "done": "Listo",
+        "stopped": "Parado",
+        "stopped_help": "Lo que ya estaba puesto se queda en el timeline",
+        "stopped_by_you": "Lo paraste tu a mitad. Lo que ya estaba hecho se queda.",
         "timeline_made": "Timeline '%s' creado en Resolve",
         "captioning": "Poniendo los subtitulos en Resolve...",
         "captioning_n": "%d subtitulos, uno a uno",
@@ -143,6 +183,9 @@ TEXT = {
         "rendering": "Rendering (GPU)...",
         "building": "Building the timeline in Resolve...",
         "done": "Done",
+        "stopped": "Stopped",
+        "stopped_help": "Whatever was already placed stays on the timeline",
+        "stopped_by_you": "You stopped this halfway. What was already done stays.",
         "timeline_made": "Timeline '%s' created in Resolve",
         "captioning": "Putting the captions into Resolve...",
         "captioning_n": "%d captions, one by one",
@@ -238,8 +281,28 @@ PROGRESS_RE = re.compile(r"^PROGRESS (\d+) (\d+)")
 
 
 def set_progress(step, percent, detail="", result="", error=""):
+    """El estado que lee la ventana, y tambien donde se para.
+
+    Cada fase informa de su progreso, asi que mirar la bandera AQUI cubre las
+    cuarenta llamadas sin sembrar un `if` en cada una, y para en el primer sitio
+    donde el trabajo levanta la cabeza. Lo que no pasa por aqui son los
+    subprocesos largos, y esos se matan aparte.
+
+    La llamada final (la que trae `result` o `error`) no se para: es la que
+    cuenta como acabo la cosa, y tragarsela dejaria la ventana esperando.
+    """
+    if _stop.is_set() and not (result or error):
+        raise Stopped()
     with _lock:
-        _progress.update(step=step, percent=percent, detail=detail, result=result, error=error)
+        _progress.update(step=step, percent=percent, detail=detail, result=result,
+                         error=error, stopped=False)
+
+
+def set_stopped(step, detail=""):
+    """Cerrar el turno diciendo que lo paraste tu, no que fallo algo."""
+    with _lock:
+        _progress.update(step=step, percent=100, detail=detail, result="", error="",
+                         stopped=True)
 
 
 def load_config():
@@ -1312,6 +1375,7 @@ def run_transcribe(cmd, out_file, timeout=7200):
                             creationflags=NO_WINDOW)
     killer = threading.Timer(timeout, proc.kill)
     killer.start()
+    track(proc)
     tail = deque(maxlen=20)
     how = ""
     try:
@@ -1335,6 +1399,11 @@ def run_transcribe(cmd, out_file, timeout=7200):
         proc.wait(timeout=120)
     finally:
         killer.cancel()
+        untrack(proc)
+    # Al parar se le mata, asi que sale con codigo de error: eso no es un fallo
+    # de la transcripcion, es lo que se le pidio.
+    if _stop.is_set():
+        raise Stopped()
     if proc.returncode != 0 or not out_file.exists():
         raise RuntimeError("Fallo transcribiendo: " + "\n".join(tail)[-400:])
 
@@ -1346,6 +1415,7 @@ def run_render(cmd, out_file, timeout=7200):
                             creationflags=NO_WINDOW)
     killer = threading.Timer(timeout, proc.kill)
     killer.start()
+    track(proc)
     tail = deque(maxlen=25)
     try:
         for line in proc.stdout:
@@ -1360,6 +1430,9 @@ def run_render(cmd, out_file, timeout=7200):
         proc.wait(timeout=60)
     finally:
         killer.cancel()
+        untrack(proc)
+    if _stop.is_set():
+        raise Stopped()
     if proc.returncode != 0 or not out_file.exists():
         raise RuntimeError("Fallo renderizando: " + "\n".join(tail)[-400:])
 
@@ -1609,8 +1682,30 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
     return out, changed, cannot
 
 
+def note_stopped(video, prompt):
+    """Dejar el turno parado en la conversacion.
+
+    Sin esto la ventana recarga el historial del motor, no encuentra tu frase y
+    la hace desaparecer: parece que no la escribiste nunca.
+    """
+    if not video:
+        return
+    work = workdir_for(video)
+    past = session_load(work)
+    if not past.get("edl"):
+        return  # No hay conversacion todavia: no habia nada que continuar.
+    past["history"] = (past.get("history") or []) + [
+        {"you": prompt, "cannot": [{"what": "stop", "why": tr("stopped_by_you")}],
+         "ok": False}]
+    session_save(work, past)
+
+
 def run_job(req):
     global _busy
+    # Se leen antes del try porque el except los necesita, y parar puede pasar
+    # en la primera fase, antes de que el cuerpo haya definido nada.
+    stop_video = req.get("video") or ""
+    stop_prompt = (req.get("prompt") or "").strip()
     try:
         video = req["video"]
         preset = req.get("preset", "clean")
@@ -2061,6 +2156,12 @@ def run_job(req):
         if srt_paths:
             result += "  |  " + tr("srt_made", ", ".join(Path(p).name for p in srt_paths))
         set_progress(tr("done"), 100, result=result)
+    except Stopped:
+        # Lo que se hizo antes de parar se queda: los subtitulos ya colocados
+        # estan en el timeline y borrarlos seria una sorpresa peor. Se dice lo
+        # que quedo a medias y ya.
+        note_stopped(stop_video, stop_prompt)
+        set_stopped(tr("stopped"), tr("stopped_help"))
     except Exception as e:
         traceback.print_exc()
         set_progress("", 0, error=str(e))
@@ -2326,9 +2427,18 @@ class Handler(BaseHTTPRequestHandler):
             if gone:
                 return self._send({"error": tr("no_deps") % ", ".join(gone)}, 503)
             _busy = True
+            # La bandera del turno anterior no puede matar a este.
+            _stop.clear()
             set_progress(tr("preparing"), 3)
             threading.Thread(target=run_job, args=(body,), daemon=True).start()
             self._send({"ok": True})
+        elif self.path == "/stop":
+            # Parar el turno en marcha. Idempotente y sin cuerpo: se puede
+            # pulsar dos veces sin que pase nada raro.
+            if not _busy:
+                return self._send({"ok": True, "idle": True})
+            killed = stop_all()
+            self._send({"ok": True, "killed": killed})
         elif self.path == "/shutdown":
             # Resolve starts the engine with no console window, so there has to be
             # a way to stop it that is not the task manager.

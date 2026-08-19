@@ -472,9 +472,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .bubble-text { display: flex; flex-direction: column; gap: 7px; min-width: 0; flex: 1; }
 .bubble-text .track { margin: 2px 0; }
 
+/* `min-width: 0` es lo que deja partir el texto: sin el, la linea es un item
+   de flex que se niega a bajar de su ancho ideal y se sale de la burbuja, que
+   es por lo que las respuestas largas aparecian cortadas a media frase.
+   `overflow-wrap` remata el caso de una palabra o una ruta sin espacios. */
 .done-line, .warn-line {
   display: flex; align-items: flex-start; gap: 7px; color: var(--text-dim);
+  min-width: 0; overflow-wrap: anywhere;
 }
+.done-line > *, .warn-line > * { min-width: 0; }
 .done-line .icon.ok { color: var(--ok); flex: none; margin-top: 2px; }
 .warn-line { color: var(--muted); }
 .warn-line .icon { color: #e0a33a; flex: none; margin-top: 2px; }
@@ -485,6 +491,18 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   font-size: 11.5px; color: var(--faint); background: var(--panel2);
   border-radius: 7px; padding: 7px 9px; word-break: break-all;
 }
+
+/* Parar. Rojo apagado y no rojo de alarma: es una salida normal, no un fallo.
+   Dentro de la burbuja va pequeno; en la pantalla grande, centrado debajo. */
+.stop {
+  align-self: flex-start; display: flex; align-items: center; gap: 7px;
+  background: transparent; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 9px; padding: 8px 14px; font: inherit; font-size: 12.5px;
+  font-weight: 600; cursor: pointer; transition: border-color .12s, color .12s;
+}
+.stop:hover { border-color: var(--bad); color: var(--bad); }
+.stop.small { padding: 5px 10px; font-size: 11.5px; margin-top: 3px; }
+.done-ic.stopped { color: var(--muted); }
 
 /* La alternativa, dentro de la propia respuesta. Un limite que te ofrece la
    salida deja de ser un muro. */

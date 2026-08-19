@@ -95,6 +95,14 @@ export const IconVideo = ({ size = 18, className }: Props) => (
   </g></svg>
 );
 
+// El cuadrado de parar, el mismo que lleva cualquier reproductor. Un icono que
+// ya conoces no hay que explicarlo.
+export const IconStop = ({ size = 18, className }: Props) => (
+  <svg {...box(size, className)}><g {...P}>
+    <rect x="6" y="6" width="12" height="12" rx="2" />
+  </g></svg>
+);
+
 export const IconAlert = ({ size = 18, className }: Props) => (
   <svg {...box(size, className)}><g {...P}>
     <circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.2v.3" />

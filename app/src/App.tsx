@@ -10,13 +10,13 @@ import logo from "./assets/logo.png";
 import {
   IconAlert, IconBook, IconBrand, IconCheck, IconChevron, IconClock, IconDrop,
   IconFilm, IconFolder, IconFolderOpen, IconMic, IconPlay, IconScissors, IconSliders,
-  IconSpark, IconVideo, IconZap,
+  IconSpark, IconStop, IconVideo, IconZap,
 } from "./Icons";
 import "./App.css";
 
 type Preset = "clean" | "podcast" | "montage";
 type Output = "mp4" | "resolve";
-type Phase = "idle" | "running" | "done" | "error";
+type Phase = "idle" | "running" | "done" | "error" | "stopped";
 type View = "edit" | "history";
 
 interface Progress {
@@ -25,6 +25,7 @@ interface Progress {
   detail?: string;
   result?: string;
   error?: string;
+  stopped?: boolean;
 }
 
 const PRESETS: { id: Preset; Icon: typeof IconScissors; name: Key; desc: Key; beta?: boolean }[] = [
@@ -276,6 +277,21 @@ function App() {
     startEdit(last, "mp4");
   }
 
+  /**
+   * Parar el turno en marcha.
+   *
+   * Una frase mal dicha costaba minuto y medio de espera, porque la unica forma
+   * de cancelarla era esperar a que acabara. Parar tambien vacia la fila: si
+   * paras porque te equivocaste, seguir con los siguientes mensajes en espera
+   * seria justo lo contrario de lo que pediste.
+   */
+  function stopEdit() {
+    if (phase !== "running") return;
+    setQueue([]);
+    setProgress((p) => ({ ...p, step: t("run.stopping") }));
+    apiPost("/stop", {}).catch(() => {});
+  }
+
   // Progreso
   useEffect(() => {
     if (phase !== "running") return;
@@ -284,10 +300,20 @@ function App() {
         const p = await apiGet<Progress>("/progress");
         setProgress(p);
         if (p.error) setPhase("error");
+        else if (p.stopped) setPhase("stopped");
         else if (p.percent >= 100 && p.result) setPhase("done");
       } catch { /* ocupado */ }
     }, 800);
     return () => clearInterval(t);
+  }, [phase]);
+
+  // Escape para parar. Es la tecla que la mano busca sola cuando algo esta
+  // pasando y no lo querias.
+  useEffect(() => {
+    if (phase !== "running") return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") stopEdit(); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
   }, [phase]);
 
   // Cerrar el desplegable de workspace al pulsar fuera
@@ -346,7 +372,7 @@ function App() {
     } catch { /* motor antiguo o apagado */ }
   }
 
-  const working = phase === "running" || phase === "done";
+  const working = phase === "running" || phase === "done" || phase === "stopped";
 
   return (
     <main className="shell">
@@ -424,6 +450,7 @@ function App() {
             setChat([]); setFollowUp(""); setSetup(false);
           }}
           running={phase === "running"}
+          onStop={stopEdit}
           step={progress.step}
           detail={progress.detail}
           percent={progress.percent}
@@ -439,6 +466,20 @@ function App() {
               <p className="stepn">
                 {progress.detail ? `${progress.detail} · ` : ""}{progress.percent}%
               </p>
+              <button className="stop" onClick={stopEdit}>
+                <IconStop size={14} className="icon" />{t("run.stop")}
+              </button>
+            </>
+          ) : phase === "stopped" ? (
+            <>
+              <div className="done-ic stopped"><IconStop size={40} className="icon" /></div>
+              <h2>{t("run.stopped")}</h2>
+              <p className="stepn">{progress.detail || t("run.stoppedSub")}</p>
+              <div className="run-actions">
+                <button className="ghost" onClick={() => {
+                  setPhase("idle"); setProgress({ step: "", percent: 0 });
+                }}>{t("run.back")}</button>
+              </div>
             </>
           ) : (
             <>
