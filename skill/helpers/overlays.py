@@ -72,10 +72,20 @@ KINDS.update({
         # O sea que entre el subtitulo mas hondo y el borde de abajo quedan 46
         # px para una caja de 52: no entra. Bajarlo a 0.06 quitaba el solape
         # pero lo sacaba del cuadro, y el texto se cortaba contra la fila 1079.
-        # A 0.30 la caja va de la 769 a la 820: 22 px de hueco hasta el
-        # subtitulo mas alto y 259 px de margen por abajo. Sigue siendo un
-        # rotulo de manual, porque el tercio inferior es el tercio inferior.
-        "shape": "text", "y": 0.30, "size": 0.052,
+        # Y hay que mirar las DOS salidas, porque la misma barra no mide lo
+        # mismo en cada una. Medido el 19-ago restando fotogramas (el mismo
+        # montaje con y sin rotulo, y el de solo subtitulos contra el crudo):
+        #
+        #   en el MP4 (libass)    la caja mide  52 px
+        #   en Resolve (Fusion)   la caja mide 203 px
+        #
+        # No es un fallo suelto: en Fusion la placa se dibuja por letra y solo
+        # se cierra en una barra continua a partir de Thickness 0.80, que ya se
+        # midio ayer. A esa gruesura la caja es cuatro veces mas alta, y a 0.30
+        # se comia 76 px del subtitulo de Resolve aunque en el MP4 sobraran 22.
+        # A 0.40 la caja de Resolve va de la 532 a la 735 y el subtitulo empieza
+        # en la 785: 50 px de hueco. En el MP4 sobran 130.
+        "shape": "text", "y": 0.40, "size": 0.052,
         "font": "Arial", "style": "Bold",
         "fill": (1.0, 1.0, 1.0),
         # r, g, b, alpha, grosor: el panel del Text+, que es la barra.
@@ -116,6 +126,19 @@ def kind_list(lang="es", only=None):
     return [{"id": k, "label": v["label"].get(lang, v["label"]["en"]),
              "note": v["note"].get(lang, v["note"]["en"])}
             for k, v in KINDS.items() if only is None or k in only]
+
+
+def label_of(kind, lang="es", plural=False):
+    """Como se llama ese efecto delante de una persona.
+
+    El motor contaba los rotulos con el id crudo y en plural fijo: "1 de tipo
+    rotulo puestos". Tres cosas mal en cinco palabras.
+    """
+    k = KINDS.get(kind)
+    if not k:
+        return kind
+    nombre = k["label"].get(lang, k["label"]["en"])
+    return (nombre + "s") if plural else nombre
 
 
 def as_preset(kind):

@@ -438,6 +438,32 @@ Detalle que ahorra un susto al medirlo: los tres fotogramas de las uniones salen
 byte a byte**, porque un negro puro es un negro puro. Eso no es que el exportador devuelva
 una imagen cacheada; el control a 6,00 s sí es distinto.
 
+## La misma barra no mide lo mismo en las dos salidas
+
+Comprobado el 19-ago-2026 restando fotogramas, que es la unica forma de aislar un overlay
+del video que tiene detras: el mismo montaje con rótulo y sin él, y el de solo subtítulos
+contra el fotograma crudo del original.
+
+| | caja del rótulo | subtítulo `punch` |
+| --- | --- | --- |
+| MP4 (libass) | 52 px | de la fila 842 a la 1022 |
+| Resolve (Fusion) | **203 px** | de la fila 785 a la 939 |
+
+Cuatro veces más alta en Resolve, y no es un fallo suelto: en Fusion la placa se dibuja
+**por letra** y solo se cierra en una barra continua a partir de `Thickness 0.80`, que ya
+estaba medido. A esa gruesura la caja crece hacia arriba y hacia abajo.
+
+La consecuencia práctica es que **el rótulo no se puede colocar mirando una sola salida**.
+Puesto a 0.30 sobraban 22 px en el MP4 y se comía 76 px del subtítulo en Resolve. A **0.40**
+las dos van bien: 130 px de hueco en el MP4 y 32 px en Resolve.
+
+Y antes de eso, el 0.06 de la ronda anterior lo sacaba del cuadro por abajo en el MP4: el
+texto blanco llegaba a la fila 1079 de 1080. Se arregló mirando una salida y se rompió la
+otra, que es exactamente lo que esta tabla existe para evitar.
+
+**Cabo suelto**: unificar el alto de la placa entre libass y Fusion. Mientras no se haga, un
+cambio en `y` o en `size` del rótulo hay que medirlo en las dos.
+
 ## Estado de la verificación
 
 Lo que se ha visto renderizado, y lo que no. Compilar no cuenta.

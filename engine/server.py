@@ -172,7 +172,7 @@ TEXT = {
         "did_cut": "%d tramo",
         "did_caps": "%d subtítulos",
         "literal": "Lo has dicho con los segundos puestos: no hace falta pensarlo.",
-        "carded": "%d de tipo %s puestos.",
+        "carded": "%d %s en su sitio.",
         "did_voice": "%d voz en off",
         "painting": "Coloreando en Resolve...",
         "painting_help": "Una corrección primaria por clip, que puedes seguir tocando a mano",
@@ -1141,7 +1141,11 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
         n = resolve_captions.place_overlays(bridge_post, bridge_get_slow, plan,
                                             workdir or Path(video).parent,
                                             out_w, out_h, track=ov_track)
-        made += " " + tr("carded", n, card_style) if n else ""
+        if n:
+            # Con su nombre y en el numero que toca. Antes decia "1 de tipo
+            # rotulo puestos", que es el id crudo y el plural equivocado.
+            made += " " + tr("carded", n,
+                             overlays.label_of(card_style, _lang, n != 1).lower())
 
     if look and look != looks.DEFAULT:
         set_progress(tr("painting"), 80, tr("painting_help"))
