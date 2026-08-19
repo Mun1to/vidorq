@@ -606,6 +606,91 @@ El aviso es **del turno que lo pidió**. Sin ese filtro, poner una transición e
 hacía que el turno 5 siguiera diciendo «no puedo poner transiciones» por un ajuste que nadie
 había vuelto a mencionar, y un aviso que se repite es un aviso que se deja de leer.
 
+## 8c-bis. Parar, preguntar cual, y señalar un tramo
+
+Tres cosas que salieron de una sola captura de Munir: escribio *«cut the video»* y Vidorq
+contesto *«esto no se hacerlo: cortar el video es muy ambiguo»*, con el texto cortado a
+media frase y sin forma de cancelar el turno.
+
+### Parar (`_stop`, `POST /stop`)
+
+Un turno puede tardar minuto y medio, y hasta ahora la unica forma de cancelar una frase mal
+dicha era esperar a que acabara.
+
+La bandera se mira **dentro de `set_progress`**, y eso no es pereza: cada fase informa de su
+progreso, asi que un solo `if` ahi cubre las cuarenta llamadas y para en el primer sitio
+donde el trabajo levanta la cabeza. Lo que no pasa por ahi son los subprocesos largos
+(Whisper, ffmpeg), y esos se **matan**: se apuntan en `_live` mientras viven.
+
+La llamada final, la que trae `result` o `error`, **no se para**: es la que cuenta como acabo
+la cosa, y tragarsela dejaria la ventana esperando para siempre.
+
+Lo que ya estaba hecho **se queda**. Los subtitulos colocados estan en el timeline y
+borrarlos seria una sorpresa peor que dejarlos. El turno parado se **escribe en la sesion**,
+porque si no la ventana recarga el historial del motor, no encuentra tu frase y la hace
+desaparecer: parece que no la escribiste nunca.
+
+Medido: para en **1 segundo** desde una transcripcion en marcha, `killed: 1`, sin procesos
+huerfanos, y el siguiente turno arranca normal.
+
+### «Cortar el video» no es algo que no sepa hacer: es lo que hace
+
+Ese *no se hacerlo* era **falso**. Hay tres formas de cortar en el menu (`clean`, `podcast`,
+`montage`) y sabe hacer las tres, asi que la respuesta correcta es enseñarlas.
+
+Y elegir una **vuelve a cortar de verdad**, que es la mitad que faltaba: un retoque reusaba
+el EDL de siempre, asi que la pregunta habria tenido tres botones que no hacian nada, y eso
+es peor que no preguntar. Cambiar `cuts` o `shake` es lo unico de un retoque que obliga a
+recortar; el resto se pinta encima del mismo montaje.
+
+### Señalar un tramo, sin saberse el segundo
+
+*«Que sea facil decirle una parte del timeline»*, dos veces. Pedir un zoom o quitar un trozo
+obligaba a saberse el segundo de memoria y teclearlo.
+
+Ahora una frase que pide algo **en un sitio** y no dice en cual (`director.needs_where`)
+se contesta con los **tramos del montaje**, cada uno con su reloj y con lo que se dice
+dentro, **numerados** para poder dictar «la 2».
+
+El truco es no inventar un estado nuevo: cada opcion **es la frase entera** que se enviaria
+escribiendola, asi que el boton no sabe nada que el chat no sepa y entra por el camino que ya
+estaba probado. Los tiempos son los del **montaje**, que es el reloj que se esta viendo.
+
+Tres cosas que se midieron mal por el camino, y las tres importan:
+
+| lo que pasaba | por que |
+| --- | --- |
+| *«haz un zoom»* cambiaba la **entrada de los subtitulos** | «zoom» es la misma palabra para un movimiento de camara y para una animacion de texto, y ganaba la equivocada |
+| *«esto no se hacerlo: un zoom en el segundo 11»* | el modelo de AJUSTES vetaba algo que `director.actions` si hace |
+| *«quita un trozo en el segundo 11»* no quitaba nada | un corte necesita los **dos** extremos; con un punto solo el modelo devolvia lista vacia |
+
+Y lo que hizo se **cuenta**: `said_deeds` pone «1 zoom» o «1 trozo quitado» en la respuesta.
+Antes contestaba «2 tramos» y hacer algo sin decirlo es indistinguible de no hacerlo, que es
+literalmente lo que Munir dijo: *«no se que ha hecho»*.
+
+### La CLI hablaba como su dueño
+
+Con `claude-cli` como proveedor, la respuesta de Vidorq salio en el **dialecto que Munir
+tiene configurado en su Claude Code**. Se le pregunto en neutro como cortar un video y
+contesto *«Klk manito, tira ffmpeg... y caiga clavao, tas»*.
+
+Una CLI de agente **lee la configuracion de su usuario**: su estilo de salida, su
+`CLAUDE.md` global. Y ese texto va a dos sitios donde hace daño: la ventana, y un parser de
+JSON. Se apaga con `--setting-sources ""` en Claude y `--ignore-user-config` en Codex, y de
+paso la instruccion de Vidorq viaja como **prompt de sistema** (`--system-prompt`) en vez de
+pegada delante del texto del usuario.
+
+### La red: `tests/test_understanding.py`
+
+53 casos, sin modelo ni red, en milisegundos. Cada linea es un fallo que se publico, porque
+las reglas son expresiones regulares sobre español, se solapan, y **el orden entre ellas
+importa**: una regla añadida para una frase rompe otra en silencio. Dos veces volvio la misma
+clase de fallo (*«quita los subtitulos»* los encendia; *«haz un zoom»* tocaba el texto).
+
+Escribirlo encontro uno mas: el atajo **Animacion** preguntaba que **estilo** de subtitulo
+querias, porque «animada, pero cual» contaba como una decision ya tomada. De ahi sale
+`director.decided()`, que es `from_words` menos los `__any__`.
+
 ## 8d. Filtros de color (`skill/helpers/looks.py`)
 
 Ocho miradas, cada una escrita **una sola vez** como cuatro números de CDL (pendiente,
