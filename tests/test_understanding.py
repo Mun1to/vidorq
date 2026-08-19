@@ -28,6 +28,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "skill" / "helpe
 
 import director  # noqa: E402
 
+# Un boton pulsado, y como se lee en la conversacion.
+PICKS = [
+    ("pick:transition=dip", "transicion: Fundido a negro"),
+    ("pick:captionPreset=neon", "estilo: Neon"),
+    # Dos pares: la transicion que se pidio y la salida por la que si sale.
+    ("pick:transition=dissolve&output=mp4", "transicion: Disolvencia, salida: MP4"),
+    # Lo escrito a mano no se toca.
+    ("quita un trozo del segundo 5 al 9", "quita un trozo del segundo 5 al 9"),
+]
+
+PAIRS = [
+    ("pick:transition=dip", {"transition": "dip"}),
+    ("pick:transition=dissolve&output=mp4",
+     {"transition": "dissolve", "output": "mp4"}),
+    # Basura dentro no inventa claves.
+    ("pick:transition=dip&", {"transition": "dip"}),
+    ("pick:", {}),
+]
+
+# (salida, transicion, si tiene que avisar de que sale en el MP4)
+OFFERS = [
+    ("resolve", "dip", False),
+    ("resolve", "white", False),
+    ("resolve", "dissolve", True),
+    ("resolve", "wipe", True),
+    ("mp4", "dissolve", False),
+    ("mp4", "dip", False),
+]
+
 # ---------------------------------------------------------------------------
 # What the words say outright. Each case is (sentence, settings it must state).
 # A key that is absent must stay absent: stating something nobody asked for is
@@ -218,6 +247,46 @@ def main():
             if got != want:
                 bad.append("_echoes(%r, %s) esperaba %s y devolvio %s"
                            % (text, keys, want, got))
+
+        # --- lo que se ve escrito cuando pulsas un boton -------------------
+        # Un boton viaja como "pick:transition=dip". Que eso llegue crudo a la
+        # pantalla paso de verdad, y justo en los dos turnos peores: cuando no
+        # se puede hacer y cuando falta decidir algo.
+        for prompt, want in PICKS:
+            echo_n += 1
+            got = server.shown(prompt, "es")
+            if got != want:
+                bad.append("shown(%r) esperaba %r y devolvio %r"
+                           % (prompt, want, got))
+
+        for prompt, want in PAIRS:
+            echo_n += 1
+            got = server.pick_pairs(prompt)
+            if got != want:
+                bad.append("pick_pairs(%r) esperaba %s y devolvio %s"
+                           % (prompt, want, got))
+
+        # --- los botones saben en que salida estan -------------------------
+        # Ofrecer una transicion que esta salida no sabe hacer, y negarla
+        # despues de que la pulses, es el bucle de la captura del 19-ago.
+        for salida, ident, quiere_nota in OFFERS:
+            echo_n += 1
+            opt = next(o for o in server.choices_for("transition", "es", salida)
+                       if o["id"] == ident)
+            tiene = "note" in opt
+            if tiene != quiere_nota:
+                bad.append("choices_for(transition, %s)[%s]: nota=%s, esperaba %s"
+                           % (salida, ident, tiene, quiere_nota))
+            echo_n += 1
+            # Y la que no cabe se lleva la salida puesta, que es lo que evita
+            # el segundo viaje por la misma negativa.
+            manda = opt.get("send", "")
+            if quiere_nota and "output=mp4" not in manda:
+                bad.append("choices_for(transition, %s)[%s] no cambia la salida"
+                           % (salida, ident))
+            if not quiere_nota and manda:
+                bad.append("choices_for(transition, %s)[%s] cambia la salida y no debe"
+                           % (salida, ident))
     except Exception as e:
         print("(no pude probar _echoes: %s)" % str(e)[:70])
 

@@ -186,6 +186,7 @@ TEXT = {
         "history_first": "primera edicion",
         "did_order": "%d tramos puestos en otro orden",
         "said_order": "cambiar de sitio un tramo",
+        "only_mp4": "en el MP4",
         "did_undo": "vuelto al montaje de antes",
         "said_undo": "deshacer el ultimo cambio",
         "voice_making": "Poniendo voz a la linea %d de %d...",
@@ -253,6 +254,7 @@ TEXT = {
         "history_first": "first edit",
         "did_order": "%d segments put in another order",
         "said_order": "move a segment",
+        "only_mp4": "in the MP4",
         "did_undo": "back to the previous edit",
         "said_undo": "undo the last change",
         "voice_making": "Voicing line %d of %d...",
@@ -304,6 +306,17 @@ RATIO_LABELS = {
 
 def tr(key, *args):
     text = TEXT.get(_lang, TEXT["es"]).get(key, key)
+    return text % args if args else text
+
+
+def tr_in(lang, key, *args):
+    """Lo mismo, pero en un idioma que se pasa a mano.
+
+    Los catalogos (los botones de una pregunta, las etiquetas) se piden con su
+    idioma como argumento y no con el global, porque los sirve un endpoint que
+    puede estar contestandole a otra ventana.
+    """
+    text = TEXT.get(lang, TEXT["es"]).get(key, key)
     return text % args if args else text
 
 QUESTION_RE = re.compile(
@@ -1842,15 +1855,15 @@ def can_do(output, what, value=None):
 CANNOT_WHY = {
     "es": {
         "transition": "Esa transicion necesita mezclar los dos planos, y eso Resolve "
-                      "no lo hace por API. En Resolve puedo poner fundido a negro, a "
-                      "blanco o destello; las demas salen en el MP4.",
+                      "no lo hace por API. En Resolve puedo poner fundido a negro o a "
+                      "blanco; las demas salen en el MP4.",
         "voice": "Resolve no admite meter audio por su API, la voz solo sale en el MP4.",
         "shake": "El temblor necesita keyframes de encuadre, que Resolve no da por API.",
     },
     "en": {
         "transition": "That transition has to blend both shots, which Resolve will "
-                      "not do over its API. In Resolve it can dip to black, dip to "
-                      "white or flash; the rest come out in the MP4.",
+                      "not do over its API. In Resolve it can dip to black or dip to "
+                      "white; the rest come out in the MP4.",
         "voice": "Resolve takes no audio over its API; the voice only comes out in "
                  "the MP4.",
         "shake": "The shake needs framing keyframes, which Resolve will not set over "
@@ -1865,11 +1878,15 @@ CANNOT_WHY = {
 SETTING_WORDS = {
     "es": {"ratio": "formato", "transition": "transicion", "captions": "subtitulos",
            "captionPreset": "estilo", "captionAnim": "entrada", "cuts": "corte",
-           "look": "color", "shake": "temblor"},
+           "look": "color", "shake": "temblor", "output": "salida"},
     "en": {"ratio": "frame", "transition": "transition", "captions": "captions",
            "captionPreset": "look", "captionAnim": "entrance", "cuts": "cut",
-           "look": "colour", "shake": "shake"},
+           "look": "colour", "shake": "shake", "output": "output"},
 }
+
+# La salida no sale de ningun catalogo, porque no es una eleccion de estilo:
+# son los dos sitios a los que puede salir el video.
+OUTPUT_WORDS = {"mp4": "MP4", "resolve": "Resolve", "timeline": "Resolve"}
 
 
 def said_it(changed, settings):
@@ -1896,6 +1913,9 @@ def said_it(changed, settings):
                      .get(value, value))
         elif key == "ratio":
             value = RATIO_LABELS.get(_lang, RATIO_LABELS["es"]).get(value, value)
+        elif key == "output":
+            # "salida: mp4" es el id; lo que se lee es "salida: MP4".
+            value = OUTPUT_WORDS.get(value, value)
         elif key in ("look", "captionPreset", "captionAnim"):
             # El nombre de la cosa, no su id. "color: bn" es como se llama la
             # clave por dentro; lo que hay que leer es "Blanco y negro".
@@ -1949,14 +1969,30 @@ CUT_LABELS = {
 }
 
 
-def choices_for(key, lang="es"):
+def choices_for(key, lang="es", output=None):
+    """Los botones de una pregunta, sabiendo en que salida estamos.
+
+    Ofrecer una opcion y refunfunar despues de que la pulses es el peor de los
+    dos mundos: parece que funciona, y encima te deja donde estabas. Aqui, lo
+    que esta salida no sabe hacer se sigue enseñando (esconderlo seria fingir
+    que no existe) pero dice que sale en el MP4 Y lo cambia al pulsarlo, asi que
+    el boton hace lo que promete en un clic en vez de abrir un bucle.
+    """
     if key == "cuts":
         words = CUT_LABELS.get(lang, CUT_LABELS["es"])
         return [{"id": c, "label": words.get(c, c)} for c in director.CUTS]
     if key == "transition":
         words = TRANSITION_LABELS.get(lang, TRANSITION_LABELS["es"])
-        return [{"id": t, "label": words.get(t, t)}
-                for t in director.TRANSITIONS if t != "none"]
+        out = []
+        for tval in director.TRANSITIONS:
+            if tval == "none":
+                continue
+            opt = {"id": tval, "label": words.get(tval, tval)}
+            if output and not can_do(output, "transition", tval):
+                opt["note"] = tr_in(lang, "only_mp4")
+                opt["send"] = "%stransition=%s&output=mp4" % (PICK, tval)
+            out.append(opt)
+        return out
     if key == "captionPreset":
         return [{"id": p["id"], "label": p["label"]} for p in cap.preset_list(lang)]
     if key == "captionAnim":
@@ -2027,6 +2063,22 @@ ASK_WORDS = {
 }
 
 
+def pick_pairs(prompt):
+    """Lo que trae un boton pulsado, como diccionario.
+
+    Un boton puede decidir mas de una cosa a la vez. El caso real es la
+    transicion que Resolve no sabe hacer: el boton pone la transicion Y cambia
+    la salida a MP4, porque ofrecerla y luego negarla es lo que dejaba al
+    usuario dando vueltas entre la misma pregunta y la misma negativa.
+    """
+    pares = {}
+    for trozo in prompt[len(PICK):].split("&"):
+        key, _, value = trozo.partition("=")
+        if key and value:
+            pares[key] = value
+    return pares
+
+
 def said_pick(prompt, lang="es"):
     """Un boton pulsado, escrito como lo diria una persona.
 
@@ -2034,20 +2086,37 @@ def said_pick(prompt, lang="es"):
     todo lo demas, pero eso en la conversacion se lee como un error de la
     maquina. Se guarda ya traducido.
     """
-    key, _, value = prompt[len(PICK):].partition("=")
     words = SETTING_WORDS.get(lang, SETTING_WORDS["es"])
-    for opt in choices_for(key, lang):
-        if opt["id"] == value:
-            return "%s: %s" % (words.get(key, key), opt["label"])
-    return "%s: %s" % (words.get(key, key), value)
+    dichos = []
+    for key, value in pick_pairs(prompt).items():
+        etiqueta = OUTPUT_WORDS.get(value, value) if key == "output" else value
+        for opt in choices_for(key, lang):
+            if opt["id"] == value:
+                etiqueta = opt["label"]
+                break
+        dichos.append("%s: %s" % (words.get(key, key), etiqueta))
+    return ", ".join(dichos) or prompt
 
 
-def ask_for(keys, lang="es"):
+def shown(prompt, lang="es"):
+    """Como se ve en la conversacion lo que se mando.
+
+    Un boton viaja como "pick:transition=dip" y eso en pantalla se lee como un
+    fallo del programa. Antes solo se traducia en el camino bueno; en los dos
+    atajos (no se puede hacer / falta decidir algo) se guardaba crudo, que son
+    justo los turnos en los que el usuario ya esta desconcertado.
+    """
+    if prompt.startswith(PICK):
+        return said_pick(prompt, lang)
+    return prompt
+
+
+def ask_for(keys, lang="es", output=None):
     """Las preguntas pendientes, listas para pintarse como botones."""
     words = ASK_WORDS.get(lang, ASK_WORDS["es"])
     out = []
     for key in keys:
-        options = choices_for(key, lang)
+        options = choices_for(key, lang, output)
         if options:
             out.append({"what": key, "question": words.get(key, key),
                         "options": options})
@@ -2071,8 +2140,8 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
     # pulsar un boton es tirar diez segundos y arriesgarse a que conteste otra
     # cosa.
     if prompt.startswith(PICK):
-        key, _, value = prompt[len(PICK):].partition("=")
-        return dict(base, **{key: value}), [key], []
+        pares = pick_pairs(prompt)
+        return dict(base, **pares), list(pares), []
     # Un retoque sin frase existe: mover un tramo de sitio se pide arrastrando,
     # no hablando. Preguntarle al modelo que quiso decir una frase vacia son
     # diez segundos y una respuesta inventada.
@@ -2221,6 +2290,10 @@ def run_job(req):
         # El montaje y los ajustes ANTES de este turno, copiados aqui porque de
         # aqui en adelante se tocan. Es todo lo que hace falta para poder volver
         # atras un paso.
+        # Lo que trae un boton pulsado, si lo que llega es un boton. Se lee una
+        # vez y se usa dos: para saber de que iba la pregunta, y para que la
+        # salida que decide el boton gane sobre la del desplegable.
+        pares = pick_pairs(prompt) if prompt.startswith(PICK) else {}
         prev_edl = [dict(x) for x in (past0.get("edl") or [])]
         prev_settings = dict(past0.get("settings") or {})
         undo = bool(req.get("undo")) and bool(past0.get("edl_prev"))
@@ -2250,7 +2323,11 @@ def run_job(req):
             caption_anim = fresh.get("captionAnim", caption_anim)
             colour = fresh.get("look", colour)
             output = fresh.get("output") or output
-            if req.get("output"):
+            # El desplegable manda... salvo cuando el boton que acabas de pulsar
+            # dice a donde va. El desplegable es lo que habia puesto antes; el
+            # boton es la decision de ahora, y es la que abre la unica puerta
+            # para una transicion que Resolve no sabe hacer.
+            if req.get("output") and "output" not in pares:
                 output = req["output"]
             set_progress(tr("refining", turn), 8,
                          tr("refine_kept", len(keep_edl),
@@ -2410,18 +2487,18 @@ def run_job(req):
             # preguntar es ademas la unica que ensena lo que hay.
             pending = ask_for(director.vague(prompt or "",
                                              director.decided(prompt or "")),
-                              _lang)
+                              _lang, output)
             pide_sitio = prompt and (director.wants_moments(prompt)
                                      or director.needs_where(prompt))
             if pending and not pide_sitio:
-                answer = {"you": prompt, "did": [], "cannot": blocked,
+                answer = {"you": shown(prompt, _lang), "did": [], "cannot": blocked,
                           "unknown": [], "ask": pending, "offer": {}, "ok": False}
                 past["history"] = history + [answer]
                 session_save(sesdir, past)
                 set_progress(tr("done"), 100, result=pending[0]["question"])
                 return
             if not useful and not pide_sitio:
-                answer = {"you": prompt, "did": [], "cannot": blocked,
+                answer = {"you": shown(prompt, _lang), "did": [], "cannot": blocked,
                           "unknown": not_understood,
                           "offer": ({"kind": "mp4"} if blocked else {}),
                           "ok": False}
@@ -2685,8 +2762,9 @@ def run_job(req):
         # edicion desde cero. Se guarda al final, con el EDL ya definitivo.
         # Que se acaba de elegir con un boton, si fue eso. Sirve para encadenar:
         # elegido el estilo, la pregunta natural es como entran.
-        picked = (prompt[len(PICK):].partition("=")[0]
-                  if prompt.startswith(PICK) else "")
+        # De que iba el boton. Con dos pares (transicion + salida) el que manda
+        # es el que NO es la salida: la salida es como se hace, no que se pidio.
+        picked = next((k for k in pares if k != "output"), "")
         settings_now = {"ratio": ratio, "transition": transition,
                         "captions": captions, "captionPreset": caption_preset,
                         "captionAnim": caption_anim, "cuts": preset,
@@ -2723,21 +2801,20 @@ def run_job(req):
         blocked = blocked_by_output(output, settings_now, set(changed),
                                     want_voice=bool(want_voice),
                                     want_shake=bool(req.get("shake")))
-        answer = {"you": (said_pick(prompt, _lang) if prompt.startswith(PICK)
-                          else prompt or (tr("said_undo") if undo
-                                          else tr("said_order") if moved
-                                          else tr("history_first"))),
+        answer = {"you": (shown(prompt, _lang) or (tr("said_undo") if undo
+                                                    else tr("said_order") if moved
+                                                    else tr("history_first"))),
                   "did": [x for x in did if x],
                   "cannot": blocked,
                   "unknown": not_understood,
                   # Se ha hecho algo Y ademas queda algo por concretar: se hace
                   # lo que se entendio y se pregunta lo otro, en vez de parar el
                   # trabajo por una duda que no lo impedia.
-                  "ask": (ask_for(director.NEXT_ASK[picked], _lang)
+                  "ask": (ask_for(director.NEXT_ASK[picked], _lang, output)
                           if picked in director.NEXT_ASK
                           else ask_for(director.vague(
                               prompt or "", director.decided(prompt or "")),
-                              _lang))
+                              _lang, output))
                          if again else [],
                   "offer": ({"kind": "mp4"} if blocked else {}),
                   "result": result,

@@ -254,6 +254,14 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   margin-top: 2px;
   box-shadow: 0 -14px 20px -8px var(--bg);
 }
+/* El suelo que decia el comentario de arriba y no existia. Medido el 19-ago:
+   el boton se queda con el borde de abajo en 686 y el panel acaba en 708, o sea
+   que por esos 22 px de relleno seguia asomando lo que pasaba por detras. Con
+   una miniatura clara eso se lee como una imagen partida por la mitad. */
+.main > .cta::after {
+  content: ""; position: absolute; left: -26px; right: -26px; top: 100%;
+  height: 26px; background: var(--bg);
+}
 
 .ghost {
   background: transparent; border: 1px solid var(--line); color: var(--text-dim);
@@ -975,3 +983,13 @@ select:focus-visible,
 }
 .tramo-move button:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
 .tramo-move button:disabled { opacity: .3; cursor: default; }
+
+/* Una opción que esta salida no sabe hacer: se ofrece igual, pero dice dónde
+   sale. Pulsarla cambia la salida sola, así que no es un botón muerto. */
+.offer.small.elsewhere { border-style: dashed; }
+.opt-note {
+  font-style: normal; font-size: 10px; color: var(--faint); margin-left: 6px;
+  border: 1px solid var(--line); border-radius: 4px; padding: 0 4px;
+}
+/* La misma marca en el panel de ajustes que en los botones del chat. */
+.capstyle.elsewhere { border-style: dashed; }

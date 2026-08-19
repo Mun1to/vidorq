@@ -16,6 +16,10 @@ import {
 } from "./Icons";
 import "./App.css";
 
+// Las unicas que Resolve sabe hacer, porque solo TAPAN el corte y no hay que
+// mezclar los dos planos. Medido el 19-ago con el fotograma de cada union.
+const RESOLVE_TRANS = ["none", "dip", "white"];
+
 type Preset = "clean" | "podcast" | "montage";
 type Output = "mp4" | "resolve";
 type Phase = "idle" | "running" | "done" | "error" | "stopped";
@@ -512,7 +516,15 @@ function App() {
           onDraft={setFollowUp}
           onSend={(text) => askMore(text)}
           onOffer={takeOffer}
-          onPick={(what, id, send) => askMore(send || `pick:${what}=${id}`)}
+          onPick={(what, id, send) => {
+            // Un boton puede llevar la salida dentro ("...&output=mp4"): es la
+            // unica forma de pedir una transicion que Resolve no sabe hacer sin
+            // acabar en la misma negativa otra vez. El desplegable se entera,
+            // que si no la siguiente frase lo devolveria a Resolve en silencio.
+            const salida = /output=(mp4|resolve)/.exec(send || "")?.[1] as Output | undefined;
+            if (salida) setOutput(salida);
+            askMore(send || `pick:${what}=${id}`);
+          }}
           onSetup={() => setSetup(true)}
           onWords={() => setWordsOpen(true)}
           canUndo={canUndo}
@@ -853,17 +865,28 @@ function App() {
                 </div>
               )}
 
-              {output === "mp4" && Object.keys(transitions).length > 0 && (
+              {/* Con salida a Resolve esta fila estaba escondida entera, y no era
+                  verdad: el fundido a negro y el de a blanco SI se hacen ahi, con
+                  una capa animada encima del corte. Lo que no cabe se marca y se
+                  dice donde sale, en vez de desaparecer. */}
+              {Object.keys(transitions).length > 0 && (
                 <div className="capstyles anims">
                   <span className="caplabel">{t("transition")}</span>
-                  {Object.entries(transitions).map(([id, label]) => (
-                    <button key={id} className={`capstyle ${transition === id ? "sel" : ""}`}
-                            onClick={() => setTransition(id)}>
-                      {label}
-                    </button>
-                  ))}
+                  {Object.entries(transitions).map(([id, label]) => {
+                    const fuera = output === "resolve" && !RESOLVE_TRANS.includes(id);
+                    return (
+                      <button key={id}
+                              className={`capstyle ${transition === id ? "sel" : ""}${fuera ? " elsewhere" : ""}`}
+                              onClick={() => setTransition(id)}>
+                        {label}
+                        {fuera && <em className="opt-note">MP4</em>}
+                      </button>
+                    );
+                  })}
                   <small className="capnote">
-                    {transition === "none" ? t("transition.noneNote") : t("transition.note")}
+                    {transition === "none" ? t("transition.noneNote")
+                     : output === "resolve" && !RESOLVE_TRANS.includes(transition)
+                       ? t("transition.mp4only") : t("transition.note")}
                   </small>
                 </div>
               )}

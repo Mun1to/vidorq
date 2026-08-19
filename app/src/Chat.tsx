@@ -14,7 +14,10 @@ export interface Ask {
      un ajuste del menu sino un sitio del montaje: "haz un zoom en el segundo 9".
      Asi el boton no sabe nada que el chat no sepa y entra por el mismo camino
      que el texto escrito, que es el que esta probado. */
-  options: { id: string; label: string; send?: string }[];
+  /* `note` es la letra pequeña de una opcion que esta salida no sabe hacer:
+     se sigue ofreciendo, dice donde sale, y su `send` cambia la salida ella
+     sola. Ofrecerla y negarla despues era un callejon. */
+  options: { id: string; label: string; send?: string; note?: string }[];
 }
 
 export interface Turn {
@@ -235,9 +238,10 @@ export default function Chat({
                       <span className="ask-q">{a.question}</span>
                       <div className="ask-opts">
                         {a.options.map((o) => (
-                          <button key={o.id} className="offer small"
+                          <button key={o.id} className={`offer small${o.note ? " elsewhere" : ""}`}
                                   onClick={() => onPick(a.what, o.id, o.send)}>
                             {o.label}
+                            {o.note && <em className="opt-note">{o.note}</em>}
                           </button>
                         ))}
                       </div>
