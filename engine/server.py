@@ -98,6 +98,12 @@ def untrack(proc):
             _live.remove(proc)
 
 
+# La CLI del proveedor tambien entra en la lista de lo que se puede matar: es la
+# fase mas larga de un retoque y es justo donde se pulsa "Parar".
+providers.ON_SPAWN = lambda proc: track(proc)
+providers.ON_DONE = lambda proc: untrack(proc)
+
+
 def stop_all():
     """Poner la bandera y matar lo que ya esta corriendo."""
     _stop.set()
@@ -2124,14 +2130,16 @@ def run_job(req):
             pending = ask_for(director.vague(prompt or "",
                                              director.decided(prompt or "")),
                               _lang)
-            if pending and not (prompt and director.wants_moments(prompt)):
+            pide_sitio = prompt and (director.wants_moments(prompt)
+                                     or director.needs_where(prompt))
+            if pending and not pide_sitio:
                 answer = {"you": prompt, "did": [], "cannot": blocked,
                           "unknown": [], "ask": pending, "offer": {}, "ok": False}
                 past["history"] = history + [answer]
                 session_save(sesdir, past)
                 set_progress(tr("done"), 100, result=pending[0]["question"])
                 return
-            if not useful and not (prompt and director.wants_moments(prompt)):
+            if not useful and not pide_sitio:
                 answer = {"you": prompt, "did": [], "cannot": blocked,
                           "unknown": not_understood,
                           "offer": ({"kind": "mp4"} if blocked else {}),
@@ -2381,7 +2389,8 @@ def run_job(req):
         # Pediste algo en un momento y no salio nada: se dice. Un turno que se
         # calla es indistinguible de uno que lo ha hecho, que es de donde sale el
         # "no se que ha hecho".
-        if prompt and director.wants_moments(prompt) and not any(deeds.values()):
+        if (prompt and not any(deeds.values())
+                and (director.wants_moments(prompt) or director.needs_where(prompt))):
             not_understood = list(not_understood) + [tr("no_moment")]
         did += [tr("did_cut" if len(edl) == 1 else "did_cuts", len(edl))]
         # Solo cuando se sabe el numero aqui. Cuando los subtitulos los arma el

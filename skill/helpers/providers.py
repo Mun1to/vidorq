@@ -288,6 +288,13 @@ def _gemini(root, key, model, system, user, tokens, timeout):
     return ""
 
 
+# Quien quiera poder matar la CLI a mitad se apunta aqui. Es un gancho y no un
+# import al reves a proposito: este modulo no sabe nada del motor, y asi se puede
+# usar suelto (la skill lo importa sin servidor detras).
+ON_SPAWN = None
+ON_DONE = None
+
+
 def _cli(p, model, system, user, timeout):
     """Ask a coding-agent command line that is already signed in.
 
@@ -316,19 +323,29 @@ def _cli(p, model, system, user, timeout):
     else:
         payload = "%s\n\n%s" % (system, user)
     work = tempfile.mkdtemp(prefix="vidorq_cli_")
+    # Popen y no run, para que quien nos llama pueda MATARLO. Preguntarle a una
+    # CLI que quiere decir una frase es la fase mas larga de un retoque, y hasta
+    # ahora pulsar "Parar" ahi no cortaba nada: habia que esperar a que la CLI
+    # contestara y solo entonces se veia la bandera.
+    proc = subprocess.Popen(
+        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        cwd=work, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if ON_SPAWN:
+        ON_SPAWN(proc)
     try:
-        r = subprocess.run(
-            cmd, input=payload.encode("utf-8"),
-            cwd=work, capture_output=True, timeout=timeout,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        out_b, err_b = proc.communicate(payload.encode("utf-8"), timeout=timeout)
     except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
         raise RuntimeError("%s tardo mas de %ds en contestar"
                            % (p["cmd"][0], timeout)) from None
     finally:
+        if ON_DONE:
+            ON_DONE(proc)
         shutil.rmtree(work, ignore_errors=True)
-    out = r.stdout.decode("utf-8", "replace").strip()
-    if r.returncode != 0 and not out:
-        err = r.stderr.decode("utf-8", "replace").strip()[:300]
+    out = (out_b or b"").decode("utf-8", "replace").strip()
+    if proc.returncode != 0 and not out:
+        err = (err_b or b"").decode("utf-8", "replace").strip()[:300]
         raise RuntimeError("%s fallo: %s" % (p["cmd"][0], err or "sin decir por que"))
     return out
 
