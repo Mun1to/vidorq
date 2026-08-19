@@ -261,18 +261,24 @@ def _ease_keys(frames, desde, hasta, pasos=7):
     tangentes de Fusion se escriben distinto en cada version y unas claves
     lineales cada pocos fotogramas ya no se distinguen de una curva.
     """
-    n = max(2, int(pasos))
+    # Nunca mas claves que fotogramas hay: si sobran, varias caen en el mismo
+    # fotograma y al quitar las repetidas se pierde o el principio o el final.
+    # Un punch de dos fotogramas se quedaba en 1,4977 de los 1,50 pedidos.
+    n = max(2, min(int(pasos), int(frames) + 1))
     out = []
     for i in range(n):
         t = i / float(n - 1)
         v = desde + (hasta - desde) * (1.0 - (1.0 - t) ** 3)
         out.append((int(round(frames * t)), v))
-    # Sin claves repetidas: dos en el mismo fotograma dejan la curva plana.
-    limpio = []
+    # Sin claves repetidas: dos en el mismo fotograma dejan la curva plana. Y
+    # cuando chocan gana la MAS AVANZADA, no la primera. Con la primera, un
+    # punch de dos fotogramas se quedaba en 1,4977 de los 1,50 que se pidieron:
+    # la clave del final caia en el mismo fotograma que la anterior y se
+    # tiraba justo la que decia a donde iba.
+    por_frame = {}
     for f, v in out:
-        if not limpio or f > limpio[-1][0]:
-            limpio.append((f, v))
-    return limpio
+        por_frame[f] = v
+    return sorted(por_frame.items())
 
 
 def zoom_clip(post, index, fps, hasta, work_dir, segundos=0.6, track=1):

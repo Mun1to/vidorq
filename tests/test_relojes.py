@@ -161,6 +161,36 @@ def casos():
     yield "  y la primera acaba antes del corte", round(partido[0]["end"], 3), 9.5
 
 
+    # --- la curva del punch zoom -------------------------------------------
+    # Son claves de fotograma, o sea el mismo reloj de todo lo de arriba. Lo que
+    # se fija aqui es que la curva EMPIECE donde esta y TERMINE donde se pidio,
+    # y que no se escriban dos claves en el mismo fotograma, que dejaria la
+    # curva plana justo en el trozo que tiene que moverse.
+    import resolve_captions as rc
+
+    for frames, hasta in ((14, 1.06), (36, 1.20), (2, 1.5), (60, 1.08)):
+        claves = rc._ease_keys(frames, 1.0, hasta)
+        yield ("zoom %dfr: empieza en 1.0" % frames, claves[0][1], 1.0)
+        yield ("zoom %dfr: acaba en %.2f" % (frames, hasta),
+               round(claves[-1][1], 4), round(hasta, 4))
+        yield ("zoom %dfr: la primera clave es el fotograma 0" % frames,
+               claves[0][0], 0)
+        yield ("zoom %dfr: la ultima clave es el fotograma %d" % (frames, frames),
+               claves[-1][0], frames)
+        fs = [f for f, _ in claves]
+        yield ("zoom %dfr: sin claves repetidas" % frames, len(set(fs)), len(fs))
+        yield ("zoom %dfr: los fotogramas van hacia delante" % frames,
+               fs, sorted(fs))
+        vs = [round(v, 6) for _, v in claves]
+        yield ("zoom %dfr: el tamaño solo crece" % frames, vs, sorted(vs))
+
+    # Y frena al final, que es lo que distingue un punch de una rampa: la mitad
+    # del camino se recorre en mucho menos de la mitad del tiempo.
+    claves = rc._ease_keys(36, 1.0, 2.0)
+    mitad = next(f for f, v in claves if v >= 1.5)
+    yield "el punch se come la mitad del zoom antes del fotograma 18", mitad < 18, True
+
+
 def _dialogos(path, chunks, desde, hasta):
     cap.to_ass(path, chunks, desde, hasta, 1920, 1080)
     return sum(1 for line in path.read_text(encoding="utf-8-sig").splitlines()
