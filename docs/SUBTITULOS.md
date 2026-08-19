@@ -261,6 +261,27 @@ fotogramas exportados:
   barra son redondas y en el MP4 son rectas, porque libass dibuja un rectángulo y redondearlo
   pediría una figura `\p1` a mano. El color, el alfa, el sitio y el segundo sí coinciden.
 
+## El Glow de Fusion se come las letras que no tienen contorno
+
+Comprobado el 19-ago-2026 metiendo los **diez** estilos en un timeline y mirando los diez
+fotogramas, que era justo lo que nunca se había hecho: las baldosas de la galería salen del
+renderizador del MP4 (libass) y eso no dice nada de cómo salen en Resolve.
+
+Nueve estaban bien. **`halo` salía como tres manchas blancas**, ilegible. Quién lo hacía se
+midió descartando: el mismo estilo sin el nodo Blur seguía siendo una mancha, y sin el Glow
+salía nítido. O sea, el Glow. La razón es que `halo` es el único con brillo y **sin
+contorno**: en libass el halo se dibuja detrás y la letra encima, pero el Glow de Fusion
+florece la propia imagen, así que sin un borde oscuro la letra desaparece dentro de su
+resplandor. `neon` y `ember` se salvan por su contorno.
+
+El arreglo es `Blend`, que mezcla de vuelta la imagen sin brillo. Probados 1.0, 0.6 y
+**0.35**; el último deja el halo Y las letras. Se aplica solo cuando el preset no tiene
+contorno, porque los que lo tienen no lo necesitan.
+
+**La primera hipótesis era otra y estaba mal:** que la curva del desenfoque se prolongaba
+más allá de su última clave. Se descartó mirando el mismo clip en los fotogramas 2, 9, 18,
+27 y 34: salían todos igual de borrosos, y una extrapolación habría ido a peor.
+
 ## Lo que NO se puede hacer, dicho claro
 
 **Máquina de escribir: no.** Ni en Resolve ni en el MP4, y se intentó por dos caminos

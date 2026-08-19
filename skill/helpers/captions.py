@@ -731,19 +731,28 @@ def _blur_tool(src, spline, x):
             % (src, spline, x))
 
 
-def _glow_tool(src, glow, spline, x):
+def _glow_tool(src, glow, spline, x, keep_edge=False):
     """A tinted Fusion Glow behind the text.
 
     Threshold keeps the halo off the darker parts so the glyphs stay crisp; a
     Gain much over 2 blows the letters out and the caption stops being readable.
     When a spline drives GlowSize it is a multiplier of the preset's size.
+
+    `keep_edge` mixes the un-glowed image back in through Blend. A preset whose
+    only edge is the glyph itself has nothing left once its own halo blooms over
+    it: `halo` came out of Resolve as three white smudges, unreadable, and the
+    node responsible was measured by rendering it without the Blur (still a
+    smudge) and then without the Glow (sharp). Blend 0.35 was picked the same
+    way, against 1.0 and 0.6, and it is the one that keeps the halo AND the
+    letters. Presets with an outline do not need it: the dark rim survives the
+    bloom, which is why `neon` and `ember` always read.
     """
     r, g, b, size, gain = glow
     lines = [
         'Input = Input { SourceOp = "%s", Source = "Output", },' % src,
         'Gain = Input { Value = %.3f, },' % gain,
         'Threshold = Input { Value = 0.15, },',
-        'Blend = Input { Value = 1, },',
+        'Blend = Input { Value = %.2f, },' % (0.35 if keep_edge else 1.0),
         'Red = Input { Value = %.4f, },' % r,
         'Green = Input { Value = %.4f, },' % g,
         'Blue = Input { Value = %.4f, },' % b,
@@ -805,7 +814,8 @@ def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None):
             # The ignite spline is written as a multiplier, so it gets baked
             # against this preset's own glow size here.
             anim_tools = _rescale_spline(anim_tools, extra["glow"], p["glow"][3])
-        chain += _glow_tool(out, p["glow"], extra.get("glow"), x)
+        chain += _glow_tool(out, p["glow"], extra.get("glow"), x,
+                            keep_edge=not p["outline"])
         out = "Shine"
 
     comp = (
