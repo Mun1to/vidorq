@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useLang } from "./i18n";
 import {
   IconAlert, IconCheck, IconFolder, IconPlay, IconSliders, IconSpark, IconStop,
-  IconVideo,
+  IconUndo, IconVideo,
 } from "./Icons";
 import logo from "./assets/logo.png";
 
@@ -110,6 +110,9 @@ interface Props {
   onSetup: () => void;
   onNewVideo: () => void;
   onWords: () => void;
+  /** Si hay un paso atras al que volver, y como se pide. */
+  canUndo?: boolean;
+  onUndo?: () => void;
   onStop: () => void;
   running: boolean;
   step: string;
@@ -132,7 +135,8 @@ interface Props {
  */
 export default function Chat({
   title, turns, now, label, scope, made, onOpen, draft, onDraft, onSend, onOffer,
-  onPick, onSetup, onNewVideo, onWords, onStop, running, step, detail, percent, error,
+  onPick, onSetup, onNewVideo, onWords, canUndo, onUndo, onStop, running, step,
+  detail, percent, error,
 }: Props) {
   const { t } = useLang();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -178,6 +182,13 @@ export default function Chat({
           </div>
         </div>
         <div className="chat-acts">
+          {/* Solo cuando hay a donde volver. Un boton de deshacer que no
+              deshace nada es peor que no tenerlo: se pulsa igual. */}
+          {canUndo && onUndo && (
+            <button className="ghost small" onClick={onUndo} disabled={running}>
+              <IconUndo size={14} className="icon" />{t("chat.undo")}
+            </button>
+          )}
           {/* Primero, y no al final: leer el texto es la forma en que la gente
               encuentra un momento. Arrastrar el cabezal es punteria. */}
           <button className="ghost small" onClick={onWords}>

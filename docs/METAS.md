@@ -75,6 +75,14 @@ con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en dire
       subtítulos siguen al montaje, no al original. Medido: el MP4 exportado empieza por el
       tramo que estaba al final (diferencia media 0,26 contra el fotograma del original en el
       42,41, y 81,62 contra el que estaba antes ahí).
+- [x] **Deshacer el último cambio** (2026-08-19): la sesión guarda el montaje Y los ajustes
+      de antes de cada turno (`edl_prev`, `settings_prev`), y el botón del chat vuelve a
+      ellos. Solo aparece cuando hay a dónde volver, porque un botón de deshacer que no
+      deshace nada se pulsa igual. Un paso, no una pila: pulsarlo dos veces te devuelve
+      donde estabas, porque el paso anterior de un deshacer es lo que se acaba de deshacer.
+      Medido: reordenado al revés, deshecho, vuelto a reordenar; y con `transition` de `dip`
+      a `none`, que es la mitad que se olvida (deshacer el corte y dejarte el ajuste puesto
+      no es deshacer).
 - [ ] Spike `ImportFusionComp` con comp dummy en 21 Free (AddFusionComp,
       GetFusionCompNameList, LoadFusionCompByName, ImportFusionComp, borrar el dummy).
 - [ ] Captions nativos en el timeline vía macro Fusion (patrón AutoSubs), estilo Hormozi.

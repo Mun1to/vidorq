@@ -100,6 +100,9 @@ function App() {
   const [setup, setSetup] = useState(false);
   const [galOpen, setGalOpen] = useState(false);
   const [wordsOpen, setWordsOpen] = useState(false);
+  // Si hay un paso atras al que volver. Lo dice el motor, que es quien guarda
+  // el montaje de antes.
+  const [canUndo, setCanUndo] = useState(false);
   const [cards, setCards] = useState<CaptionStyle[]>([]);
   // La caja de "cuentale que quieres", para poder dejar el cursor dentro cuando
   // una baldosa de la galeria escribe media frase.
@@ -240,10 +243,12 @@ function App() {
   useEffect(() => {
     if (!video) { setChat([]); return; }
     if (phase === "running") return;
-    apiGet<{ history: Turn[]; settings?: ChatState; result?: string; scope?: string }>(
+    apiGet<{ history: Turn[]; settings?: ChatState; result?: string; scope?: string;
+             canUndo?: boolean }>(
       `/session?video=${encodeURIComponent(video)}`)
       .then((d) => {
         setNow(d.settings || {}); setMade(d.result || ""); setScope(d.scope || "");
+        setCanUndo(!!d.canUndo);
         return d;
       })
       // Lo que sigue en la fila todavia no existe para el motor, asi que se
@@ -510,6 +515,12 @@ function App() {
           onPick={(what, id, send) => askMore(send || `pick:${what}=${id}`)}
           onSetup={() => setSetup(true)}
           onWords={() => setWordsOpen(true)}
+          canUndo={canUndo}
+          onUndo={() => {
+            setChat((c) => [...c, { you: t("chat.undo") }]);
+            if (phase === "running") return;
+            startEdit("", undefined, { undo: true });
+          }}
           onNewVideo={() => {
             setPhase("idle"); setProgress({ step: "", percent: 0 }); setVideo("");
             setChat([]); setFollowUp(""); setSetup(false);

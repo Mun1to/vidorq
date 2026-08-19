@@ -115,6 +115,12 @@ export const IconRefresh = ({ size = 18, className }: Props) => (
   </g></svg>
 );
 
+export const IconUndo = ({ size = 18, className }: Props) => (
+  <svg {...box(size, className)}><g {...P}>
+    <path d="M4 11a8 8 0 1 1 .7 4.5" /><path d="M4 5.5V11h5.5" />
+  </g></svg>
+);
+
 export const IconKey = ({ size = 18, className }: Props) => (
   <svg {...box(size, className)}><g {...P}>
     <circle cx="8" cy="12" r="4.2" /><path d="M12.2 12H21M18 12v3M15.5 12v2.2" />

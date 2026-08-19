@@ -186,6 +186,8 @@ TEXT = {
         "history_first": "primera edicion",
         "did_order": "%d tramos puestos en otro orden",
         "said_order": "cambiar de sitio un tramo",
+        "did_undo": "vuelto al montaje de antes",
+        "said_undo": "deshacer el ultimo cambio",
         "voice_making": "Poniendo voz a la linea %d de %d...",
         "voice_only_mp4": "%d voz(es) generadas, pero en Resolve no se pueden meter por API: salen solo en el MP4.",
         "nesting": "Poniendo los subtitulos encima de tu edicion...",
@@ -251,6 +253,8 @@ TEXT = {
         "history_first": "first edit",
         "did_order": "%d segments put in another order",
         "said_order": "move a segment",
+        "did_undo": "back to the previous edit",
+        "said_undo": "undo the last change",
         "voice_making": "Voicing line %d of %d...",
         "voice_only_mp4": "%d voice line(s) made, but Resolve takes no audio over its API: they only come out in the MP4.",
         "nesting": "Laying the captions over your edit...",
@@ -2214,12 +2218,24 @@ def run_job(req):
         keep_edl, history, turn = None, [], 1
         moved = False
         changed, not_understood = [], []
+        # El montaje y los ajustes ANTES de este turno, copiados aqui porque de
+        # aqui en adelante se tocan. Es todo lo que hace falta para poder volver
+        # atras un paso.
+        prev_edl = [dict(x) for x in (past0.get("edl") or [])]
+        prev_settings = dict(past0.get("settings") or {})
+        undo = bool(req.get("undo")) and bool(past0.get("edl_prev"))
         if again:
             past = past0
             keep_edl = past["edl"]
             history = past.get("history") or []
             turn = len(history) + 1
             base = past.get("settings") or {}
+            if undo:
+                # Volver al montaje de antes es volver TAMBIEN a sus ajustes: si
+                # el turno que se deshace puso subtitulos amarillos, deshacerlo y
+                # dejarlos amarillos no es deshacer nada.
+                keep_edl = past["edl_prev"]
+                base = past.get("settings_prev") or base
             shake_on = bool(base.get("shake", shake_on))
             set_progress(tr("refining", turn), 6, tr("refine_reading"))
             fresh, changed, not_understood = refine_settings(
@@ -2376,7 +2392,7 @@ def run_job(req):
         #     colocaban otra vez los mismos 751 subtitulos.
         #     Mover un tramo de sitio SI cambia el video, y no pasa por
         #     `changed` porque no es un ajuste: es el montaje.
-        if again and not moved:
+        if again and not moved and not undo:
             # Lo que ha cambiado y esta salida SI sabe hacer. Cambiar la
             # transicion con salida a Resolve no cambia nada de lo que se ve,
             # asi que rehacer el montaje entero para entregar el mismo video es
@@ -2690,7 +2706,9 @@ def run_job(req):
         if (prompt and not any(deeds.values())
                 and (director.wants_moments(prompt) or director.needs_where(prompt))):
             not_understood = list(not_understood) + [tr("no_moment")]
-        if moved:
+        if undo:
+            did.append(tr("did_undo"))
+        elif moved:
             did.append(tr("did_order", len(edl)))
         did += [tr("did_cut" if len(edl) == 1 else "did_cuts", len(edl))]
         # Solo cuando se sabe el numero aqui. Cuando los subtitulos los arma el
@@ -2706,7 +2724,8 @@ def run_job(req):
                                     want_voice=bool(want_voice),
                                     want_shake=bool(req.get("shake")))
         answer = {"you": (said_pick(prompt, _lang) if prompt.startswith(PICK)
-                          else prompt or (tr("said_order") if moved
+                          else prompt or (tr("said_undo") if undo
+                                          else tr("said_order") if moved
                                           else tr("history_first"))),
                   "did": [x for x in did if x],
                   "cannot": blocked,
@@ -2731,6 +2750,11 @@ def run_job(req):
             "history": (history if again else []) + [answer],
             "timelines": made_names,
             "result": result,
+            # Y de donde se venia. Deshacer dos veces vuelve a donde estabas,
+            # porque el paso anterior de un deshacer es lo que se acaba de
+            # deshacer: un solo boton que va y vuelve.
+            "edl_prev": prev_edl,
+            "settings_prev": prev_settings,
         })
         # La misma frase que ve en el chat, no el prompt crudo: en la primera
         # edicion el prompt esta vacio y la frase dice "primera edicion".
@@ -2878,7 +2902,10 @@ class Handler(BaseHTTPRequestHandler):
                             "settings": st.get("settings") or {},
                             "result": st.get("result", ""),
                             "scope": st.get("scope") or scope_now(),
-                            "can": bool(st.get("edl"))})
+                            "can": bool(st.get("edl")),
+                            # Si hay un paso atras al que volver. La ventana no
+                            # puede saberlo sola: el montaje de antes vive aqui.
+                            "canUndo": bool(st.get("edl_prev"))})
         elif self.path.startswith("/tramos"):
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
