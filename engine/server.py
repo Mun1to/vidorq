@@ -129,6 +129,12 @@ TEXT = {
     "es": {
         "busy": "Ya hay una edición en marcha",
         "no_video": "No encuentro el vídeo: %s",
+        "no_speech": "En este vídeo no se oye hablar a nadie, y Vidorq corta por lo "
+                     "que se dice. Dime tú el trozo y lo hago: por ejemplo «quédate "
+                     "del segundo 2 al 8».",
+        "kept_nothing": "Después de cortar no quedaba nada que conservar. Prueba con "
+                        "otro estilo de corte, o dime tú de qué segundo a qué segundo "
+                        "quieres quedarte.",
         "preparing": "Preparando...",
         "transcribing": "Transcribiendo (Whisper local)...",
         "watching": "Mirando el vídeo (planos y movimiento)...",
@@ -196,6 +202,11 @@ TEXT = {
     "en": {
         "busy": "There is already an edit running",
         "no_video": "Cannot find the video: %s",
+        "no_speech": "Nobody speaks in this video, and Vidorq cuts by what is said. "
+                     "Tell me the piece yourself and I will do it: for example "
+                     "\"keep from second 2 to 8\".",
+        "kept_nothing": "There was nothing left after the cut. Try another cut style, "
+                        "or tell me which second to which second you want to keep.",
         "preparing": "Getting ready...",
         "transcribing": "Transcribing (local Whisper)...",
         "watching": "Watching the video (shots and movement)...",
@@ -2456,7 +2467,13 @@ def run_job(req):
             if preset == "podcast":
                 edl = mark_questions(transcript, edl)
         if not edl:
-            raise RuntimeError("El EDL salio vacio; no hay nada que conservar")
+            # "El EDL salio vacio" es lo que le decia a quien arrastra un plano
+            # de recurso o un videoclip: una palabra que no significa nada fuera
+            # de aqui y ninguna salida. Los dos casos que lo provocan son
+            # distintos y tienen respuestas distintas.
+            hay_voz = any(seg.get("words")
+                          for seg in (transcript or {}).get("segments", []))
+            raise RuntimeError(tr("kept_nothing") if hay_voz else tr("no_speech"))
 
         # 3b) Which third of the width to keep. Only worth the decoding when the
         #     output is a different shape than the source, because a 16:9 out of
