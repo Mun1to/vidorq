@@ -454,6 +454,54 @@ def ratio_still(ratio, video="", width=1920, height=1080, at=1.0):
 TRANS_AT = (0.18, 0.82)
 
 
+# {video: (segundo A, segundo B)}. Los dos instantes con los que se dibuja una
+# transicion, elegidos por lo distintos que son.
+_pareja = {}
+_pareja_lock = threading.Lock()
+
+
+def two_moments(video):
+    """Los dos momentos mas distintos entre si, para dibujar una transicion.
+
+    Con dos fracciones fijas la foto sale bien casi siempre y **muy mal** en un
+    caso: si las dos caen dentro del mismo plano continuo, un barrido entre
+    ellas no tiene union visible, y la baldosa se lee como "aqui no pasa nada".
+    No era un fallo del filtro, era el material.
+
+    Asi que se miran unas cuantas miniaturas y se queda con el par que mas se
+    diferencia, que es lo mas cerca que se puede estar de "dos planos" sin
+    detectar planos. Se cachea por archivo, como el momento de la cara: son
+    siete lecturas de fotograma y una transicion pide seis fotos.
+    """
+    dur = _duration(video) if video else 0.0
+    if not video or dur <= 2:
+        return None
+    with _pareja_lock:
+        if video in _pareja:
+            return _pareja[video]
+        tiros = []
+        try:
+            import io as _io
+            from PIL import Image, ImageChops
+            for f in MOMENTS:
+                t = round(dur * f, 2)
+                jpeg = _grab_fast(video, t, width=96)
+                if jpeg:
+                    mini = Image.open(_io.BytesIO(jpeg)).convert("L").resize((48, 27))
+                    tiros.append((t, mini))
+            mejor, par = -1.0, None
+            for i in range(len(tiros)):
+                for j in range(i + 1, len(tiros)):
+                    px = list(ImageChops.difference(tiros[i][1], tiros[j][1]).getdata())
+                    d = sum(px) / float(len(px))
+                    if d > mejor:
+                        mejor, par = d, (tiros[i][0], tiros[j][0])
+        except Exception:
+            par = None
+        _pareja[video] = par
+        return par
+
+
 def transition_still(kind, ratio="source", video="", width=1920, height=1080,
                      at=1.0):
     """Una transicion congelada por la mitad, sobre TU metraje.
@@ -468,8 +516,10 @@ def transition_still(kind, ratio="source", video="", width=1920, height=1080,
     de este modulo, para que la foto no pueda mentir sobre el resultado.
     """
     out_w, out_h, crop_w, crop_h = _shape(ratio, width, height)
+    # La clave lleva los dos instantes de verdad, no la receta para sacarlos:
+    # si cambia el criterio, la foto de ayer no puede quedarse.
     dest = CACHE / ("tr_%s.png" % _key(kind, ratio, video, out_w, out_h,
-                                       PREVIEW_LONG, TRANS_AT))
+                                       PREVIEW_LONG, two_moments(video) or TRANS_AT))
     if dest.exists():
         return dest
     exe = ffmpeg()
@@ -481,16 +531,23 @@ def transition_still(kind, ratio="source", video="", width=1920, height=1080,
     fx = _face_x(video, at) if video else 0.5
     recorte = _crop_chain(width, height, out_w, out_h, crop_w, crop_h, fx)
 
-    def entrada(frac):
-        cuando = round(dur * frac, 2) if dur > 2 else at
+    # Los dos instantes: los mas distintos que se encuentren, y si no se puede
+    # (video corto, o sin PIL) las dos fracciones de siempre.
+    par = two_moments(video)
+
+    def entrada(i):
+        if par:
+            cuando = par[i]
+        else:
+            cuando = round(dur * TRANS_AT[i], 2) if dur > 2 else at
         return _source_args(video, cuando, out_w, out_h)
 
-    src_a, real = entrada(TRANS_AT[0])
+    src_a, real = entrada(0)
     cadena = (recorte if real else []) + [_fit(out_w, out_h)]
     dos = kind in ("dissolve", "wipe", "slide")
     args = list(src_a)
     if dos:
-        args += list(entrada(TRANS_AT[1])[0])
+        args += list(entrada(1)[0])
 
     def rama(indice, nombre):
         # La etiqueta va PEGADA al primer filtro. Con una coma en medio ffmpeg
