@@ -62,7 +62,11 @@ KINDS.update({
         "label": {"es": "Rotulo", "en": "Lower third"},
         "note": {"es": "Una barra abajo con tu texto encima. El de las entrevistas.",
                  "en": "A bar at the bottom with your text on it. The interview one."},
-        "shape": "text", "y": 0.14, "size": 0.052,
+        # Mas abajo que la banda de los subtitulos, que van sobre el 0.20 y
+        # ocupan un 11% de alto: a 0.14 se pisaban, y se vio en un fotograma de
+        # una edicion de verdad con las dos cosas puestas. A 0.06 el rotulo va
+        # de 0.025 a 0.095 y no se tocan.
+        "shape": "text", "y": 0.06, "size": 0.052,
         "font": "Arial", "style": "Bold",
         "fill": (1.0, 1.0, 1.0),
         # r, g, b, alpha, grosor: el panel del Text+, que es la barra.
