@@ -164,7 +164,7 @@ const es = {
   "sc.vertical": "Vertical",
   "sc.zoom": "Zoom",
   "sc.piece": "Quitar un trozo",
-  "sc.rotulo": "Rotulo",
+  "sc.rotulo": "Rótulo",
   "sc.chapa": "Chapa",
   "more.note": "Se aplica sobre este montaje. No vuelve a transcribir, así que tarda segundos en vez de minutos.",
 

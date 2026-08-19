@@ -171,7 +171,6 @@ TEXT = {
         "did_cuts": "%d tramos",
         "did_cut": "%d tramo",
         "did_caps": "%d subtítulos",
-        "did_titles": "%d carteles",
         "literal": "Lo has dicho con los segundos puestos: no hace falta pensarlo.",
         "carded": "%d de tipo %s puestos.",
         "did_voice": "%d voz en off",
@@ -239,7 +238,6 @@ TEXT = {
         "did_cuts": "%d pieces",
         "did_cut": "%d piece",
         "did_caps": "%d captions",
-        "did_titles": "%d cards",
         "literal": "You gave the seconds, so there is nothing to work out.",
         "carded": "%d %s placed.",
         "did_voice": "%d voice line(s)",
@@ -2795,8 +2793,10 @@ def run_job(req):
         # aqui con un cero seria peor que no decirlo.
         if captions and translated_chunks:
             did.append(tr("did_caps", len(translated_chunks)))
-        if want_titles:
-            did.append(tr("did_titles", len(want_titles)))
+        # Los carteles ya los ha contado `said_deeds` unas lineas mas arriba, y
+        # los contaba bien ("1 cartel"). Esta linea los repetia y ademas los
+        # decia en plural siempre, asi que un turno con uno solo terminaba en
+        # "1 cartel - 1 carteles". Contarlo dos veces y una de ellas mal.
         if voice_files:
             did.append(tr("did_voice", len(voice_files)))
         blocked = blocked_by_output(output, settings_now, set(changed),

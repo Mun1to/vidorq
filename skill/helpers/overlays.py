@@ -59,14 +59,23 @@ KINDS = {
 # ANCHO del cuadro y no del alto. Eso ya esta medido alli y no se rediscute.
 KINDS.update({
     "rotulo": {
-        "label": {"es": "Rotulo", "en": "Lower third"},
+        "label": {"es": "Rótulo", "en": "Lower third"},
         "note": {"es": "Una barra abajo con tu texto encima. El de las entrevistas.",
                  "en": "A bar at the bottom with your text on it. The interview one."},
-        # Mas abajo que la banda de los subtitulos, que van sobre el 0.20 y
-        # ocupan un 11% de alto: a 0.14 se pisaban, y se vio en un fotograma de
-        # una edicion de verdad con las dos cosas puestas. A 0.06 el rotulo va
-        # de 0.025 a 0.095 y no se tocan.
-        "shape": "text", "y": 0.06, "size": 0.052,
+        # ENCIMA de los subtitulos, no debajo. Debajo no cabe, y esto se midio
+        # el 19-ago sobre un cuadro de 1080 con la caja del rotulo aislada
+        # contra un fondo plano:
+        #
+        #   los subtitulos ocupan de la fila 842 (punch, el mas alto) a la 1033
+        #   (marker, el mas hondo), y la caja del rotulo mide 52 px.
+        #
+        # O sea que entre el subtitulo mas hondo y el borde de abajo quedan 46
+        # px para una caja de 52: no entra. Bajarlo a 0.06 quitaba el solape
+        # pero lo sacaba del cuadro, y el texto se cortaba contra la fila 1079.
+        # A 0.30 la caja va de la 769 a la 820: 22 px de hueco hasta el
+        # subtitulo mas alto y 259 px de margen por abajo. Sigue siendo un
+        # rotulo de manual, porque el tercio inferior es el tercio inferior.
+        "shape": "text", "y": 0.30, "size": 0.052,
         "font": "Arial", "style": "Bold",
         "fill": (1.0, 1.0, 1.0),
         # r, g, b, alpha, grosor: el panel del Text+, que es la barra.
@@ -75,7 +84,7 @@ KINDS.update({
     },
     "chapa": {
         "label": {"es": "Chapa", "en": "Badge"},
-        "note": {"es": "Una etiqueta pequena arriba, en amarillo. Para avisos cortos.",
+        "note": {"es": "Una etiqueta pequeña arriba, en amarillo. Para avisos cortos.",
                  "en": "A small tag at the top, in yellow. For short notices."},
         "shape": "text", "y": 0.86, "size": 0.040,
         "font": "Arial", "style": "Black",
