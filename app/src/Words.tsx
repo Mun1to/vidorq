@@ -27,11 +27,16 @@ function clock(t: number) {
   return `${Math.floor(t / 60)}:${s < 10 ? "0" : ""}${s}`;
 }
 
+// Un tramo del montaje: lo que se mueve de sitio. `from`/`to` son segundos del
+// MONTAJE, que es el reloj de lo que se esta viendo.
+type Tramo = { i: number; from: number; to: number; text: string };
+
 export default function Words({
-  video, onSend, onClose,
+  video, onSend, onOrder, onClose,
 }: {
   video: string;
   onSend: (text: string) => void;
+  onOrder: (order: number[]) => void;
   onClose: () => void;
 }) {
   const { t } = useLang();
@@ -42,6 +47,12 @@ export default function Words({
   const [a, setA] = useState<number | null>(null);
   const [b, setB] = useState<number | null>(null);
   const [busca, setBusca] = useState("");
+  // Dos maneras de leer lo mismo. Las palabras sirven para QUITAR un trozo; los
+  // tramos, para MOVERLO de sitio, que es la otra mitad de editar leyendo.
+  const [modo, setModo] = useState<"palabras" | "orden">("palabras");
+  const [tramos, setTramos] = useState<Tramo[] | null>(null);
+  const [orden, setOrden] = useState<number[]>([]);
+  const [arrastra, setArrastra] = useState<number | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const cuerpoRef = useRef<HTMLDivElement>(null);
 
@@ -57,6 +68,24 @@ export default function Words({
       .catch(() => { if (vivo) { setWords([]); setWhy("no_engine"); } });
     return () => { vivo = false; };
   }, [video]);
+
+  // Los tramos se piden al entrar en el modo, no al abrir el panel: quien viene
+  // a buscar una palabra no paga la llamada.
+  useEffect(() => {
+    if (modo !== "orden" || tramos !== null) return;
+    let vivo = true;
+    fetch(`${ENGINE}/tramos?video=${encodeURIComponent(video)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!vivo) return;
+        const lista = (d.tramos || []) as Tramo[];
+        setTramos(lista);
+        setOrden(lista.map((x) => x.i));
+        if (!d.ok) setWhy(d.why || "no_edit");
+      })
+      .catch(() => { if (vivo) { setTramos([]); setWhy("no_engine"); } });
+    return () => { vivo = false; };
+  }, [modo, tramos, video]);
 
   // El foco entra en el dialogo al abrirlo y Escape lo cierra, como los demas.
   useEffect(() => {
@@ -120,6 +149,33 @@ export default function Words({
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
   }, [pega]);
 
+  const porIndice = useMemo(() => {
+    const m = new Map<number, Tramo>();
+    (tramos || []).forEach((x) => m.set(x.i, x));
+    return m;
+  }, [tramos]);
+
+  const cambiado = useMemo(
+    () => orden.some((x, i) => x !== i), [orden]);
+
+  /** Saca el tramo de `desde` y lo mete en `hasta`. Lo demas se corre. */
+  function mueve(desde: number, hasta: number) {
+    if (desde === hasta || hasta < 0 || hasta >= orden.length) return;
+    const nuevo = orden.slice();
+    const [x] = nuevo.splice(desde, 1);
+    nuevo.splice(hasta, 0, x);
+    setOrden(nuevo);
+  }
+
+  // Pulsar un tramo lleva el cabezal de Resolve a donde EMPIEZA hoy, no a donde
+  // acabara: el montaje que hay delante todavia es el de antes de moverlo.
+  function ve(t: Tramo) {
+    fetch(`${ENGINE}/seek`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ at: t.from }),
+    }).catch(() => { /* sin Resolve, sin cabezal */ });
+  }
+
   function manda(verbo: string) {
     if (!span) return;
     onSend(`${verbo} del segundo ${span.desde} al ${span.hasta}`);
@@ -132,15 +188,68 @@ export default function Words({
            tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{t("words.title")}</h2>
-          <input className="find" value={busca} placeholder={t("words.find")}
-                 onChange={(e) => setBusca(e.target.value)} />
-          {span && (
+          <div className="tabs2">
+            <button className={modo === "palabras" ? "sel" : ""}
+                    onClick={() => setModo("palabras")}>{t("words.tabWords")}</button>
+            <button className={modo === "orden" ? "sel" : ""}
+                    onClick={() => setModo("orden")}>{t("words.tabOrder")}</button>
+          </div>
+          {modo === "palabras" && (
+            <input className="find" value={busca} placeholder={t("words.find")}
+                   onChange={(e) => setBusca(e.target.value)} />
+          )}
+          {modo === "palabras" && span && (
             <button className="link" onClick={() => { setA(null); setB(null); }}>
               {t("words.clear")}
             </button>
           )}
         </div>
 
+        {modo === "orden" ? (
+        <div className="modal-body">
+          <p className="hint">{t("words.orderHint")}</p>
+          {tramos === null && <p className="hint">{t("words.loading")}</p>}
+          {tramos !== null && tramos.length === 0 && (
+            <p className="hint">{why === "no_edit" ? t("words.noEdit") : t("words.off")}</p>
+          )}
+          <ol className="tramos">
+            {orden.map((id, pos) => {
+              const x = porIndice.get(id);
+              if (!x) return null;
+              return (
+                <li key={id}
+                    className={`tramo${arrastra === pos ? " lifting" : ""}`}
+                    draggable
+                    onDragStart={() => setArrastra(pos)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (arrastra !== null) mueve(arrastra, pos);
+                      setArrastra(null);
+                    }}
+                    onDragEnd={() => setArrastra(null)}>
+                  <span className="tramo-n">{pos + 1}</span>
+                  <button className="tramo-say" onClick={() => ve(x)}
+                          title={`${clock(x.from)} - ${clock(x.to)}`}>
+                    <span className="tramo-when">
+                      {clock(x.from)} · {Math.round(x.to - x.from)}s
+                    </span>
+                    <span className="tramo-text">{x.text || t("words.silent")}</span>
+                  </button>
+                  {/* Con teclado y dictando por voz no se arrastra nada, asi que
+                      las dos flechas no son un extra: son la forma normal. */}
+                  <span className="tramo-move">
+                    <button disabled={pos === 0} aria-label={t("words.up")}
+                            onClick={() => mueve(pos, pos - 1)}>↑</button>
+                    <button disabled={pos === orden.length - 1} aria-label={t("words.down")}
+                            onClick={() => mueve(pos, pos + 1)}>↓</button>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+        ) : (
         <div className="modal-body" ref={cuerpoRef}>
           <p className="hint">
             {t("words.hint")}
@@ -168,9 +277,25 @@ export default function Words({
             })}
           </p>
         </div>
+        )}
 
         <div className="modal-foot words-foot">
-          {span ? (
+          {modo === "orden" ? (
+            <>
+              <span className="span-say">
+                {cambiado ? t("words.orderChanged") : t("words.orderSame")}
+              </span>
+              {cambiado && (
+                <button onClick={() => setOrden((tramos || []).map((x) => x.i))}>
+                  {t("words.orderReset")}
+                </button>
+              )}
+              <button className="cta" disabled={!cambiado}
+                      onClick={() => { onOrder(orden); onClose(); }}>
+                <IconSpark size={15} className="icon" />{t("words.orderApply")}
+              </button>
+            </>
+          ) : span ? (
             <>
               {/* El tramo se dice con reloj y con segundos: el reloj es para
                   reconocerlo en el video, los segundos son lo que se manda. */}

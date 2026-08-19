@@ -390,7 +390,7 @@ function App() {
   // de estilos vive alli y no se puede quedar encerrada detras del chat.
   const chatting = view === "edit" && chat.length > 0 && !setup;
 
-  async function startEdit(refine = "", forceOutput?: Output) {
+  async function startEdit(refine = "", forceOutput?: Output, extra?: object) {
     setSetup(false);
     setPhase("running");
     setProgress({ step: t("run.working"), percent: 2 });
@@ -403,7 +403,10 @@ function App() {
         // manda. Antes iba atado a que el desplegable estuviera abierto, asi que
         // se podia escribir una frase, cerrarlo, y editar sin ella.
         prompt: refine || prompt, lang,
-        refine: refine ? true : undefined,
+        // `extra` trae un retoque que no cabe en una frase (hoy, el orden nuevo
+        // de los tramos), y por eso vale como retoque aunque no venga texto.
+        refine: refine || extra ? true : undefined,
+        ...(extra || {}),
         captionPreset: capStyle, captionAnim: capAnim,
         vision: seeVideo, shake, translate: transLang, translateCaptions: burnTrans,
         transition, ratio, cropX, look: colour,
@@ -897,6 +900,14 @@ function App() {
       )}
       {wordsOpen && (
         <Words video={video} onSend={(text) => askMore(text)}
+               onOrder={(order) => {
+                 // Arrastrar no es una frase, asi que la burbuja la pone la
+                 // interfaz y el motor la reescribe al guardarla, igual que con
+                 // los botones del chat.
+                 setChat((c) => [...c, { you: t("words.orderApply") }]);
+                 if (phase === "running") return;
+                 startEdit("", undefined, { order });
+               }}
                onClose={() => setWordsOpen(false)} />
       )}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}

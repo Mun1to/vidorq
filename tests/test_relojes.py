@@ -102,6 +102,65 @@ def casos():
            _dialogos(d / "bien2.ass", chunks, 10.0, 20.0), 0)
 
 
+    # --- el montaje reordenado ---------------------------------------------
+    # Mover un tramo de sitio es una permutacion del montaje, y todo lo demas
+    # (los subtitulos, editar leyendo, un cartel) sigue hablando en segundos.
+    # Si los dos relojes no aguantan el orden nuevo, no falla: desplaza.
+    VUELTA = [EDL[1], EDL[0]]                   # el segundo tramo, primero
+
+    yield "reordenado: to_original(0) = 20", server.to_original(0.0, VUELTA), 20.0
+    yield "reordenado: to_original(10) = 5", server.to_original(10.0, VUELTA), 5.0
+    # Y a la inversa. Esta es la que se rompia: `to_edited` descartaba por "ya
+    # hemos pasado ese segundo", que en un montaje reordenado no quiere decir
+    # nada, y el segundo 5 del original devolvia None estando en el montaje.
+    yield "reordenado: to_edited(20) = 0", server.to_edited(20.0, VUELTA), 0.0
+    yield "reordenado: to_edited(5) = 10", server.to_edited(5.0, VUELTA), 10.0
+    yield "reordenado: to_edited(25) = 5", server.to_edited(25.0, VUELTA), 5.0
+    yield "reordenado: lo cortado sigue cortado", server.to_edited(17.0, VUELTA), None
+    for t in (5.0, 14.9, 20.0, 29.9):
+        ida = server.to_edited(t, VUELTA)
+        yield ("reordenado: ida y vuelta del %.2f" % t,
+               round(server.to_original(ida, VUELTA), 3), t)
+
+    # `reordered` solo acepta una permutacion exacta. Cualquier otra cosa
+    # devuelve el montaje intacto: una lista mal formada aqui no da error, da
+    # una edicion equivocada en silencio.
+    yield "reordenar: la permutacion se aplica", server.reordered(EDL, [1, 0]), VUELTA
+    yield "reordenar: sin orden no toca nada", server.reordered(EDL, None), EDL
+    yield "reordenar: un indice repetido no vale", server.reordered(EDL, [0, 0]), EDL
+    yield "reordenar: un indice inventado no vale", server.reordered(EDL, [0, 5]), EDL
+    yield "reordenar: de otro largo no vale", server.reordered(EDL, [0]), EDL
+    yield "reordenar: texto no vale", server.reordered(EDL, ["a", "b"]), EDL
+    yield "reordenar: los tramos viajan enteros", server.reordered(EDL, [1, 0])[0], EDL[1]
+
+    # Las palabras siguen al montaje, no al original. Dos frases, una en cada
+    # tramo: al dar la vuelta a los tramos, la que se dice primero es la otra.
+    T = {"segments": [
+        {"words": [{"w": "uno", "s": 6.0, "e": 6.5}, {"w": "dos", "s": 7.0, "e": 7.5}]},
+        {"words": [{"w": "tres", "s": 21.0, "e": 21.5}, {"w": "cuatro", "s": 22.0, "e": 22.5}]},
+    ]}
+    normal = server.retime_transcript(T, EDL)["segments"]
+    yield "sin reordenar, primero 'uno dos'", normal[0]["text"], "uno dos"
+    yield "sin reordenar, despues 'tres cuatro'", normal[1]["text"], "tres cuatro"
+    revuelto = server.retime_transcript(T, VUELTA)["segments"]
+    yield "reordenado, primero 'tres cuatro'", revuelto[0]["text"], "tres cuatro"
+    yield "reordenado, despues 'uno dos'", revuelto[1]["text"], "uno dos"
+    yield "reordenado, y empieza en el segundo 1", round(revuelto[0]["start"], 3), 1.0
+    # Las frases salen en el orden en que se OYEN, que es lo unico que puede
+    # leer quien pone los subtitulos.
+    yield ("reordenado, las frases van en orden",
+           [round(x["start"], 3) for x in revuelto], sorted(round(x["start"], 3) for x in revuelto))
+
+    # Y una frase partida por un corte ya no sale como una sola. Esto estaba mal
+    # desde antes de poder reordenar: el principio caia a un lado del corte y el
+    # final al otro, y el subtitulo cruzaba el corte.
+    PARTIDA = {"segments": [{"words": [{"w": "antes", "s": 14.0, "e": 14.5},
+                                       {"w": "despues", "s": 21.0, "e": 21.5}]}]}
+    partido = server.retime_transcript(PARTIDA, EDL)["segments"]
+    yield "una frase partida por un corte son dos", len(partido), 2
+    yield "  y la primera acaba antes del corte", round(partido[0]["end"], 3), 9.5
+
+
 def _dialogos(path, chunks, desde, hasta):
     cap.to_ass(path, chunks, desde, hasta, 1920, 1080)
     return sum(1 for line in path.read_text(encoding="utf-8-sig").splitlines()

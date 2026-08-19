@@ -65,6 +65,16 @@ con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en dire
 - [x] **El estado de Resolve que ve la interfaz, arreglado** (2026-08-17): el motor preguntaba
       el nombre del proyecto a `/status`, que nunca lo trae. Va en `/project` y `/timeline`.
       El tutorial guiado se quedaba clavado en "no hay proyecto abierto" con uno abierto delante.
+- [x] **Editar leyendo, las dos mitades** (2026-08-19): el panel pinta las 1440 palabras con
+      su segundo, y marcar un tramo escribe la misma frase que se podría teclear (quitar,
+      quedarse, zoom). La segunda mitad es **reordenar**: la pestaña Orden enseña el montaje
+      partido en tramos con lo que se dice en cada uno, se arrastran o se mueven con flechas,
+      y `GET /tramos` + el campo `order` de `POST /edit` lo aplican como una permutación, sin
+      pasar por el modelo. Los dos relojes aguantan el orden nuevo (`to_edited` preguntaba
+      "¿ya lo hemos pasado?", que en un montaje reordenado no quiere decir nada) y los
+      subtítulos siguen al montaje, no al original. Medido: el MP4 exportado empieza por el
+      tramo que estaba al final (diferencia media 0,26 contra el fotograma del original en el
+      42,41, y 81,62 contra el que estaba antes ahí).
 - [ ] Spike `ImportFusionComp` con comp dummy en 21 Free (AddFusionComp,
       GetFusionCompNameList, LoadFusionCompByName, ImportFusionComp, borrar el dummy).
 - [ ] Captions nativos en el timeline vía macro Fusion (patrón AutoSubs), estilo Hormozi.

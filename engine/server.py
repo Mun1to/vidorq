@@ -11,6 +11,7 @@ Endpoints:
     POST /workspaces -> {"create": name} | {"activate": name}
     POST /profile    -> saves brand profile into the active workspace
     POST /config     -> {"anthropicKey"|"openaiKey"|"geminiKey": ...} -> config.json
+    GET  /tramos     -> {"tramos": [...]} the montage cut into segments, with text
     GET  /history    -> {"edits": [...]} every edit made, newest first
     POST /history    -> clears that list
     POST /edit       -> {"video", "preset", "captions", "output", "prompt"} starts a job
@@ -183,6 +184,8 @@ TEXT = {
         "refine_kept": "Sigo sobre el montaje que ya hay (%d tramos). Cambias: %s",
         "refine_nothing_said": "solo lo de momentos concretos",
         "history_first": "primera edicion",
+        "did_order": "%d tramos puestos en otro orden",
+        "said_order": "cambiar de sitio un tramo",
         "voice_making": "Poniendo voz a la linea %d de %d...",
         "voice_only_mp4": "%d voz(es) generadas, pero en Resolve no se pueden meter por API: salen solo en el MP4.",
         "nesting": "Poniendo los subtitulos encima de tu edicion...",
@@ -246,6 +249,8 @@ TEXT = {
         "refine_kept": "Carrying on from the edit you have (%d pieces). Changing: %s",
         "refine_nothing_said": "only the specific moments",
         "history_first": "first edit",
+        "did_order": "%d segments put in another order",
+        "said_order": "move a segment",
         "voice_making": "Voicing line %d of %d...",
         "voice_only_mp4": "%d voice line(s) made, but Resolve takes no audio over its API: they only come out in the MP4.",
         "nesting": "Laying the captions over your edit...",
@@ -1173,12 +1178,14 @@ def to_edited(t, edl):
     offset = 0.0
     for seg in edl:
         a, b = float(seg["start"]), float(seg["end"])
-        if t < a:
-            return None                     # cayo en un hueco que se ha ido
-        if t <= b:
+        # Se pregunta por PERTENENCIA, no por "ya lo hemos pasado". Da lo mismo
+        # con un montaje en orden, y es lo unico que vale con uno reordenado:
+        # ahi el tramo que va primero puede ser el que en el original iba
+        # ultimo, y descartar por "t < a" se llevaba por delante todo lo demas.
+        if a <= t <= b:
             return offset + (t - a)
         offset += b - a
-    return None
+    return None                             # cayo en un hueco que se ha ido
 
 
 def to_original(t, edl):
@@ -1235,6 +1242,29 @@ def actions_to_original(acts, edl):
             moved["until"] = round(until, 3)
         out.append(moved)
     return out
+
+
+def reordered(edl, order):
+    """El mismo montaje con los tramos en otro orden.
+
+    `order` son los indices del montaje actual en el orden nuevo. Se exige una
+    permutacion EXACTA: cada tramo una vez y ninguno inventado. Cualquier otra
+    cosa devuelve el montaje intacto en vez de adivinar, porque una lista mal
+    formada aqui no da un error visible, da una edicion silenciosamente
+    equivocada, que es peor.
+
+    Solo cambia el orden. Ni corta, ni alarga, ni toca los zooms: cada tramo
+    viaja entero con lo suyo.
+    """
+    if not isinstance(order, list) or len(order) != len(edl):
+        return edl
+    try:
+        idx = [int(i) for i in order]
+    except (TypeError, ValueError):
+        return edl
+    if sorted(idx) != list(range(len(edl))):
+        return edl
+    return [edl[i] for i in idx]
 
 
 def apply_actions(edl, acts, log=None):
@@ -1349,19 +1379,29 @@ def retime_transcript(transcript, edl):
         s, e = float(seg["start"]), float(seg["end"])
         keeps.append((s, e, s - offset))
         offset += e - s
-    segments = []
-    for seg in transcript.get("segments", []):
-        words = []
+    # Un grupo por tramo del montaje Y frase de la transcripcion, y luego el
+    # orden del MONTAJE. Antes se recorria la transcripcion, que va en el orden
+    # del ORIGINAL, y los dos ordenes eran el mismo mientras no se pudieran
+    # mover los tramos de sitio. Ya no lo son.
+    #
+    # De paso arregla algo que estaba mal desde antes: una frase partida por un
+    # corte salia como UNA sola, con el principio de un lado del corte y el
+    # final del otro. Un subtitulo no puede cruzar un corte.
+    grupos = {}
+    for si, seg in enumerate(transcript.get("segments", [])):
         for w in seg.get("words", []):
-            for s, e, shift in keeps:
+            for ki, (s, e, shift) in enumerate(keeps):
                 if s <= float(w["s"]) < e:
-                    words.append({"w": w["w"], "s": float(w["s"]) - shift,
-                                  "e": min(float(w["e"]), e) - shift})
+                    grupos.setdefault((ki, si), []).append(
+                        {"w": w["w"], "s": float(w["s"]) - shift,
+                         "e": min(float(w["e"]), e) - shift})
                     break
-        if words:
-            segments.append({"start": words[0]["s"], "end": words[-1]["e"],
-                             "text": " ".join(x["w"].strip() for x in words),
-                             "words": words})
+    segments = []
+    for clave in sorted(grupos):
+        words = grupos[clave]
+        segments.append({"start": words[0]["s"], "end": words[-1]["e"],
+                         "text": " ".join(x["w"].strip() for x in words),
+                         "words": words})
     return {"duration": offset, "segments": segments}
 
 
@@ -1584,6 +1624,45 @@ def words_of(video):
     return {"ok": True, "words": out, "lang": data.get("language", ""),
             "edited": bool(edl),
             "duration": round(float(data.get("duration", 0)), 2)}
+
+
+def tramos_of(video):
+    """El montaje partido en tramos, con lo que se dice en cada uno.
+
+    Es la otra mitad de editar leyendo. Las palabras sueltas sirven para quitar
+    un trozo; para MOVER algo de sitio hace falta la unidad que ya existe, que
+    es el tramo del montaje. Reordenar palabras sueltas seria inventarse cortes
+    que nadie ha pedido.
+
+    `start`/`end` son del ORIGINAL (es lo que el EDL guarda) y `from`/`to` del
+    MONTAJE (es lo que se ve). Los dos, porque la interfaz enseña el segundo del
+    montaje y el motor razona con el del original.
+    """
+    if not video or not Path(video).is_file():
+        return {"ok": False, "tramos": [], "why": "no_video"}
+    path = workdir_for(video) / "transcript.json"
+    if not path.exists():
+        return {"ok": False, "tramos": [], "why": "no_transcript"}
+    st, _ = session_for(video)
+    edl = st.get("edl") or []
+    if not edl:
+        return {"ok": False, "tramos": [], "why": "no_edit"}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    palabras = []
+    for seg in data.get("segments", []):
+        for w in seg.get("words", []):
+            texto = str(w.get("w", "")).strip()
+            if texto:
+                palabras.append((float(w.get("s", 0)), texto))
+    out, at = [], 0.0
+    for i, seg in enumerate(edl):
+        a, b = float(seg["start"]), float(seg["end"])
+        dice = " ".join(t for s0, t in palabras if a <= s0 < b)
+        out.append({"i": i, "start": round(a, 3), "end": round(b, 3),
+                    "from": round(at, 3), "to": round(at + (b - a), 3),
+                    "text": dice})
+        at += b - a
+    return {"ok": True, "tramos": out, "total": round(at, 2)}
 
 
 def session_save(workdir, state):
@@ -1990,6 +2069,11 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
     if prompt.startswith(PICK):
         key, _, value = prompt[len(PICK):].partition("=")
         return dict(base, **{key: value}), [key], []
+    # Un retoque sin frase existe: mover un tramo de sitio se pide arrastrando,
+    # no hablando. Preguntarle al modelo que quiso decir una frase vacia son
+    # diez segundos y una respuesta inventada.
+    if not prompt.strip():
+        return dict(base), [], []
     delta, cannot, _why = director.change(prompt, base, ai, model, log)
     # El modelo de ajustes no manda sobre lo que pasa en un momento concreto:
     # eso lo lleva director.actions. Sin esta linea contestaba "esto no se
@@ -2128,6 +2212,7 @@ def run_job(req):
         past0, sesdir = session_for(video, scope)
         again = bool(req.get("refine")) and bool(past0.get("edl"))
         keep_edl, history, turn = None, [], 1
+        moved = False
         changed, not_understood = [], []
         if again:
             past = past0
@@ -2225,6 +2310,13 @@ def run_job(req):
             # Los cortes que ya hay se respetan: esta frase es un retoque, no
             # una edicion nueva. Lo que la frase pida se aplica ENCIMA.
             edl = [dict(x) for x in keep_edl]
+            # Y si vienen los tramos en otro orden, se ponen en ese orden. No
+            # pasa por el modelo ni por una frase: mover el tercero al principio
+            # no se puede decir con segundos sin que se preste a confusion, y
+            # aqui no hay nada que interpretar, es una permutacion.
+            edl = reordered(edl, req.get("order"))
+            if len(edl) == len(keep_edl) and [dict(x) for x in keep_edl] != edl:
+                moved = True
         elif prompt and not again:
             packed = packed_view(workdir, transcript, video)
             if look.get("shots"):
@@ -2282,7 +2374,9 @@ def run_job(req):
         #     entregar exactamente el mismo video es lo que hacia que "pon
         #     transiciones en cada corte" acabara en un rato mirando como se
         #     colocaban otra vez los mismos 751 subtitulos.
-        if again:
+        #     Mover un tramo de sitio SI cambia el video, y no pasa por
+        #     `changed` porque no es un ajuste: es el montaje.
+        if again and not moved:
             # Lo que ha cambiado y esta salida SI sabe hacer. Cambiar la
             # transicion con salida a Resolve no cambia nada de lo que se ve,
             # asi que rehacer el montaje entero para entregar el mismo video es
@@ -2596,6 +2690,8 @@ def run_job(req):
         if (prompt and not any(deeds.values())
                 and (director.wants_moments(prompt) or director.needs_where(prompt))):
             not_understood = list(not_understood) + [tr("no_moment")]
+        if moved:
+            did.append(tr("did_order", len(edl)))
         did += [tr("did_cut" if len(edl) == 1 else "did_cuts", len(edl))]
         # Solo cuando se sabe el numero aqui. Cuando los subtitulos los arma el
         # backend, el que los ha contado es el, y lo dice en `result`: repetirlo
@@ -2610,7 +2706,8 @@ def run_job(req):
                                     want_voice=bool(want_voice),
                                     want_shake=bool(req.get("shake")))
         answer = {"you": (said_pick(prompt, _lang) if prompt.startswith(PICK)
-                          else (prompt or tr("history_first"))),
+                          else prompt or (tr("said_order") if moved
+                                          else tr("history_first"))),
                   "did": [x for x in did if x],
                   "cannot": blocked,
                   "unknown": not_understood,
@@ -2782,6 +2879,14 @@ class Handler(BaseHTTPRequestHandler):
                             "result": st.get("result", ""),
                             "scope": st.get("scope") or scope_now(),
                             "can": bool(st.get("edl"))})
+        elif self.path.startswith("/tramos"):
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            try:
+                self._send(tramos_of((q.get("video") or [""])[0]))
+            except Exception as e:
+                traceback.print_exc()
+                self._send({"ok": False, "tramos": [], "error": str(e)[:200]})
         elif self.path == "/history":
             # Al reves que en el archivo: lo ultimo arriba, que es lo que se
             # busca al abrir la pestaña.
