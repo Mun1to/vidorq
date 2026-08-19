@@ -1469,12 +1469,38 @@ SESSION = "sesion.json"
 def session_save(workdir, state):
     """What a second round of prompts needs to know, next to the transcript."""
     try:
+        # La carpeta del proyecto puede no existir todavia: es la primera vez que
+        # se habla de este video EN ESTE proyecto.
+        Path(workdir).mkdir(parents=True, exist_ok=True)
         (Path(workdir) / SESSION).write_text(
             json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
     except Exception:
         # Losing the ability to refine is a smaller failure than losing the
         # edit that was just made, so this never raises.
         traceback.print_exc()
+
+
+def session_for(video, scope=None):
+    """La conversacion de ESTE proyecto sobre este video.
+
+    Hay un caso de compatibilidad y solo uno. Las sesiones de antes de esto vivian
+    sueltas en la carpeta del video, sin saber de que proyecto eran. Se siguen
+    leyendo, pero **solo cuando no hay un proyecto de Resolve abierto**: si lo
+    hay, esa conversacion vieja no se sabe si es suya, y enseñarsela es
+    justamente el fallo que se esta arreglando.
+    """
+    scope = scope or scope_now()
+    mia = session_dir(video, scope)
+    if (Path(mia) / SESSION).exists():
+        return session_load(mia), mia
+    suelta = workdir_for(video)
+    try:
+        sin_resolve = not (bridge_status() or {}).get("project")
+    except Exception:
+        sin_resolve = True
+    if sin_resolve and (Path(suelta) / SESSION).exists():
+        return session_load(suelta), mia
+    return {}, mia
 
 
 def session_load(workdir):
@@ -1485,7 +1511,35 @@ def session_load(workdir):
 
 
 def workdir_for(video):
+    """Donde vive lo que es del ARCHIVO: la transcripcion, sobre todo.
+
+    Transcribir diez minutos cuesta minutos y el resultado no depende de en que
+    proyecto estes, asi que esto se comparte a proposito.
+    """
     return Path(video).parent / "edit" / Path(video).stem[:40]
+
+
+def scope_now():
+    """En que proyecto estamos, para no mezclar conversaciones.
+
+    El proyecto abierto de Resolve si lo hay, y si no el workspace de Vidorq.
+    Sin Resolve y sin nada, "suelto": ahi no hay proyecto que separar.
+    """
+    try:
+        name = (bridge_status() or {}).get("project")
+    except Exception:
+        name = None
+    if not name:
+        try:
+            name = ws_list()["active"]
+        except Exception:
+            name = ""
+    return _safe_name(name or "suelto")[:40] or "suelto"
+
+
+def session_dir(video, scope=None):
+    """Donde vive lo que es del PROYECTO: la conversacion y el montaje."""
+    return workdir_for(video) / "p" / (scope or scope_now())
 
 
 # Que sabe hacer cada salida. Una sola tabla, porque antes esto vivia como una
@@ -1826,8 +1880,7 @@ def note_stopped(video, prompt):
     """
     if not video:
         return
-    work = workdir_for(video)
-    past = session_load(work)
+    past, work = session_for(video)
     if not past.get("edl"):
         return  # No hay conversacion todavia: no habia nada que continuar.
     past["history"] = (past.get("history") or []) + [
@@ -1879,12 +1932,16 @@ def run_job(req):
         # for a change to THAT, so nothing is decided from scratch: the settings
         # carry over, the transcript is already on disk, and the cuts that are
         # there stay there unless this sentence says otherwise.
-        again = bool(req.get("refine")) and bool(
-            session_load(workdir_for(video)).get("edl"))
+        # De que proyecto es esta conversacion. Se calcula UNA vez por turno:
+        # preguntarselo al puente cuesta una llamada y el proyecto no cambia a
+        # mitad de una edicion.
+        scope = scope_now()
+        past0, sesdir = session_for(video, scope)
+        again = bool(req.get("refine")) and bool(past0.get("edl"))
         keep_edl, history, turn = None, [], 1
         changed, not_understood = [], []
         if again:
-            past = session_load(workdir_for(video))
+            past = past0
             keep_edl = past["edl"]
             history = past.get("history") or []
             turn = len(history) + 1
@@ -2059,7 +2116,7 @@ def run_job(req):
                 answer = {"you": prompt, "did": [], "cannot": blocked,
                           "unknown": [], "ask": pending, "offer": {}, "ok": False}
                 past["history"] = history + [answer]
-                session_save(workdir_for(video), past)
+                session_save(sesdir, past)
                 set_progress(tr("done"), 100, result=pending[0]["question"])
                 return
             if not useful and not (prompt and director.wants_moments(prompt)):
@@ -2068,7 +2125,7 @@ def run_job(req):
                           "offer": ({"kind": "mp4"} if blocked else {}),
                           "ok": False}
                 past["history"] = history + [answer]
-                session_save(workdir_for(video), past)
+                session_save(sesdir, past)
                 set_progress(tr("done"), 100,
                              result=(blocked[0]["why"] if blocked
                                      else tr("not_understood")))
@@ -2087,7 +2144,7 @@ def run_job(req):
                 answer = {"you": prompt, "did": [], "cannot": [], "unknown": [],
                           "ask": ask_at, "offer": {}, "ok": False}
                 past["history"] = history + [answer]
-                session_save(workdir_for(video), past)
+                session_save(sesdir, past)
                 set_progress(tr("done"), 100, result=ask_at[0]["question"])
                 return
         if prompt:
@@ -2225,7 +2282,11 @@ def run_job(req):
             result, made_names = output_resolve(
                 video, edl, transcript, captions, caption_preset, workdir,
                 caption_anim, translated_chunks, ratio,
-                drop=(session_load(workdir).get("timelines") or []) if again else [],
+                # Los timelines a borrar salen de la conversacion de ESTE
+                # proyecto, no de la carpeta del archivo. Un timeline apuntado
+                # por otro proyecto no es nuestro para borrarlo, y borrar el
+                # timeline equivocado en Resolve ya se ha visto lo que hace.
+                drop=(past0.get("timelines") or []) if again else [],
                 look=colour, transition=transition)
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
@@ -2311,8 +2372,9 @@ def run_job(req):
                   "offer": ({"kind": "mp4"} if blocked else {}),
                   "result": result,
                   "ok": True}
-        session_save(workdir, {
+        session_save(sesdir, {
             "video": video,
+            "scope": scope,
             "edl": edl,
             "settings": settings_now,
             "history": (history if again else []) + [answer],
@@ -2443,7 +2505,7 @@ class Handler(BaseHTTPRequestHandler):
             if not video:
                 self._send({"history": [], "can": False})
             else:
-                st = session_load(workdir_for(video))
+                st, _ = session_for(video)
                 # Las sesiones viejas guardaban solo la frase del usuario. Se
                 # leen igual, en vez de romper una conversacion que ya existia.
                 turns = [({"you": h, "did": [], "cannot": [], "ok": True}
@@ -2452,6 +2514,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send({"history": turns,
                             "settings": st.get("settings") or {},
                             "result": st.get("result", ""),
+                            "scope": st.get("scope") or scope_now(),
                             "can": bool(st.get("edl"))})
         elif self.path == "/clips":
             # No bridge_status() gate on purpose. That check allows two seconds,

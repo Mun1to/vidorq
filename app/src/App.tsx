@@ -108,6 +108,8 @@ function App() {
   // asi que no habia forma de saber en que estado estaba tu propio video.
   const [now, setNow] = useState<ChatState>({});
   const [made, setMade] = useState("");
+  // De que proyecto de Resolve es la conversacion que se esta viendo.
+  const [scope, setScope] = useState("");
   const [engineUp, setEngineUp] = useState<boolean | null>(null);
   const [retry, setRetry] = useState(0);
   const [dragOver, setDragOver] = useState(false);
@@ -229,9 +231,12 @@ function App() {
   useEffect(() => {
     if (!video) { setChat([]); return; }
     if (phase === "running") return;
-    apiGet<{ history: Turn[]; settings?: ChatState; result?: string }>(
+    apiGet<{ history: Turn[]; settings?: ChatState; result?: string; scope?: string }>(
       `/session?video=${encodeURIComponent(video)}`)
-      .then((d) => { setNow(d.settings || {}); setMade(d.result || ""); return d; })
+      .then((d) => {
+        setNow(d.settings || {}); setMade(d.result || ""); setScope(d.scope || "");
+        return d;
+      })
       // Lo que sigue en la fila todavia no existe para el motor, asi que se
       // vuelve a poner detras: sin esto, tus mensajes en espera desaparecian de
       // la pantalla en cuanto contestaba el turno anterior.
@@ -486,6 +491,7 @@ function App() {
           now={now}
           label={labelOf}
           made={made}
+          scope={scope}
           onOpen={openMade}
           draft={followUp}
           onDraft={setFollowUp}
@@ -496,7 +502,7 @@ function App() {
           onNewVideo={() => {
             setPhase("idle"); setProgress({ step: "", percent: 0 }); setVideo("");
             setChat([]); setFollowUp(""); setSetup(false);
-            setNow({}); setMade("");
+            setNow({}); setMade(""); setScope("");
           }}
           running={phase === "running"}
           onStop={stopEdit}

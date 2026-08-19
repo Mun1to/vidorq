@@ -92,6 +92,8 @@ interface Props {
   now?: Settings;
   /** Como se lee cada valor: lo trae el motor y lo tiene ya la ventana. */
   label?: (key: string, id: string) => string;
+  /** De que proyecto de Resolve es esta conversacion. */
+  scope?: string;
   /** El archivo o el timeline del ultimo resultado, y como abrirlo. */
   made?: string;
   onOpen?: (what: "file" | "folder") => void;
@@ -123,7 +125,7 @@ interface Props {
  * lado. Un limite que ademas te ofrece la salida deja de ser un muro.
  */
 export default function Chat({
-  title, turns, now, label, made, onOpen, draft, onDraft, onSend, onOffer,
+  title, turns, now, label, scope, made, onOpen, draft, onDraft, onSend, onOffer,
   onPick, onSetup, onNewVideo, onStop, running, step, detail, percent, error,
 }: Props) {
   const { t } = useLang();
@@ -155,6 +157,10 @@ export default function Chat({
           <img src={logo} alt="" className="chat-logo" />
           <div className="chat-who">
             <strong>{title}</strong>
+            {/* De que proyecto es esta conversacion. Va aqui porque el mismo
+                video en dos proyectos son dos conversaciones distintas, y sin
+                verlo escrito parece que el programa se ha vuelto loco. */}
+            {scope && <span className="chat-scope">{scope}</span>}
             {/* Lo que tiene puesto AHORA, de un vistazo. Sin esto habia que
                 leer la conversacion hacia atras para saber si seguia en
                 vertical, y con quince turnos eso no se puede hacer. */}

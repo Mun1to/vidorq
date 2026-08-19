@@ -488,6 +488,14 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 /* Lo que la edicion tiene puesto ahora. Pequeño y de una linea: es una etiqueta
    de estado, no un panel de control. Se lee, no se pulsa. */
+/* El proyecto al que pertenece esta conversacion. Discreto pero presente: el
+   mismo video en dos proyectos son dos conversaciones, y verlo escrito es lo que
+   evita pensar que el programa se ha inventado un historial. */
+.chat-scope {
+  font-size: 10.5px; color: var(--faint); letter-spacing: .2px;
+}
+.chat-scope::before { content: "en "; }
+
 .chat-state { display: flex; flex-wrap: wrap; gap: 5px; }
 .chat-state span {
   font-size: 10.5px; font-weight: 600; letter-spacing: .2px;
