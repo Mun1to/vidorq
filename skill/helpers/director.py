@@ -190,6 +190,7 @@ def _change_system(current, lang="es"):
         "  ratio: %s\n"
         "  transition: %s\n"
         "  captions: true o false\n"
+        "  shake: true o false (un golpe de camara al caer el corte)\n"
         "  captionPreset: %s\n"
         "  captionAnim: %s\n"
         "  cuts: %s\n"
@@ -232,6 +233,8 @@ def change(prompt, current, ai=None, model=None, log=None):
         out["transition"] = delta["transition"]
     if isinstance(delta.get("captions"), bool):
         out["captions"] = delta["captions"]
+    if isinstance(delta.get("shake"), bool):
+        out["shake"] = delta["shake"]
     if delta.get("captionPreset") in cap.PRESETS:
         out["captionPreset"] = delta["captionPreset"]
     if delta.get("captionAnim") in cap.ANIMS:
@@ -275,6 +278,10 @@ WORD_RULES = (
     ("cuts", "montage", r"resumen|mejores momentos|highlight|montaje|best bits|"
                         r"lo mejor\b"),
     ("cuts", "podcast", r"podcast|entrevista|preguntas y respuestas|\bq&a\b"),
+    ("shake", False, r"(sin|no|quita|quitar|fuera|borra|elimina|remove)"
+                     r"\b[^.]{0,14}(temblor|sacudid|\bshake\b|vibraci)"),
+    ("shake", True, r"\btemblor|\btiembl|sacudid|\bshake\b|golpe de camara|"
+                    r"golpe de c[aá]mara|\bimpacto\b|vibraci[oó]n"),
     ("cuts", "clean", r"quita los silencios|sin silencios|quita las pausas|"
                       r"solo lo hablado|limpia los silencios|\bmuletillas\b"),
     # Sin un "negro" suelto: "ponlo en blanco y negro" es un filtro de color, y

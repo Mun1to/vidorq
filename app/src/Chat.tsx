@@ -33,6 +33,7 @@ export const SHORTCUTS: { key: string; send: string }[] = [
   { key: "sc.look", send: "ponle un filtro de color" },
   { key: "sc.captions", send: "ponle subtitulos" },
   { key: "sc.anim", send: "cambia la animacion de los subtitulos" },
+  { key: "sc.shake", send: "ponle temblor de impacto en los cortes" },
   { key: "sc.vertical", send: "ponlo en vertical" },
   { key: "sc.zoom", send: "haz un zoom en el segundo " },
   { key: "sc.piece", send: "quita el trozo del minuto " },

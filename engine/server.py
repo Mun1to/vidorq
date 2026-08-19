@@ -1522,10 +1522,10 @@ CANNOT_WHY = {
 SETTING_WORDS = {
     "es": {"ratio": "formato", "transition": "transicion", "captions": "subtitulos",
            "captionPreset": "estilo", "captionAnim": "entrada", "cuts": "corte",
-           "look": "color"},
+           "look": "color", "shake": "temblor"},
     "en": {"ratio": "frame", "transition": "transition", "captions": "captions",
            "captionPreset": "look", "captionAnim": "entrance", "cuts": "cut",
-           "look": "colour"},
+           "look": "colour", "shake": "shake"},
 }
 
 
@@ -1535,10 +1535,19 @@ def said_it(changed, settings):
     out = []
     for key in changed:
         value = settings.get(key)
-        if key == "captions":
-            out.append(("subtitulos" if value else "sin subtitulos") if _lang == "es"
-                       else ("captions" if value else "no captions"))
+        # Un si o un no se dice con palabras. "temblor: True" es como habla una
+        # base de datos, y esto lo lee una persona en su pantalla.
+        if isinstance(value, bool):
+            name = words.get(key, key)
+            out.append(name if value else
+                       ("sin " + name if _lang == "es" else "no " + name))
             continue
+        if key in ("cuts",):
+            # El criterio con su nombre: "corte: montage" era el id interno.
+            for opt in choices_for(key, _lang):
+                if opt["id"] == value:
+                    value = opt["label"]
+                    break
         if key == "transition":
             value = (TRANSITION_LABELS.get(_lang, TRANSITION_LABELS["es"])
                      .get(value, value))
@@ -1730,6 +1739,10 @@ def run_job(req):
         # `colour` y no `look`: mas abajo `look` es lo que devuelve mirar el
         # video con vision.analyse, y llamar igual a dos cosas distintas hacia
         # que el filtro acabara guardado como {}.
+        # El temblor nace de la casilla del panel, y a partir de ahi vive en la
+        # sesion como cualquier otro ajuste: si en un turno lo pediste hablando,
+        # en el siguiente sigue puesto sin tener que repetirlo.
+        shake_on = bool(req.get("shake"))
         colour = req.get("look") or ""
         if colour not in looks.PRESETS:
             colour = ""
@@ -1762,6 +1775,7 @@ def run_job(req):
             history = past.get("history") or []
             turn = len(history) + 1
             base = past.get("settings") or {}
+            shake_on = bool(base.get("shake", shake_on))
             set_progress(tr("refining", turn), 6, tr("refine_reading"))
             fresh, changed, not_understood = refine_settings(
                 prompt, base, ai_choice(req), req.get("directorModel") or None,
@@ -1770,6 +1784,7 @@ def run_job(req):
             preset = fresh.get("cuts", preset)
             transition = fresh.get("transition", transition)
             captions = fresh.get("captions", captions)
+            shake_on = fresh.get("shake", shake_on)
             caption_preset = fresh.get("captionPreset") or caption_preset
             caption_anim = fresh.get("captionAnim", caption_anim)
             colour = fresh.get("look", colour)
@@ -1838,14 +1853,14 @@ def run_job(req):
         set_progress(tr("deciding"), 50)
         # Impact shake on the beats. Off unless asked for: it is a look, not a
         # correction, and a podcast does not want its camera flinching.
-        shake = bool(req.get("shake"))
+        shake = shake_on
         report = {}
         # Cambiar el ESTILO de corte es lo unico de un retoque que obliga a
         # volver a cortar: los demas ajustes se pintan encima de la misma
         # edicion, pero "limpio" y "montaje" son dos ediciones distintas. Sin
         # esto la pregunta "como quieres que lo corte" tenia tres botones que no
         # hacian nada, que es peor que no preguntar.
-        recut = again and "cuts" in changed
+        recut = again and bool({"cuts", "shake"} & set(changed))
         if again and not recut:
             # Los cortes que ya hay se respetan: esta frase es un retoque, no
             # una edicion nueva. Lo que la frase pida se aplica ENCIMA.
@@ -1916,7 +1931,7 @@ def run_job(req):
             asked = set(changed)
             blocked = blocked_by_output(
                 output, {"ratio": ratio, "transition": transition}, asked,
-                want_voice=False, want_shake=bool(req.get("shake")))
+                want_voice=False, want_shake=shake_on and "shake" in asked)
             dead = {b["what"] for b in blocked}
             useful = [k for k in changed if k not in dead]
             # Categorias nombradas sin decir cual. "Pon transiciones" dice que
@@ -2130,7 +2145,7 @@ def run_job(req):
         settings_now = {"ratio": ratio, "transition": transition,
                         "captions": captions, "captionPreset": caption_preset,
                         "captionAnim": caption_anim, "cuts": preset,
-                        "look": colour, "output": output}
+                        "look": colour, "output": output, "shake": shake_on}
         # Lo que ha pasado en este turno, contado. Se guarda con la sesion para
         # que la conversacion siga estando ahi despues de cerrar la ventana.
         did = said_it(changed, settings_now) if again else []
