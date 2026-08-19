@@ -691,6 +691,46 @@ Escribirlo encontro uno mas: el atajo **Animacion** preguntaba que **estilo** de
 querias, porque «animada, pero cual» contaba como una decision ya tomada. De ahi sale
 `director.decided()`, que es `from_words` menos los `__any__`.
 
+## 8c-ter. Lo que solo se ve con un video de verdad
+
+Todo lo anterior se habia probado con **20 segundos de voz sintetica**. Repetido contra un
+video real de **10,7 minutos** de habla espontanea (106 tramos, sin puntuar, con muletillas),
+aparecieron tres contradicciones, y las tres con la misma raiz: **el modelo de ajustes
+opinaba sobre cosas que no son suyas**.
+
+| lo que dices | lo que contestaba |
+| --- | --- |
+| *hazme un resumen con los mejores momentos* | cambiaba el corte a montaje **y** decia «no puedo hacer un resumen». Lo acababa de hacer |
+| *ponle un filtro de color* | preguntaba cual **y ademas** decia que no podia. O preguntas o declinas |
+| *ponle temblor en los cortes* | preguntaba con que criterio cortar, porque leyo «cortes» como una peticion en vez de como un sitio |
+
+Su «no puedo» solo vale para lo que **nadie mas va a atender**: ni lo que si se cambio, ni lo
+que se esta a punto de preguntar, ni lo que hace `director.actions`. Eso es `_echoes()`.
+
+**Bateria final: 14 frases reales, todas correctas, 4,5 s de media por frase** con
+`claude-cli`. El unico «no puedo» que sobrevive es el verdadero: subir a YouTube y poner
+musica.
+
+**Y el flujo entero sobre esos 10,7 minutos**: primera edicion con subtitulos a MP4, y tres
+retoques encima. El retoque que solo cambia el color **no vuelve a cortar**; el que cambia el
+criterio de corte o el temblor **si**, porque son dos ediciones distintas.
+
+## 8c-quater. Una foto de un fundido es una foto de nada
+
+**Cinco de las diez baldosas de la galeria salian completamente vacias** (bar, glass,
+minimal, halo, mono). No era la baldosa: era el fotograma, **1176 bytes de nada** frente a
+los 8506 de uno con texto.
+
+Cada estilo trae su animacion de entrada, y esas cinco entran con `\fad`. La foto se saca del
+**primer fotograma**, que es justo el instante en el que un fundido de entrada vale **cero**.
+La galeria enseñaba el fotograma en el que el subtitulo todavia no ha aparecido, y la galeria
+existe **solo** para poder comparar estilos.
+
+`to_ass(..., still=True)` dibuja el estilo **asentado**: sin fundido, con el tamaño en el que
+acaba y con el resplandor ya puesto. Una foto no puede enseñar un movimiento, y el movimiento
+tiene su propia pestaña, que renderiza video de verdad. El video final **no cambia**: alli el
+fundido es correcto porque hay tiempo para verlo.
+
 ## 8d. Filtros de color (`skill/helpers/looks.py`)
 
 Ocho miradas, cada una escrita **una sola vez** como cuatro números de CDL (pendiente,
