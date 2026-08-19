@@ -28,6 +28,7 @@ Prompt mode (Modo Pro) uses the Anthropic API with the user's own key.
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import os
 import re
@@ -2873,15 +2874,33 @@ class Handler(BaseHTTPRequestHandler):
         """An image straight down the socket.
 
         Previews are files on disk, not JSON, and base64 in a JSON envelope would
-        make every one of them a third bigger for no reason. They are immutable
-        once written (the cache key contains everything that went into them), so
-        they can be cached hard by the window.
+        make every one of them a third bigger for no reason.
+
+        Antes iban con `max-age=86400` y el comentario decia que eran inmutables
+        porque la clave del cache lleva dentro todo lo que entro en la imagen.
+        Eso es falso en un caso concreto y medido el 19-ago: la clave lleva lo
+        que se le PIDE (video, estilo, formato, idioma) pero no la version del
+        que dibuja. Al cambiar el texto de muestra y borrar el cache del disco,
+        la ventana seguia enseñando la imagen de antes, porque ni preguntaba.
+        Un dia entero viendo lo que ya no es.
+
+        Ahora se revalida siempre y se contesta 304 cuando de verdad no ha
+        cambiado nada. Es una peticion a localhost contra un archivo que ya
+        esta en disco: cuesta menos que enseñar algo que no es verdad.
         """
         try:
+            etag = '"%s"' % hashlib.md5(data).hexdigest()
+            if self.headers.get("If-None-Match") == etag:
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-cache")
+                self.end_headers()
+                return
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(data)))
-            self.send_header("Cache-Control", "public, max-age=86400")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("ETag", etag)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             self.wfile.write(data)

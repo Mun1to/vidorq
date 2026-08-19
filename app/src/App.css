@@ -760,6 +760,21 @@ select:focus-visible,
 .grid.full { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
 .grid.full .tile-shot { height: 128px;
 }
+/* La baldosa mientras se pinta. El componente ya ponia la clase `loading` y no
+   habia una sola regla detras, asi que abrir la galeria eran seis agujeros
+   negros durante los ~20 s que cuesta pintar diez estilos sobre TU metraje, sin
+   ninguna señal de que estuviera pasando algo. Medido el 19-ago: a los 7 s
+   seguian vacias; a los 25 s estaban todas. */
+.tile-shot.loading {
+  background: linear-gradient(100deg,
+              var(--panel2) 30%, var(--line-soft) 48%, var(--panel2) 66%);
+  background-size: 300% 100%;
+  animation: shimmer 1.25s linear infinite;
+}
+@keyframes shimmer {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
 .tile-shot img { display: block; max-width: 100%; max-height: 100%; }
 .tile:hover .tile-shot { border-color: var(--accent-soft); }
 .tile.sel .tile-shot { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-fill); }

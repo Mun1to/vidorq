@@ -36,7 +36,7 @@ import looks  # noqa: E402
 CACHE = Path(os.environ.get("APPDATA", ".")) / "Vidorq" / "previews"
 # What the sample caption says. Short enough to fit one vertical line, long
 # enough to show letter spacing, the outline and the plate of a style.
-SAMPLE = {"es": "ASI SE VE", "en": "LIKE THIS"}
+SAMPLE = {"es": "ASÍ SE VE", "en": "LIKE THIS"}
 # How wide a preview comes out. Small enough to be quick, big enough that a thin
 # look like Minimal does not turn to mush.
 PREVIEW_LONG = 480
