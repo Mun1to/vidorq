@@ -28,6 +28,10 @@ interface Progress {
   stopped?: boolean;
 }
 
+// Lo que se le puede pedir, de un toque. Un campo de texto vacio no enseña lo
+// que sabe hacer; tres ejemplos si, y se rellenan solos para poder tocarlos.
+const SAY_EXAMPLES = ["say.eg1", "say.eg2", "say.eg3"] as const;
+
 const PRESETS: { id: Preset; Icon: typeof IconScissors; name: Key; desc: Key; beta?: boolean }[] = [
   { id: "clean", Icon: IconScissors, name: "preset.clean", desc: "preset.clean.desc" },
   { id: "podcast", Icon: IconMic, name: "preset.podcast", desc: "preset.podcast.desc" },
@@ -80,7 +84,6 @@ function App() {
     () => (localStorage.getItem("vidorq.output") === "resolve" ? "resolve" : "mp4"));
   useEffect(() => { localStorage.setItem("vidorq.output", output); }, [output]);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [proOpen, setProOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   // La conversacion sobre ESTE video: lo que ya se ha pedido y lo que se esta
   // escribiendo ahora. Vidorq no editaba una vez, editaba UNA sola vez: al
@@ -382,7 +385,10 @@ function App() {
         video, preset, captions, output: forceOutput || output,
         // En un retoque manda la frase nueva; el resto de ajustes los recuerda
         // el motor, que es quien tiene el montaje.
-        prompt: refine || (proOpen ? prompt : ""), lang,
+        // Sin condiciones: lo que se ve escrito en la pantalla es lo que se
+        // manda. Antes iba atado a que el desplegable estuviera abierto, asi que
+        // se podia escribir una frase, cerrarlo, y editar sin ella.
+        prompt: refine || prompt, lang,
         refine: refine ? true : undefined,
         captionPreset: capStyle, captionAnim: capAnim,
         vision: seeVideo, shake, translate: transLang, translateCaptions: burnTrans,
@@ -624,6 +630,25 @@ function App() {
             )}
           </div>
 
+          {/* Lo primero despues del video, porque es lo que promete la cabecera.
+              Escribir aqui es optativo: los tres presets de abajo son el atajo
+              para quien no quiere escribir nada. */}
+          <div className="say">
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={t("say.ph")}
+              rows={2}
+            />
+            <div className="say-eg">
+              {SAY_EXAMPLES.map((k) => (
+                <button key={k} type="button" onClick={() => setPrompt(t(k as never))}>
+                  {t(k as never)}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="presets">
             {PRESETS.map(({ id, Icon, name, desc, beta }) => (
               <button key={id} className={`preset ${preset === id ? "sel" : ""}`} onClick={() => setPreset(id)}>
@@ -817,21 +842,6 @@ function App() {
             )}
           </div>
 
-
-          <div className="pro">
-            <button className="pro-toggle" onClick={() => setProOpen(!proOpen)}>
-              <IconSpark size={15} className="icon" />
-              {t("pro")}
-              <IconChevron size={15} className={`icon chev ${proOpen ? "up" : ""}`} />
-            </button>
-            {proOpen && (
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder={t("pro.placeholder")}
-              />
-            )}
-          </div>
 
           <button className="cta" disabled={!canEdit} onClick={() => startEdit()}>
             <IconPlay size={15} className="icon" />{t("cta.edit")}

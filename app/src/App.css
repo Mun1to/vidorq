@@ -93,6 +93,27 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 .lang button:hover { color: var(--text-dim); }
 .lang button.sel { background: #1f2536; color: var(--text); }
 
+/* Lo que le cuentas. Es la promesa de la cabecera, asi que ocupa el sitio de
+   una promesa: ancho completo, debajo del video, sin nada que abrir. */
+.say { display: flex; flex-direction: column; gap: 8px; }
+.say textarea {
+  width: 100%; background: var(--panel2); border: 1px solid var(--line);
+  border-radius: 11px; padding: 13px 15px; color: var(--text); font: inherit;
+  font-size: 13px; line-height: 1.5;
+  /* Sin el tirador de agrandar: lo pinta el navegador, no lo ha diseñado nadie
+     y rompe la maqueta en cuanto alguien lo arrastra. */
+  resize: none;
+}
+.say textarea:focus { outline: none; border-color: var(--accent); }
+.say textarea::placeholder { color: var(--faint); }
+.say-eg { display: flex; gap: 7px; flex-wrap: wrap; }
+.say-eg button {
+  background: transparent; border: 1px dashed var(--line); color: var(--muted);
+  border-radius: 999px; padding: 5px 11px; font: inherit; font-size: 11.5px;
+  cursor: pointer;
+}
+.say-eg button:hover { border-style: solid; border-color: var(--accent); color: var(--text); }
+
 /* ---------- panel principal ---------- */
 .main {
   padding: 22px 26px; display: flex; flex-direction: column; gap: 15px;
@@ -222,6 +243,17 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 .cta:hover:not(:disabled) { filter: brightness(1.1); }
 .cta:disabled { opacity: .35; cursor: not-allowed; }
 .cta.inline { width: auto; padding: 10px 20px; }
+
+/* La accion principal, siempre a la vista. Medido el 2026-08-19: en una pantalla
+   de portatil el boton caia a 1073px de un contenido de 1141, o sea que para
+   encontrar el boton de editar habia que hacer scroll y adivinar que estaba
+   ahi abajo. Se queda pegado al fondo del panel con su propio suelo, para que no
+   flote encima del contenido que pasa por debajo. */
+.main > .cta {
+  position: sticky; bottom: 0; z-index: 3;
+  margin-top: 2px;
+  box-shadow: 0 -14px 20px -8px var(--bg);
+}
 
 .ghost {
   background: transparent; border: 1px solid var(--line); color: var(--text-dim);

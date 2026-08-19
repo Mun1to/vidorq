@@ -28,6 +28,10 @@ const es = {
 
   "head.title": "Editar un vídeo",
   "head.sub": "Describe la edición. El resto es nuestro.",
+  "say.ph": "Cuéntale qué quieres. Ej: \"un short vertical con subtítulos grandes y corte rápido\". O déjalo vacío y elige abajo.",
+  "say.eg1": "Un short vertical con subtítulos grandes",
+  "say.eg2": "Quita silencios y muletillas, nada más",
+  "say.eg3": "Los mejores momentos, con música de fondo",
   "out.mp4": "MP4 directo",
   "out.resolve": "Timeline en Resolve",
 
@@ -224,6 +228,10 @@ const en: Record<keyof typeof es, string> = {
 
   "head.title": "Edit a video",
   "head.sub": "Describe the edit. We handle the rest.",
+  "say.ph": "Tell it what you want. E.g. \"a vertical short with big captions and fast cuts\". Or leave it empty and pick below.",
+  "say.eg1": "A vertical short with big captions",
+  "say.eg2": "Drop silences and filler words, nothing else",
+  "say.eg3": "The best bits, with background music",
   "out.mp4": "Direct MP4",
   "out.resolve": "Timeline in Resolve",
 
