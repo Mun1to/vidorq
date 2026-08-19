@@ -443,7 +443,7 @@ function App() {
           onDraft={setFollowUp}
           onSend={(text) => askMore(text)}
           onOffer={takeOffer}
-          onPick={(what, id) => askMore(`pick:${what}=${id}`)}
+          onPick={(what, id, send) => askMore(send || `pick:${what}=${id}`)}
           onSetup={() => setSetup(true)}
           onNewVideo={() => {
             setPhase("idle"); setProgress({ step: "", percent: 0 }); setVideo("");

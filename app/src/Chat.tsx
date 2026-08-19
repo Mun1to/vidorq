@@ -7,7 +7,11 @@ import logo from "./assets/logo.png";
 export interface Ask {
   what: string;
   question: string;
-  options: { id: string; label: string }[];
+  /* `send` es la frase entera que manda esa opcion, cuando la respuesta no es
+     un ajuste del menu sino un sitio del montaje: "haz un zoom en el segundo 9".
+     Asi el boton no sabe nada que el chat no sepa y entra por el mismo camino
+     que el texto escrito, que es el que esta probado. */
+  options: { id: string; label: string; send?: string }[];
 }
 
 export interface Turn {
@@ -35,8 +39,11 @@ export const SHORTCUTS: { key: string; send: string }[] = [
   { key: "sc.anim", send: "cambia la animacion de los subtitulos" },
   { key: "sc.shake", send: "ponle temblor de impacto en los cortes" },
   { key: "sc.vertical", send: "ponlo en vertical" },
-  { key: "sc.zoom", send: "haz un zoom en el segundo " },
-  { key: "sc.piece", send: "quita el trozo del minuto " },
+  // Estos dos ya no dejan la frase a medias para que la remates con un numero:
+  // se mandan enteros y el motor contesta con los tramos del montaje para que
+  // señales uno. Saberse el segundo de memoria no era trabajo del usuario.
+  { key: "sc.zoom", send: "haz un zoom" },
+  { key: "sc.piece", send: "quita un trozo" },
 ];
 
 interface Props {
@@ -46,7 +53,7 @@ interface Props {
   onDraft: (v: string) => void;
   onSend: (text?: string) => void;
   onOffer: (kind: string) => void;
-  onPick: (what: string, id: string) => void;
+  onPick: (what: string, id: string, send?: string) => void;
   onSetup: () => void;
   onNewVideo: () => void;
   onStop: () => void;
@@ -145,7 +152,7 @@ export default function Chat({
                       <div className="ask-opts">
                         {a.options.map((o) => (
                           <button key={o.id} className="offer small"
-                                  onClick={() => onPick(a.what, o.id)}>
+                                  onClick={() => onPick(a.what, o.id, o.send)}>
                             {o.label}
                           </button>
                         ))}

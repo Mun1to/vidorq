@@ -196,7 +196,11 @@ def _change_system(current, lang="es"):
         "  cuts: %s\n"
         "  look: %s\n\n"
         "En 'no_puedo' pon con tus palabras lo que el usuario ha pedido y no "
-        "cabe en ninguna de esas claves. Si lo entiendes todo, dejalo vacio. Si "
+        "cabe en ninguna de esas claves. NO pongas ahi nada que ocurra en un "
+        "momento concreto del video (un zoom en el segundo 11, quitar un trozo, "
+        "un cartel, una voz en off): de eso se encarga otra parte del programa "
+        "y ya funciona, asi que decir que no se puede seria mentira. "
+        "Si lo entiendes todo, dejalo vacio. Si "
         "no hay que cambiar ningun ajuste, devuelve 'cambia' vacio: eso es una "
         "respuesta correcta, no un fallo."
         % (json.dumps(current, ensure_ascii=False),
@@ -233,8 +237,12 @@ def change(prompt, current, ai=None, model=None, log=None):
         out["transition"] = delta["transition"]
     if isinstance(delta.get("captions"), bool):
         out["captions"] = delta["captions"]
-    if isinstance(delta.get("shake"), bool):
-        out["shake"] = delta["shake"]
+    # `shake` NO se lee del modelo a proposito, aunque este en su menu para que
+    # sepa que existe y no lo meta en "no_puedo". Pedir temblor se dice con la
+    # palabra temblor, que es exacta y gratis, y un booleano global inventado
+    # obliga a volver a cortar el video entero: medido, "haz un zoom" volvio con
+    # shake=true. Las palabras para lo que esta dicho, el modelo para lo que hay
+    # que juzgar.
     if delta.get("captionPreset") in cap.PRESETS:
         out["captionPreset"] = delta["captionPreset"]
     if delta.get("captionAnim") in cap.ANIMS:
@@ -414,6 +422,15 @@ def from_words(prompt):
             break
     for aid, pattern in ANIM_WORDS.items():
         if re.search(pattern, low, re.I):
+            # "zoom" es la misma palabra para dos cosas distintas: un movimiento
+            # de camara y la entrada de un subtitulo. Medido el 2026-08-19: "haz
+            # un zoom en el segundo 11" contestaba "entrada: Zoom", o sea que te
+            # cambiaba la animacion de los subtitulos y no acercaba nada. Solo
+            # cuenta como animacion si la frase habla del texto.
+            if aid == "zoom" and not re.search(
+                    r"subt[ií]tul|caption|texto|animaci|entrada|rotul|r[oó]tul|"
+                    r"letra", low, re.I):
+                continue
             got["captionAnim"] = aid
             break
     if "captionAnim" not in got and re.search(r"anima|movimiento|animated|motion", low, re.I):
@@ -588,6 +605,41 @@ MOMENT_RE = re.compile(
 def wants_moments(prompt):
     """True when the instruction talks about a specific point in the video."""
     return bool(MOMENT_RE.search(prompt or ""))
+
+
+# Pedir una cosa que pasa EN UN SITIO, sin decir en cual. "Haz un zoom" es eso:
+# se entiende el que, falta el donde.
+DEED_RE = re.compile(
+    r"\bzoom|\bacerca|\baleja|"
+    r"quita (un|el) (trozo|cacho|pedazo|fragmento|tramo)|"
+    r"corta (un|el) (trozo|cacho|pedazo|fragmento|tramo)|"
+    r"pon (un|una) (cartel|rotulo|r[oó]tulo|texto|tarjeta|titulo|t[ií]tulo)|"
+    r"mete (un|una) (cartel|rotulo|r[oó]tulo|texto|tarjeta)|"
+    r"pon (una )?marca|marca(lo)? (aqui|ahi)",
+    re.I)
+
+# Un tiempo dicho de verdad: un numero de segundos o de minutos, un reloj, o una
+# punta del video. Si esto aparece, el sitio ya esta dicho y no hay que preguntar.
+WHEN_RE = re.compile(
+    r"\d+\s*(segundo|minuto|\bs\b|\bm\b|\bmin\b|\bseg\b)|"
+    r"(segundo|minuto|\bmin\b|\bseg\b)\s*\d+|"
+    r"\d\s*:\s*\d|"
+    r"al (final|principio|empezar|acabar|terminar)|"
+    r"cuando (dice|habla|sale|aparece|cuenta|explica)|la parte donde",
+    re.I)
+
+
+def needs_where(prompt):
+    """True si la frase pide algo que pasa en un sitio y no dice en cual.
+
+    Sin esto, "haz un zoom" se iba al modelo de tiempos, que tenia que elegir un
+    segundo a ciegas: o se inventaba uno o no hacia nada. Preguntar es mas rapido
+    que las dos cosas y ademas ensena que tramos hay.
+    """
+    low = " " + (prompt or "").lower() + " "
+    if low.strip().startswith("pick:"):
+        return False
+    return bool(DEED_RE.search(low)) and not WHEN_RE.search(low)
 
 
 def _ask_timer(prompt, packed, model=None, log=None):

@@ -111,8 +111,8 @@ const es = {
   "sc.captions": "Subtítulos",
   "sc.anim": "Animación",
   "sc.vertical": "Vertical",
-  "sc.zoom": "Zoom en...",
-  "sc.piece": "Quitar un trozo...",
+  "sc.zoom": "Zoom",
+  "sc.piece": "Quitar un trozo",
   "more.note": "Se aplica sobre este montaje. No vuelve a transcribir, así que tarda segundos en vez de minutos.",
 
   "guide.title": "Empezar con Resolve",
@@ -305,8 +305,8 @@ const en: Record<keyof typeof es, string> = {
   "sc.captions": "Captions",
   "sc.anim": "Animation",
   "sc.vertical": "Vertical",
-  "sc.zoom": "Zoom at...",
-  "sc.piece": "Drop a bit...",
+  "sc.zoom": "Zoom",
+  "sc.piece": "Drop a bit",
   "more.note": "Applied on top of this edit. It does not transcribe again, so it takes seconds instead of minutes.",
 
   "guide.title": "Start with Resolve",

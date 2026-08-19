@@ -127,6 +127,7 @@ TEXT = {
         "building": "Montando timeline en Resolve...",
         "done": "Listo",
         "stopped": "Parado",
+        "no_moment": "no he encontrado el momento exacto; dime el segundo o el minuto y lo hago",
         "stopped_help": "Lo que ya estaba puesto se queda en el timeline",
         "stopped_by_you": "Lo paraste tu a mitad. Lo que ya estaba hecho se queda.",
         "timeline_made": "Timeline '%s' creado en Resolve",
@@ -184,6 +185,7 @@ TEXT = {
         "building": "Building the timeline in Resolve...",
         "done": "Done",
         "stopped": "Stopped",
+        "no_moment": "I could not find the exact moment; tell me the second or minute and I will do it",
         "stopped_help": "Whatever was already placed stays on the timeline",
         "stopped_by_you": "You stopped this halfway. What was already done stays.",
         "timeline_made": "Timeline '%s' created in Resolve",
@@ -1232,7 +1234,31 @@ def apply_actions(edl, acts, log=None):
     if log:
         log(", ".join("%d %s" % (n, k) for k, n in done.items() if n) or
             "nada que aplicar")
-    return titles, spoken
+    return titles, spoken, done
+
+
+# Como se llama cada cosa cuando se cuenta en la conversacion. Singular y plural,
+# porque "1 zooms" delata que lo ha escrito una maquina.
+DEED_WORDS = {
+    "es": {"cut": ("trozo quitado", "trozos quitados"), "zoom": ("zoom", "zooms"),
+           "marker": ("marca", "marcas"), "title": ("cartel", "carteles"),
+           "voice": ("voz", "voces")},
+    "en": {"cut": ("bit dropped", "bits dropped"), "zoom": ("zoom", "zooms"),
+           "marker": ("marker", "markers"), "title": ("card", "cards"),
+           "voice": ("voice line", "voice lines")},
+}
+
+
+def said_deeds(done, lang="es"):
+    """Lo que se hizo en momentos concretos, contado."""
+    words = DEED_WORDS.get(lang, DEED_WORDS["es"])
+    out = []
+    for key, n in (done or {}).items():
+        if not n:
+            continue
+        one, many = words.get(key, (key, key))
+        out.append("%d %s" % (n, one if n == 1 else many))
+    return out
 
 
 def titles_into(chunks, titles, edl):
@@ -1627,6 +1653,53 @@ def choices_for(key, lang="es"):
     return []
 
 
+def clock(seconds):
+    """Segundos como los lee una persona: 1:07, no 67.0."""
+    seconds = max(0, int(round(float(seconds))))
+    return "%d:%02d" % (seconds // 60, seconds % 60)
+
+
+def spans_ask(prompt, edl, transcript=None, lang="es"):
+    """Los tramos del montaje, para poder señalar uno sin saberse el segundo.
+
+    Cada opcion es la frase entera que se enviaria escribiendola, con el segundo
+    ya dentro. Asi no hay un estado "accion pendiente" que mantener: se pulsa y
+    entra por el mismo camino que el texto, que es el que esta probado.
+
+    Los tiempos son los del MONTAJE, que es el reloj que el usuario esta viendo
+    en la ventana, y no los del video original.
+    """
+    if not edl:
+        return []
+    dicho = {}
+    for seg in (transcript or {}).get("segments") or []:
+        dicho[round(float(seg.get("start", 0)), 1)] = (seg.get("text") or "").strip()
+    opts, t = [], 0.0
+    for i, seg in enumerate(edl[:12], 1):
+        dur = float(seg["end"]) - float(seg["start"])
+        texto = ""
+        for start, words in dicho.items():
+            if float(seg["start"]) - 0.6 <= start <= float(seg["end"]):
+                texto = words[:38]
+                break
+        etiqueta = "%d · %s-%s" % (i, clock(t), clock(t + dur))
+        if texto:
+            etiqueta += " «%s»" % texto
+        # La frase describe el TRAMO ENTERO, con su principio y su final, y no
+        # un punto: "quita un trozo en el segundo 11" no dice cuanto hay que
+        # quitar, y medido el 2026-08-19 el modelo de tiempos devolvia una lista
+        # vacia y no se quitaba nada. Con los dos extremos contesta bien, y
+        # ademas es lo que significa señalar un tramo: ese, entero.
+        opts.append({"id": "%d" % i,
+                     "label": etiqueta,
+                     "send": "%s del segundo %d al %d" % (
+                         prompt.strip().rstrip("."), int(t), int(round(t + dur)))})
+        t += dur
+    return [{"what": "at",
+             "question": ("¿En que parte?" if lang == "es" else "Which part?"),
+             "options": opts}]
+
+
 ASK_WORDS = {
     "es": {"transition": "¿Que transicion?", "captionPreset": "¿Que estilo de subtitulo?",
            "captionAnim": "¿Como quieres que entren?", "look": "¿Que filtro de color?",
@@ -1684,6 +1757,12 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
         key, _, value = prompt[len(PICK):].partition("=")
         return dict(base, **{key: value}), [key], []
     delta, cannot, _why = director.change(prompt, base, ai, model, log)
+    # El modelo de ajustes no manda sobre lo que pasa en un momento concreto:
+    # eso lo lleva director.actions. Sin esta linea contestaba "esto no se
+    # hacerlo: un zoom en el segundo 11" y acto seguido otra parte del programa
+    # lo hacia, o sea que la respuesta era falsa.
+    if director.wants_moments(prompt):
+        cannot = []
     words = director.from_words(prompt)
     delta.update(words)
     # Lo que la frase nombra sin concretar se PREGUNTA, y por eso la suposicion
@@ -1963,7 +2042,19 @@ def run_job(req):
         # 3c) What the prompt asked for at particular moments. After the cuts
         #     are decided and before anything downstream reads the EDL, because
         #     a cut here moves every second that comes after it.
-        want_titles, want_voice = [], []
+        want_titles, want_voice, deeds = [], [], {}
+        # Pediste algo que pasa en un sitio y no dijiste en cual. Se enseñan los
+        # tramos con su reloj y se elige uno, en vez de dejar que un modelo
+        # adivine un segundo o no haga nada.
+        if again and prompt and director.needs_where(prompt):
+            ask_at = spans_ask(prompt, edl, transcript, _lang)
+            if ask_at:
+                answer = {"you": prompt, "did": [], "cannot": [], "unknown": [],
+                          "ask": ask_at, "offer": {}, "ok": False}
+                past["history"] = history + [answer]
+                session_save(workdir_for(video), past)
+                set_progress(tr("done"), 100, result=ask_at[0]["question"])
+                return
         if prompt:
             set_progress(tr("moments"), 59, tr("framing_help"))
             try:
@@ -1984,7 +2075,7 @@ def run_job(req):
                 if again and acts:
                     acts = actions_to_original(acts, edl)
                 if acts:
-                    want_titles, want_voice = apply_actions(
+                    want_titles, want_voice, deeds = apply_actions(
                         edl, acts,
                         log=lambda m: set_progress(tr("decided"), 59,
                                                    tr("moments_done", m)))
@@ -2149,6 +2240,12 @@ def run_job(req):
         # Lo que ha pasado en este turno, contado. Se guarda con la sesion para
         # que la conversacion siga estando ahi despues de cerrar la ventana.
         did = said_it(changed, settings_now) if again else []
+        did += said_deeds(deeds, _lang)
+        # Pediste algo en un momento y no salio nada: se dice. Un turno que se
+        # calla es indistinguible de uno que lo ha hecho, que es de donde sale el
+        # "no se que ha hecho".
+        if prompt and director.wants_moments(prompt) and not any(deeds.values()):
+            not_understood = list(not_understood) + [tr("no_moment")]
         did += [tr("did_cut" if len(edl) == 1 else "did_cuts", len(edl))]
         # Solo cuando se sabe el numero aqui. Cuando los subtitulos los arma el
         # backend, el que los ha contado es el, y lo dice en `result`: repetirlo
