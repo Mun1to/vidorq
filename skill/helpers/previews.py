@@ -272,7 +272,7 @@ def style_still(preset, ratio="source", video="", lang="es", anim=None,
     out_w, out_h, crop_w, crop_h = _shape(ratio, width, height)
     dest = CACHE / ("style_%s.png" % _key(preset, anim or "", ratio, video, lang,
                                           at, out_w, out_h, PREVIEW_LONG,
-                                          _band_key(band)))
+                                          _band_key(band), "still2"))
     if dest.exists():
         return dest
     exe = ffmpeg()
@@ -288,8 +288,12 @@ def style_still(preset, ratio="source", video="", lang="es", anim=None,
         # Named s.ass and run from its own folder: libass resolves the path
         # relative to the working directory and a Windows path with a colon in
         # it inside a filter chain is a fight nobody wins.
+        # `still=True`: sin entrada. Es una foto, y el fotograma que se saca es
+        # el primero, que en un estilo con fundido de entrada es justo el
+        # instante en el que no se ve nada. Medido: cinco de diez baldosas
+        # salian vacias.
         cap.to_ass(work / "s.ass", [_chunk(lang, 2.0)], 0.0, 2.0,
-                   out_w, out_h, preset, anim)
+                   out_w, out_h, preset, anim, still=True)
         src, real = _source_args(video, at, out_w, out_h)
         vf = _crop_chain(width, height, out_w, out_h, crop_w, crop_h,
                          _face_x(video, at)) if real else []

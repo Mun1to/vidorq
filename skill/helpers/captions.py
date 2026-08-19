@@ -428,7 +428,7 @@ def ass_time(t):
 
 
 def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET,
-           anim_name=None):
+           anim_name=None, still=False):
     """Write one ASS file for one EDL segment, times shifted to segment-local.
 
     libass measures Fontsize as the GDI cell height, so the preset's cap-height
@@ -505,18 +505,23 @@ def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET,
         if e - s < 0.01:
             continue
         body = _ass_body(c, p)
-        move = _ass_anim(p, a, x, y, sh_x, sh_y, h)
+        move = _ass_anim(p, a, x, y, sh_x, sh_y, h, still)
         lines.append("Dialogue: 0,%s,%s,Vidorq,,0,0,0,,%s%s\n"
                      % (ass_time(s), ass_time(e), move, body))
     path.write_text("".join(lines), encoding="utf-8-sig")
 
 
-def _ass_anim(p, a, x, y, sh_x, sh_y, h):
+def _ass_anim(p, a, x, y, sh_x, sh_y, h, still=False):
     """Override tags that place the line and give it the chosen entrance.
 
     The scale keyframes are the same numbers the Fusion side uses, replayed as
     \\t transforms in milliseconds so a look moves the same way in both outputs.
     One beat is 70 ms, which is about the two frames Fusion gets.
+
+    With `still` the entrance is skipped and the line is drawn where it ENDS up.
+    A single frame cannot show a movement, and asking for frame zero of a fade
+    gets you a picture of nothing: measured, five of the ten gallery tiles came
+    back empty for exactly that reason.
     """
     beat = 70
     tags = "\\pos(%d,%d)" % (x, y)
@@ -527,23 +532,33 @@ def _ass_anim(p, a, x, y, sh_x, sh_y, h):
     # the preset's glow size, and ignite flares it before it settles.
     if p["glow"]:
         base = 2.0 + p["glow"][3] * 0.20
-        if a["glow"] > 0:
+        if still:
+            tags += "\\blur%.1f" % base
+        elif a["glow"] > 0:
             tags += "\\blur%.1f\\t(0,%d,\\blur%.1f)\\t(%d,%d,\\blur%.1f)" % (
                 base * 0.3, beat, base * min(a["glow"], 2.0), beat, beat * 2, base)
         else:
             tags += "\\blur%.1f" % base
-    if a["blur"] > 0:
+    if a["blur"] > 0 and not still:
         tags += "\\blur%.1f\\t(0,%d,\\blur0)" % (a["blur"] * 0.6, int(beat * 1.6))
 
     if a["scale"]:
-        first = a["scale"][0][1] * 100
-        tags += "\\fscx%.0f\\fscy%.0f" % (first, first)
-        prev = 0
-        for at, mult in a["scale"][1:]:
-            ms = max(prev + 20, int(at * beat))
-            tags += "\\t(%d,%d,\\fscx%.0f\\fscy%.0f)" % (prev, ms, mult * 100, mult * 100)
-            prev = ms
-    if a["fade"]:
+        if still:
+            # El tamaño en el que acaba, no en el que empieza: "pop" arranca al
+            # 62% y una foto de eso enseña unas letras mas pequeñas de lo que
+            # este estilo es en realidad.
+            last = a["scale"][-1][1] * 100
+            tags += "\\fscx%.0f\\fscy%.0f" % (last, last)
+        else:
+            first = a["scale"][0][1] * 100
+            tags += "\\fscx%.0f\\fscy%.0f" % (first, first)
+            prev = 0
+            for at, mult in a["scale"][1:]:
+                ms = max(prev + 20, int(at * beat))
+                tags += "\\t(%d,%d,\\fscx%.0f\\fscy%.0f)" % (prev, ms,
+                                                             mult * 100, mult * 100)
+                prev = ms
+    if a["fade"] and not still:
         tags += "\\fad(%d,60)" % int(beat * 1.2)
     return "{%s}" % tags
 
