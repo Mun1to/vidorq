@@ -413,6 +413,31 @@ No hay atajo: se pinta y se mira.
 `Vidorq_prueba`, V1 con el vídeo (653 fotogramas) y V2 con `Vidorq_prueba_Subs` anidado
 (653 fotogramas). Acentos correctos (`INCÓMODO`, `VÍDEO MÍO`).
 
+## Las transiciones de Resolve son una capa encima del corte, y tapan de verdad
+
+Comprobado el 19-ago-2026 sobre un clip de 90 s que el corte automático parte en cuatro
+tramos, o sea tres uniones. Resolve **no tiene transiciones por API**, así que las tres que
+solo TAPAN se hacen con una capa animada centrada en cada unión, en su propia pista
+(`overlays.at_cuts()` + `resolve_captions.place_overlays()`). Las que tienen que mezclar los
+dos planos a la vez (disolvencia, barrido, deslizamiento) siguen siendo imposibles y la
+tabla `CAPABILITIES` del motor lo dice antes de empezar, en vez de callarse.
+
+Medido exportando el fotograma de cada unión con `ExportCurrentFrameAsStill` y sacándole el
+brillo medio:
+
+| transición | unión 8,09 s | unión 17,81 s | unión 38,53 s | control a 6,00 s |
+| --- | --- | --- | --- | --- |
+| `dip` (a negro) | 0,00 | 0,00 | 0,00 | 102,60 |
+| `white` (a blanco) | 255,00 | 255,00 | - | - |
+
+Y funde, no da un salto. Cruzando la misma unión fotograma a fotograma con `dip`, que dura
+0,5 s: **138,60 → 92,81 → 22,78 → 56,03 → 139,57**. Baja y vuelve a subir, que es lo que
+tiene que hacer una curva.
+
+Detalle que ahorra un susto al medirlo: los tres fotogramas de las uniones salen **idénticos
+byte a byte**, porque un negro puro es un negro puro. Eso no es que el exportador devuelva
+una imagen cacheada; el control a 6,00 s sí es distinto.
+
 ## Estado de la verificación
 
 Lo que se ha visto renderizado, y lo que no. Compilar no cuenta.
@@ -421,13 +446,13 @@ Lo que se ha visto renderizado, y lo que no. Compilar no cuenta.
 | --- | --- | --- |
 | `pop`, `punch`, `marker`, `bar`, `glass`, `minimal`, `mono` | visto | visto |
 | `neon` (glow) | **visto** | **visto**, halo cian real del nodo `Glow`, en vertical 1080x1920 |
-| `ember`, `halo` (glow) | **visto** | pendiente; comparten el mismo nodo que `neon`, que sí está visto |
+| `ember`, `halo` (glow) | **visto** | **visto** (19-ago): los diez presets en un timeline y los diez fotogramas mirados; ahí salió lo de `halo` |
 | `ignite` | visto | **visto** |
-| `bounce`, `zoom`, `focus`, `throb` | **visto moviéndose** en dos fotogramas | pendiente |
+| las nueve entradas (`pop`, `bounce`, `zoom`, `rise`, `fade`, `throb`, `focus`, `ignite`, `none`) | **visto moviéndose** en dos fotogramas | **visto** (19-ago): ancho de letra en dos fotogramas y alfa medido sobre rojo |
+| transiciones `dip` y `white` | visto | **visto** (19-ago), medido abajo |
 
-Lo pendiente de la columna de Resolve es que no se ha exportado un fotograma de **ese**
-preset concreto; el mecanismo que usan (el nodo `Glow`, las splines importadas) sí está
-visto funcionando con `neon` e `ignite`.
+Ya no queda columna pendiente. Lo que sigue sin verse en Resolve es lo que Resolve no puede
+hacer, que está en "Lo que NO se puede hacer".
 
 ## Cabos sueltos
 
