@@ -200,6 +200,8 @@ Medidos pintándolos. El que más engaña es `ElementShape`:
 | `2` | un **recuadro por letra** |
 | `3` | una **placa redondeada por letra**, que solo se suelda en una placa por línea a partir de ~0,5 de `Thickness` |
 
+Afinado el 19-ago-2026 montando el rótulo, con tres grosores en el mismo timeline y mirando los tres fotogramas: con **0,30** todavía se ven las letras encajonadas una a una, con **0,55** ya es una barra pero le quedan muescas arriba y abajo, y con **0,80** cierra del todo. Las muescas que quedaban a 0,55 no eran del grosor: salían donde el texto llevaba **dos espacios seguidos**, porque el recuadro de un espacio es estrecho y deja un escalón. Se arregla en el texto (`\s+` a un espacio), no subiendo más el grosor.
+
 El elemento 1 se dibuja delante, así que el orden es relleno, contorno, sombra, placa.
 `Softness<n>` está limitado a 0-1 (Resolve recorta un 2 a 1). `TrackingSpacing` es el
 espaciado entre letras, con 1.0 como normal.
@@ -229,6 +231,28 @@ deslizamiento** de subtítulos. Lo que queda (`pop`, `bounce`, `zoom`, `rise`, `
 En el MP4 no hay nodo Glow, así que el halo se pinta con un contorno del color del glow y
 `\blur` de libass, y `focus` es un `\blur` animado a 0. Las mismas cifras de escala del
 catálogo se replican como `\t`, para que un look se mueva igual en las dos salidas.
+
+## Overlays con texto: el rótulo y la chapa
+
+Mismo mecanismo que un subtítulo (un `.comp` escrito desde cero, con sus `BezierSpline`
+dentro), pero colocado con `/media/insert` en una pista de arriba en vez de como título:
+un título cae siempre en V1 y hace ripple, y estos tienen que ir ENCIMA de la edición sin
+moverla. V1 es la edición, V2 los subtítulos anidados, V3 las transiciones, V4 estos si V3
+ya está ocupada.
+
+Lo que se puede dar por sabido, verificado en Resolve 21.0.4.5 el 19-ago-2026 mirando los
+fotogramas exportados:
+
+- La comp **no lleva `MediaIn`**, así que el clip de debajo no entra en el grafo y lo que
+  sale es el overlay sobre transparencia. Comprobado con un soporte rojo: el rojo se ve
+  alrededor de la barra.
+- El estilo lo elige **la palabra que usa Munir** (`director.title_style`), no el modelo:
+  un cartel, un rótulo y una chapa son tres cosas y él las nombra distinto.
+- El segundo que dice se traduce a **tiempo de montaje** antes de colocarlo, porque los
+  cortes de delante ya han movido ese segundo.
+- **En el MP4 no existe la barra.** libass sabe hacerla (`BorderStyle 3`), pero eso pide un
+  segundo estilo dentro del `.ass` y `to_ass` escribe uno solo; mientras tanto el rótulo
+  sale como un cartel y el turno lo dice con esas palabras.
 
 ## Lo que NO se puede hacer, dicho claro
 
