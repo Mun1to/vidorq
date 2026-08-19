@@ -48,7 +48,7 @@ ENGINES = {
         "default_voice": "21m00Tcm4TlvDq8ikWAM",
         "default_model": "eleven_multilingual_v2", "ext": ".mp3",
         "note": {"es": "La mejor voz del mercado ahora mismo, y la que clona la tuya. "
-                       "Se paga por caracteres y tiene un plan gratis pequeno.",
+                       "Se paga por caracteres y tiene un plan gratis pequeño.",
                  "en": "The best voice on the market right now, and the one that clones "
                        "yours. Billed per character, with a small free tier."},
     },

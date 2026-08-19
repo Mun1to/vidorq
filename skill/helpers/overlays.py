@@ -45,7 +45,7 @@ KINDS = {
     },
     "flash": {
         "label": {"es": "Destello", "en": "Flash"},
-        "note": {"es": "Un golpe de luz corto en el corte. El de los montajes rapidos.",
+        "note": {"es": "Un golpe de luz corto en el corte. El de los montajes rápidos.",
                  "en": "A short punch of light on the cut. The fast-montage one."},
         "rgb": (1.0, 1.0, 1.0), "peak": 0.75, "shape": "solid",
     },

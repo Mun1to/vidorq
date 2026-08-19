@@ -58,8 +58,8 @@ import unicodedata
 PRESETS = {
     "pop": {
         "label": {"es": "Pop", "en": "Pop"},
-        "note": {"es": "Dos palabras en mayusculas, muy gordas, con contorno negro. "
-                       "El clasico de retencion.",
+        "note": {"es": "Dos palabras en mayúsculas, muy gordas, con contorno negro. "
+                       "El clásico de retención.",
                  "en": "Two words in caps, very bold, black outline. The retention classic."},
         "words": 2, "max_chars": 22, "upper": True,
         "font": "Arial", "style": "Black", "size": 0.115,
@@ -70,7 +70,7 @@ PRESETS = {
     },
     "punch": {
         "label": {"es": "Punch", "en": "Punch"},
-        "note": {"es": "Una palabra a la vez, amarilla sobre negro. Para cortes rapidos.",
+        "note": {"es": "Una palabra a la vez, amarilla sobre negro. Para cortes rápidos.",
                  "en": "One word at a time, yellow on black. For fast cuts."},
         "words": 1, "max_chars": 16, "upper": True,
         "font": "Arial", "style": "Black", "size": 0.145,
@@ -215,7 +215,7 @@ DEFAULT_PRESET = "pop"
 ANIMS = {
     "pop": {
         "label": {"es": "Pop", "en": "Pop"},
-        "note": {"es": "Entra pequena, se pasa un poco y se asienta.",
+        "note": {"es": "Entra pequeña, se pasa un poco y se asienta.",
                  "en": "Comes in small, overshoots a little, settles."},
         "scale": [(0.0, 0.62), (1.0, 1.06), (1.45, 1.0)],
         "fade": False, "blur": 0.0, "glow": 0.0,
@@ -249,7 +249,7 @@ ANIMS = {
     },
     "throb": {
         "label": {"es": "Latido", "en": "Throb"},
-        "note": {"es": "Da un golpe de tamano en cada palabra, como un enfasis.",
+        "note": {"es": "Da un golpe de tamaño en cada palabra, como un énfasis.",
                  "en": "Punches its size on every word, like an emphasis."},
         "scale": [(0.0, 1.0), (0.5, 1.09), (1.0, 0.99), (1.5, 1.04), (2.0, 1.0)],
         "fade": False, "blur": 0.0, "glow": 0.0,
