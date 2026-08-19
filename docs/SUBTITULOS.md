@@ -464,6 +464,32 @@ otra, que es exactamente lo que esta tabla existe para evitar.
 **Cabo suelto**: unificar el alto de la placa entre libass y Fusion. Mientras no se haga, un
 cambio en `y` o en `size` del rótulo hay que medirlo en las dos.
 
+## El cuarto muro que no lo era: un clip de vídeo también admite keyframes
+
+Comprobado el 19-ago-2026. La regla que ordena todo esto es que la API no pone keyframes
+pero un `.comp` los lleva dentro, y hasta ahora eso solo se usaba en clips **generados**
+(subtítulos, transiciones, rótulos). Para animar el encuadre de un plano de verdad hacía
+falta lo contrario: meterle una curva a un clip que ya tiene material.
+
+Sí se puede, y el camino es corto:
+
+1. `AddFusionComp` sobre el `TimelineItem` (`POST /clip/fusion/add`). Resolve devuelve un
+   comp con su `MediaIn1 = Loader` **ya atado al material del clip** y su `MediaOut1`.
+2. `ExportFusionComp` a un archivo y se lee.
+3. Se le mete un `Transform` con `Size` conectado a un `BezierSpline`, entre el `MediaIn1`
+   y el `MediaOut1`, y se cambia la entrada del `Saver` para que beba del `Transform`.
+   Ojo: la referencia a `MediaIn1` que hay que cambiar es la **última** del archivo; las de
+   más arriba son del propio Loader y tocarlas lo desconecta del material.
+4. `ImportFusionComp` y ya está.
+
+Medido contra el original escalado, en un timeline real: en el segundo 0,05 el fotograma que
+exporta Resolve gana con ×1.00 (diferencia 13,14) y en el 0,75 gana con ×1.06 (10,17), que es
+exactamente donde acaba la curva. O sea que se mueve, y llega donde dice.
+
+**Lo que esto abre**: cualquier movimiento de encuadre sobre el material del usuario, no solo
+el punch. Lo que NO cambia: el `fill` de un 16:9 dentro de un 9:16 sigue siendo una propiedad
+del clip y no un efecto, porque ahí moverse sería el fallo.
+
 ## Estado de la verificación
 
 Lo que se ha visto renderizado, y lo que no. Compilar no cuenta.

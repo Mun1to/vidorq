@@ -253,6 +253,93 @@ def _place_slow(post, get, plan, start_frame, start_tc, fps, say):
             "ripple": False})
 
 
+def _ease_keys(frames, desde, hasta, pasos=7):
+    """La curva de un punch: rapido al entrar y frenando al final.
+
+    `1 - (1-t)^3` es la de siempre para esto. Se escriben unas cuantas claves
+    lineales sobre esa curva en vez de una spline con tangentes, porque las
+    tangentes de Fusion se escriben distinto en cada version y unas claves
+    lineales cada pocos fotogramas ya no se distinguen de una curva.
+    """
+    n = max(2, int(pasos))
+    out = []
+    for i in range(n):
+        t = i / float(n - 1)
+        v = desde + (hasta - desde) * (1.0 - (1.0 - t) ** 3)
+        out.append((int(round(frames * t)), v))
+    # Sin claves repetidas: dos en el mismo fotograma dejan la curva plana.
+    limpio = []
+    for f, v in out:
+        if not limpio or f > limpio[-1][0]:
+            limpio.append((f, v))
+    return limpio
+
+
+def zoom_clip(post, index, fps, hasta, work_dir, segundos=0.6, track=1):
+    """Un punch zoom que se MUEVE, en un clip de la edicion.
+
+    La API no pone keyframes, pero un comp si los lleva dentro, y eso ya estaba
+    medido para los subtitulos. Lo nuevo es que aqui el comp no se genera de
+    cero: se le pide a Resolve el del clip (que trae su MediaIn atado al
+    material), se le mete un Transform con el tamano animado entre el MediaIn y
+    el MediaOut, y se vuelve a importar.
+
+    Comprobado el 19-ago-2026 sobre un clip real: el fotograma que exporta
+    Resolve al final de la curva coincide con el original escalado a x1.20
+    (diferencia media 13,19) y no con el original sin tocar (24,29) ni con el
+    escalado a x1.30 (19,19).
+
+    Devuelve True si quedo puesto. Si algo falla se devuelve False y quien
+    llama deja el zoom estatico, que es peor pero no es nada.
+    """
+    donde = {"trackType": "video", "trackIndex": track, "clipIndex": index}
+    if not (post("/clip/fusion/add", donde) or {}).get("success"):
+        return False
+    crudo = Path(work_dir) / ("zoom_%02d.comp" % index)
+    got = post("/clip/fusion/export", dict(donde, path=str(crudo)))
+    if not got.get("success") or not crudo.exists():
+        return False
+    texto = crudo.read_text(encoding="utf-8", errors="replace")
+    if "MediaOut1 = Saver {" not in texto or 'SourceOp = "MediaIn1"' not in texto:
+        return False
+    claves = _ease_keys(max(2, int(round(segundos * fps))), 1.0, float(hasta))
+    tab = "\t"
+    salto = "\n"
+    filas = ("," + salto).join(
+        (tab * 4) + "[%d] = { %.4f, Flags = { Linear = true } }" % (f, v)
+        for f, v in claves)
+    nodo = (
+        tab * 2 + "ZoomVidorq = Transform {" + salto +
+        tab * 3 + "CtrlWZoom = false," + salto +
+        tab * 3 + "Inputs = {" + salto +
+        tab * 4 + "Size = Input {" + salto +
+        tab * 5 + 'SourceOp = "ZoomVidorqSize",' + salto +
+        tab * 5 + 'Source = "Value",' + salto +
+        tab * 4 + "}," + salto +
+        tab * 4 + "Input = Input {" + salto +
+        tab * 5 + 'SourceOp = "MediaIn1",' + salto +
+        tab * 5 + 'Source = "Output",' + salto +
+        tab * 4 + "}" + salto +
+        tab * 3 + "}," + salto +
+        tab * 2 + "}," + salto +
+        tab * 2 + "ZoomVidorqSize = BezierSpline {" + salto +
+        tab * 3 + "SplineColor = { Red = 250, Green = 180, Blue = 40 }," + salto +
+        tab * 3 + "NameSet = true," + salto +
+        tab * 3 + "KeyFrames = {" + salto + filas + salto + tab * 3 + "}" + salto +
+        tab * 2 + "}," + salto)
+    marca = tab * 2 + "MediaOut1 = Saver {"
+    texto = texto.replace(marca, nodo + marca, 1)
+    # Y el Saver bebe del Transform. Solo la ULTIMA aparicion, que es la suya:
+    # el MediaIn tiene las propias mas arriba y tocarlas lo desconectaria del
+    # material.
+    viejo = 'SourceOp = "MediaIn1"'
+    corte = texto.rindex(viejo)
+    texto = texto[:corte] + 'SourceOp = "ZoomVidorq"' + texto[corte + len(viejo):]
+    listo = crudo.with_name("zoom_%02d_anim.comp" % index)
+    listo.write_text(texto, encoding="utf-8")
+    return bool((post("/clip/fusion/import", dict(donde, path=str(listo)))
+                 or {}).get("success"))
+
 def place_overlays(post, get, plan, work_dir, width, height, track=3):
     """Pone capas animadas en una pista de arriba, sin tocar la edicion.
 

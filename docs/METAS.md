@@ -90,7 +90,15 @@ con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en dire
 - [x] **Captions nativos en el timeline** (2026-08): Text+ editables en su propia pista, diez
       estilos y nueve entradas, los diez mirados fotograma a fotograma DENTRO de Resolve.
       Detalle medido en `docs/SUBTITULOS.md`.
-- [ ] Zoom suave con easing vía comp Fusion pre-animada (el punch zoom estático ya funciona).
+- [x] **Zoom suave con easing** (2026-08-19): el punch ya no es un número fijo, se mueve.
+      El comp NO se genera de cero: se le pide a Resolve el del clip (que trae su `MediaIn`
+      atado al material), se le mete un `Transform` con el tamaño animado entre el `MediaIn`
+      y el `MediaOut`, y se vuelve a importar. La curva es `1-(1-t)³` escrita como siete
+      claves lineales, porque las tangentes de Fusion cambian de sintaxis entre versiones y
+      a esa resolución no se distinguen. Medido en un timeline real comparando el fotograma
+      exportado contra el original escalado: en el segundo 0,05 gana ×1.00 (13,14) y en el
+      0,75 gana ×1.06 (10,17), que es justo donde acaba la curva. Si el comp no entra, el
+      zoom se queda quieto como antes en vez de perderse.
 
 **Sesión**: 🎬 Sesión 3 de `Vidorq-Core/SESIONES.md`. Solo está bloqueada por 2 clics de UI.
 

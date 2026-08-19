@@ -1094,7 +1094,20 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
         record += ef - sf + 1
     fill = fill_zoom(width, height, out_w, out_h)
     for i, seg in enumerate(edl):
-        z = float(seg.get("zoom", 1.0)) * fill
+        punch = float(seg.get("zoom", 1.0))
+        # El punch se ANIMA con un comp en el clip; el `fill` no, porque no es
+        # un efecto sino lo que hace falta para que un 16:9 llene un 9:16 y ahi
+        # moverse seria un fallo. Si el comp no entra, el punch se queda quieto
+        # dentro del mismo numero de siempre: peor, pero no nada.
+        movido = False
+        if punch > 1.001:
+            try:
+                movido = resolve_captions.zoom_clip(
+                    bridge_post, i, tl_fps, punch,
+                    workdir or Path(video).parent)
+            except Exception:
+                traceback.print_exc()
+        z = (fill if movido else punch * fill)
         props = {}
         if z > 1.001:
             props.update(ZoomX=z, ZoomY=z)
