@@ -295,8 +295,15 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 .modal-bg {
   position: fixed; inset: 0; background: rgba(6, 8, 12, .72);
   display: grid; place-items: center; padding: 24px;
+  /* Por encima de todo lo de la pantalla, incluido el boton de editar, que al
+     quedarse pegado abajo se colaba por delante del velo del modal. Un modal
+     con un boton ajeno flotando encima no es un modal. */
+  z-index: 50;
 }
 .modal {
+  /* Enfocable con guion para poder llevar el foco aqui al abrir; no entra en el
+     recorrido del tabulador y por eso no lleva anillo. */
+  outline: none;
   background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
   width: min(420px, 90vw); display: flex; flex-direction: column;
   box-shadow: 0 24px 60px rgba(0, 0, 0, .5);

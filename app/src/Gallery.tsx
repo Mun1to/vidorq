@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CaptionStyle, ENGINE } from "./api";
 import { useLang } from "./i18n";
 import { IconCheck, IconDrop, IconPlay, IconSpark } from "./Icons";
@@ -36,6 +36,16 @@ export default function Gallery({
   onClose: () => void;
 }) {
   const { t, lang } = useLang();
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  /* Al abrir, el foco entra en la galeria; al cerrar, vuelve a donde estaba.
+     Medido: se quedaba en el boton de detras, asi que quien navega con teclado
+     abria la galeria y seguia tabulando por una pantalla que ya no puede ver. */
+  useEffect(() => {
+    const antes = document.activeElement as HTMLElement | null;
+    boxRef.current?.focus();
+    return () => antes?.focus?.();
+  }, []);
   const [tab, setTab] = useState<"style" | "anim" | "look">("style");
   // Cuales han terminado de cargar. Sin esto la cuadricula aparece a trozos y
   // parece rota; con esto cada hueco tiene su latido hasta que llega su imagen.
@@ -86,7 +96,8 @@ export default function Gallery({
 
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal gallery" onClick={(e) => e.stopPropagation()}>
+      <div className="modal gallery" ref={boxRef} role="dialog" aria-modal="true"
+           tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{t("gal.title")}</h2>
           <div className="opt out inline">
