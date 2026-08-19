@@ -166,7 +166,7 @@ def shake_crop(zw, zh, zx, zy, secs=SHAKE_SECONDS, hz=SHAKE_HZ):
 
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
                  preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5,
-                 look=""):
+                 look="", cdl=None):
     src = av.open(source)
     vs = src.streams.video[0]
     w, h = vs.codec_context.width, vs.codec_context.height
@@ -177,9 +177,13 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
         print("RATIO: %s -> recorte %dx%d, salida %dx%d" % (ratio, crop_w, crop_h,
                                                             out_w, out_h), flush=True)
 
-    look_vf = looks.ffmpeg_filter(look) if look else None
+    # La clave del .cube: con numeros propios hay uno por video, y sin ella dos
+    # videos distintos compartirian la correccion del primero.
+    key = ("%.4f_%.4f_%.4f_%.4f" % (cdl["slope"][0], cdl["slope"][1],
+                                    cdl["slope"][2], cdl["sat"])) if cdl else ""
+    look_vf = looks.ffmpeg_filter(look, cdl, key) if look else None
     if look_vf:
-        print("LOOK: %s" % look, flush=True)
+        print("LOOK: %s%s" % (look, " (medido en tu video)" if cdl else ""), flush=True)
 
     total = sum(max(1, round((float(s["end"]) - float(s["start"])) * fps))
                 for s in edl)
@@ -501,6 +505,14 @@ def main():
     look = ""
     if "--look" in sys.argv:
         look = sys.argv[sys.argv.index("--look") + 1]
+    # Los numeros del color automatico, que no salen del catalogo sino de mirar
+    # ESTE video. Van en un archivo por lo mismo que el resto: una linea de
+    # comandos con doce decimales es una linea de comandos que se rompe.
+    cdl = None
+    if "--cdl" in sys.argv:
+        cdl = json.loads(
+            Path(sys.argv[sys.argv.index("--cdl") + 1]).read_text(encoding="utf-8"))
+        cdl = {k: (tuple(v) if isinstance(v, list) else v) for k, v in cdl.items()}
     voices = None
     if "--voices" in sys.argv:
         voices = json.loads(
@@ -528,7 +540,7 @@ def main():
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
                                  do_caps, do_zoom, preset, anim, ratio, crop_x,
-                                 look)
+                                 look, cdl)
         render_audio(source, edl, tmp_a, voices)
         concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out, transition)
     finally:

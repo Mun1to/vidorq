@@ -286,6 +286,13 @@ WORD_RULES = (
     ("cuts", "montage", r"resumen|mejores momentos|highlight|montaje|best bits|"
                         r"lo mejor\b"),
     ("cuts", "podcast", r"podcast|entrevista|preguntas y respuestas|\bq&a\b"),
+    # "mejora el color" no es pedir un filtro, es pedir que se arregle el que
+    # hay. Va ANTES que las reglas de los filtros de estilo, porque la frase
+    # lleva la palabra "color" y si no la pillaria cualquiera de ellas.
+    ("look", "auto", r"(mejora|arregla|corrige|ajusta|iguala|normaliza)"
+                     r"\b[^.]{0,18}(color|colores)|"
+                     r"color autom[aá]tic|correcci[oó]n autom[aá]tic|"
+                     r"que se vea mejor de color|auto\s*color"),
     ("shake", False, r"(sin|no|quita|quitar|fuera|borra|elimina|remove)"
                      r"\b[^.]{0,14}(temblor|sacudid|\bshake\b|vibraci)"),
     ("shake", True, r"\btemblor|\btiembl|sacudid|\bshake\b|golpe de camara|"
@@ -326,6 +333,9 @@ VAGUE_RULES = (
     ("captionPreset", r"subt[ií]tul|caption|\brotul"),
     ("look", r"filtro|color grading|\bcolor\b(?!.*(negro|blanco))|\btono\b|"
              r"\bfiltros\b|\blook\b"),
+    # Nota: "mejora el color" cae aqui por la palabra "color", pero la regla de
+    # palabras de arriba ya lo ha resuelto como `auto`, y `vague()` no pregunta
+    # por lo que ya esta decidido.
     ("ratio", r"recorta|recortar|reencuadr|\bformato\b|\bencuadre\b"),
     ("captionAnim", r"animaci[oó]n|animad|movimiento del texto"),
     # "cortalo", "corta el video", "cambia los cortes": nombra el corte sin

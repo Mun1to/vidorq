@@ -64,6 +64,7 @@ import resolve_captions  # noqa: E402
 import faces  # noqa: E402
 import providers  # noqa: E402
 import looks  # noqa: E402
+import autocolor  # noqa: E402
 import overlays  # noqa: E402
 import previews  # noqa: E402
 import speech  # noqa: E402
@@ -127,6 +128,9 @@ TEXT = {
         "building": "Montando timeline en Resolve...",
         "done": "Listo",
         "stopped": "Parado",
+        "colouring": "Mirando el color de tu video...",
+        "colouring_help": "Niveles, dominante de color y saturacion",
+        "colour_ok": "el color ya estaba bien, no toco nada",
         "no_moment": "no he encontrado el momento exacto; dime el segundo o el minuto y lo hago",
         "stopped_help": "Lo que ya estaba puesto se queda en el timeline",
         "stopped_by_you": "Lo paraste tú a mitad. Lo que ya estaba hecho se queda.",
@@ -185,6 +189,9 @@ TEXT = {
         "building": "Building the timeline in Resolve...",
         "done": "Done",
         "stopped": "Stopped",
+        "colouring": "Looking at your video's colour...",
+        "colouring_help": "Levels, colour cast and saturation",
+        "colour_ok": "the colour was already fine, nothing to change",
         "no_moment": "I could not find the exact moment; tell me the second or minute and I will do it",
         "stopped_help": "Whatever was already placed stays on the timeline",
         "stopped_by_you": "You stopped this halfway. What was already done stays.",
@@ -954,7 +961,7 @@ def drop_timelines(names):
     return gone
 
 
-def paint_clips(look, n, log=None):
+def paint_clips(look, n, log=None, numbers=None):
     """El filtro de color, clip a clip, con el CDL nativo de Resolve.
 
     Los mismos numeros que el .cube del MP4 (skill/helpers/looks.py), asi que
@@ -964,7 +971,9 @@ def paint_clips(look, n, log=None):
     """
     if not look or look == looks.DEFAULT:
         return 0
-    cdl = looks.resolve_cdl(look)
+    # `numbers` son los del color automatico, calculados mirando este video. Sin
+    # ellos vale el catalogo, que es lo que hacen los ocho filtros de estilo.
+    cdl = looks.resolve_cdl(look, 1, numbers)
     done = 0
     for i in range(n):
         got = bridge_post("/color/set-cdl", {"trackType": "video", "trackIndex": 1,
@@ -978,7 +987,7 @@ def paint_clips(look, n, log=None):
 
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
                    workdir=None, anim="", chunks=None, ratio="source",
-                   drop=None, look="", transition="none"):
+                   drop=None, look="", transition="none", cdl=None):
     """Builds the edit in Resolve. Returns (what to tell the user, names made)."""
     name = Path(video).stem[:40]
     # La version anterior se va ANTES de crear la nueva, para que el nombre bueno
@@ -1080,7 +1089,7 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
 
     if look and look != looks.DEFAULT:
         set_progress(tr("painting"), 80, tr("painting_help"))
-        paint_clips(look, len(edl),
+        paint_clips(look, len(edl), numbers=cdl,
                     log=lambda m: set_progress(tr("painting"), 82, m))
 
     if captions:
@@ -1913,6 +1922,9 @@ def run_job(req):
         colour = req.get("look") or ""
         if colour not in looks.PRESETS:
             colour = ""
+        # Los numeros del color automatico, si es que se ha pedido. Se calculan
+        # una vez, mas abajo, cuando ya se sabe que el video existe.
+        auto_cdl, auto_did = None, []
         # The look of the captions. An unknown name falls back to the default
         # instead of failing an edit that has already been transcribed.
         caption_preset = req.get("captionPreset") or profile_load().get(
@@ -2177,6 +2189,24 @@ def run_job(req):
                 traceback.print_exc()
                 set_progress(tr("moments"), 59, "sin momentos: %s" % str(e)[:120])
 
+        # 3d) El color automatico. Aqui y no antes porque hasta ahora el usuario
+        #     podia haberlo cambiado con una frase, y porque mirar el video
+        #     cuesta cuatro segundos que no hay que pagar si nadie lo pidio.
+        if colour == "auto":
+            try:
+                set_progress(tr("colouring"), 62, tr("colouring_help"))
+                auto_cdl, auto_did, _m = autocolor.analyse(
+                    video, float(transcript.get("duration", 0)),
+                    log=lambda m: set_progress(tr("colouring"), 62, m))
+                if not auto_did:
+                    # El video ya esta bien. Decirlo es mas util que aplicar una
+                    # correccion de cero y cobrarla como si hubiera hecho algo.
+                    set_progress(tr("colouring"), 63, tr("colour_ok"))
+            except Exception as e:
+                traceback.print_exc()
+                set_progress(tr("colouring"), 63, "sin color automatico: %s" % str(e)[:90])
+                colour = ""
+
         edl_path = workdir / "edl.json"
         edl_path.write_text(json.dumps({"segments": edl}, indent=1), encoding="utf-8")
         kept = sum(s["end"] - s["start"] for s in edl)
@@ -2287,7 +2317,7 @@ def run_job(req):
                 # por otro proyecto no es nuestro para borrarlo, y borrar el
                 # timeline equivocado en Resolve ya se ha visto lo que hace.
                 drop=(past0.get("timelines") or []) if again else [],
-                look=colour, transition=transition)
+                look=colour, transition=transition, cdl=auto_cdl)
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
                 # come back looking finished and be missing the voice, which is
@@ -2308,6 +2338,12 @@ def run_job(req):
                 cmd += ["--anim", caption_anim]
             if colour:
                 cmd += ["--look", colour]
+                if auto_cdl:
+                    # Los numeros medidos van en un archivo, no en la linea de
+                    # comandos: son doce decimales y ya hay bastante con la ruta.
+                    cdl_path = workdir / "autocolor.json"
+                    cdl_path.write_text(json.dumps(auto_cdl), encoding="utf-8")
+                    cmd += ["--cdl", str(cdl_path)]
             if translated_chunks:
                 ch_path = workdir / "chunks_traducidos.json"
                 ch_path.write_text(json.dumps(translated_chunks, ensure_ascii=False),
@@ -2336,6 +2372,11 @@ def run_job(req):
         # Lo que ha pasado en este turno, contado. Se guarda con la sesion para
         # que la conversacion siga estando ahi despues de cerrar la ventana.
         did = said_it(changed, settings_now) if again else []
+        # Que arreglo el color automatico, con sus palabras. "color: Automatico"
+        # no dice nada; "color: niveles, balance de blancos" si.
+        if auto_did:
+            did = [d for d in did if not d.startswith(("color:", "colour:"))]
+            did.append(("color: " if _lang == "es" else "colour: ") + ", ".join(auto_did))
         did += said_deeds(deeds, _lang)
         # Pediste algo en un momento y no salio nada: se dice. Un turno que se
         # calla es indistinguible de uno que lo ha hecho, que es de donde sale el

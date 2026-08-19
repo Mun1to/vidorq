@@ -44,6 +44,18 @@ PRESETS = {
         "slope": (1.0, 1.0, 1.0), "offset": (0.0, 0.0, 0.0),
         "power": (1.0, 1.0, 1.0), "sat": 1.0,
     },
+    # El unico que no trae numeros: se los calcula mirando el video. Aqui esta
+    # con los neutros para que exista en el catalogo y se pueda elegir; los de
+    # verdad los pone `autocolor` en cada edicion.
+    "auto": {
+        "label": {"es": "Automatico", "en": "Auto"},
+        "note": {"es": "Mira TU video y le corrige los niveles, la dominante de "
+                       "color y la saturacion. No impone un look: arregla el que hay.",
+                 "en": "Looks at YOUR video and fixes its levels, colour cast and "
+                       "saturation. It imposes no look: it fixes the one you have."},
+        "slope": (1.0, 1.0, 1.0), "offset": (0.0, 0.0, 0.0),
+        "power": (1.0, 1.0, 1.0), "sat": 1.0,
+    },
     "cine": {
         "label": {"es": "Cine", "en": "Cinema"},
         "note": {"es": "Sombras levantadas y algo desaturado. El look de pelicula "
@@ -130,15 +142,20 @@ def apply_cdl(rgb, p):
     return [min(1.0, max(0.0, c)) for c in out]
 
 
-def cube(name):
+def cube(name, p=None, key=""):
     """El .cube de este look, generado una vez y cacheado.
+
+    `p` permite pasar unos numeros calculados en vez de los del catalogo, que es
+    lo que hace el color automatico: cada video tiene los suyos. En ese caso hace
+    falta una `key` que los distinga, porque dos videos con el mismo nombre de
+    look no comparten correccion.
 
     Texto plano: una cabecera y SIZE^3 lineas con el color de salida. Con 33
     puntos son 35.937 lineas, que se escriben en unas decimas y se leen desde
     disco para siempre.
     """
-    p = preset(name)
-    dest = CACHE / ("%s_%d.cube" % (name, CUBE_SIZE))
+    p = p or preset(name)
+    dest = CACHE / ("%s%s_%d.cube" % (name, ("_" + key) if key else "", CUBE_SIZE))
     if dest.exists():
         return dest
     CACHE.mkdir(parents=True, exist_ok=True)
@@ -158,11 +175,15 @@ def cube(name):
     return dest
 
 
-def ffmpeg_filter(name):
+def ffmpeg_filter(name, p=None, key=""):
     """El trozo de -vf que aplica este look, o None si no hay nada que aplicar."""
     if not name or name == DEFAULT:
         return None
-    path = str(cube(name)).replace("\\", "/")
+    if p and _is_neutral(p):
+        # El automatico sobre un video que ya esta bien: no hay nada que aplicar
+        # y meter un LUT identidad solo cuesta una pasada de mas.
+        return None
+    path = str(cube(name, p, key)).replace("\\", "/")
     # La ruta va entre comillas simples y con los dos puntos escapados con UNA
     # barra. En una cadena de filtros los dos puntos separan argumentos, asi que
     # "C:/..." sin escapar parte el filtro por la mitad y ffmpeg contesta "No
@@ -173,12 +194,19 @@ def ffmpeg_filter(name):
     return "lut3d=file='%s'" % path.replace(":", "\\:")
 
 
-def resolve_cdl(name, node=1):
+def _is_neutral(p):
+    return (tuple(p["slope"]) == (1.0, 1.0, 1.0)
+            and tuple(p["offset"]) == (0.0, 0.0, 0.0)
+            and tuple(p["power"]) == (1.0, 1.0, 1.0)
+            and p["sat"] == 1.0)
+
+
+def resolve_cdl(name, node=1, p=None):
     """Lo que espera item.SetCDL: los mismos numeros, en su formato.
 
     Resolve los quiere como cadenas de tres numeros separados por espacios.
     """
-    p = preset(name)
+    p = p or preset(name)
     return {"NodeIndex": str(node),
             "Slope": "%.4f %.4f %.4f" % p["slope"],
             "Offset": "%.4f %.4f %.4f" % p["offset"],
