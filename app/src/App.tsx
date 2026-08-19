@@ -5,6 +5,7 @@ import Brand from "./Brand";
 import Settings from "./Settings";
 import Guia from "./Guia";
 import Gallery from "./Gallery";
+import Words from "./Words";
 import Chat, { Settings as ChatState, Turn } from "./Chat";
 import logo from "./assets/logo.png";
 import {
@@ -97,6 +98,7 @@ function App() {
   const [queue, setQueue] = useState<string[]>([]);
   const [setup, setSetup] = useState(false);
   const [galOpen, setGalOpen] = useState(false);
+  const [wordsOpen, setWordsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
   // La guia se abre sola la primera vez, para que nadie tenga que adivinar los pasos de Resolve.
@@ -499,6 +501,7 @@ function App() {
           onOffer={takeOffer}
           onPick={(what, id, send) => askMore(send || `pick:${what}=${id}`)}
           onSetup={() => setSetup(true)}
+          onWords={() => setWordsOpen(true)}
           onNewVideo={() => {
             setPhase("idle"); setProgress({ step: "", percent: 0 }); setVideo("");
             setChat([]); setFollowUp(""); setSetup(false);
@@ -866,6 +869,10 @@ function App() {
           onColour={(id) => setColour(id === "none" ? "" : id)}
           onClose={() => setGalOpen(false)}
         />
+      )}
+      {wordsOpen && (
+        <Words video={video} onSend={(text) => askMore(text)}
+               onClose={() => setWordsOpen(false)} />
       )}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       {brandOpen && <Brand onClose={() => setBrandOpen(false)} styles={capStyles} />}

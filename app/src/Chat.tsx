@@ -109,6 +109,7 @@ interface Props {
   onPick: (what: string, id: string, send?: string) => void;
   onSetup: () => void;
   onNewVideo: () => void;
+  onWords: () => void;
   onStop: () => void;
   running: boolean;
   step: string;
@@ -131,7 +132,7 @@ interface Props {
  */
 export default function Chat({
   title, turns, now, label, scope, made, onOpen, draft, onDraft, onSend, onOffer,
-  onPick, onSetup, onNewVideo, onStop, running, step, detail, percent, error,
+  onPick, onSetup, onNewVideo, onWords, onStop, running, step, detail, percent, error,
 }: Props) {
   const { t } = useLang();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -177,6 +178,11 @@ export default function Chat({
           </div>
         </div>
         <div className="chat-acts">
+          {/* Primero, y no al final: leer el texto es la forma en que la gente
+              encuentra un momento. Arrastrar el cabezal es punteria. */}
+          <button className="ghost small" onClick={onWords}>
+            <IconSpark size={14} className="icon" />{t("chat.words")}
+          </button>
           <button className="ghost small" onClick={onSetup}>
             <IconSliders size={14} className="icon" />{t("chat.setup")}
           </button>

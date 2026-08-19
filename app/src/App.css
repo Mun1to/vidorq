@@ -337,6 +337,53 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 }
 .modal-foot .cta { width: auto; padding: 11px 22px; }
 
+/* --- Editar leyendo ------------------------------------------------------ */
+/* Ancho de columna de LECTURA, no de galeria: un parrafo que cruza 880px se
+   lee peor porque el ojo pierde el renglon al volver. */
+.modal.words { width: min(720px, 96vw); }
+.wordbox {
+  margin: 10px 0 0; line-height: 2.1; font-size: 15px;
+  /* El texto se selecciona pulsando palabras, no arrastrando: sin esto el
+     arrastre pinta la seleccion azul del navegador encima de la nuestra. */
+  user-select: none;
+}
+.wordbox .w {
+  /* pre-wrap y no el espacio de siempre: el espacio va DENTRO del boton para
+     que la marca de dos palabras seguidas sea un trozo continuo, y un espacio
+     al final de un elemento en linea lo colapsa el navegador. Sin esto las
+     palabras salen pegadas: holaamigossean. */
+  white-space: pre-wrap;
+  display: inline; padding: 3px 0; border: 0; border-radius: 4px;
+  background: transparent; color: var(--text); font: inherit; cursor: pointer;
+}
+/* Lo que el corte automatico ya se llevo. Tachado y no escondido: asi se VE que
+   hizo el programa, que es la mitad de la razon de abrir este panel. */
+.wordbox .w.out {
+  color: var(--faint); text-decoration: line-through; cursor: default;
+}
+.wordbox .w.out:hover { background: transparent; }
+.wordbox .w:hover { background: var(--line-soft); }
+.wordbox .w.sel { background: var(--accent); color: #fff; }
+/* La marca sigue viendose sin color, que es como la ve quien no distingue el
+   morado del gris de al lado. */
+.wordbox .w.sel::after { content: ""; }
+.words-foot { justify-content: space-between; }
+.span-say { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.span-say em {
+  font-style: normal; margin-left: 8px; padding: 2px 7px; border-radius: 999px;
+  background: var(--line-soft); color: var(--text);
+}
+.words-foot button:not(.cta) {
+  padding: 9px 14px; border-radius: 10px; border: 1px solid var(--line);
+  background: transparent; color: var(--text); cursor: pointer; font-size: 14px;
+}
+.words-foot button:not(.cta):hover { border-color: var(--accent); }
+.modal-head .link {
+  border: 0; background: transparent; color: var(--muted);
+  font-size: 13px; cursor: pointer; text-decoration: underline;
+}
+.modal-head .link:hover { color: var(--text); }
+
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field label {
   font-size: 12.5px; color: var(--text-dim); font-weight: 600;

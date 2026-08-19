@@ -1511,6 +1511,49 @@ def run_render(cmd, out_file, timeout=7200):
 SESSION = "sesion.json"
 
 
+def words_of(video):
+    """Las palabras de un video, si ya se transcribio alguna vez.
+
+    Solo lee del cache. La transcripcion tarda minutos y este endpoint lo llama
+    la interfaz al abrir un panel: arrancarla aqui seria colgar la ventana sin
+    avisar. Cuando no hay, se dice cual es la razon en una frase, que es lo que
+    la interfaz puede enseñar.
+    """
+    if not video or not Path(video).is_file():
+        return {"ok": False, "words": [], "why": "no_video"}
+    path = workdir_for(video) / "transcript.json"
+    if not path.exists():
+        return {"ok": False, "words": [], "why": "no_transcript"}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    # El reloj del MONTAJE, si ya hay uno. Importa y no es un detalle: una frase
+    # con segundos se lee como tiempo del montaje en cuanto hay una edicion
+    # hecha (`actions_to_original`), asi que mandar el segundo del ORIGINAL
+    # apuntaria a otro sitio, y cuanto mas se haya cortado antes, mas lejos.
+    edl = []
+    edl_path = workdir_for(video) / "edl.json"
+    if edl_path.exists():
+        try:
+            edl = json.loads(edl_path.read_text(encoding="utf-8")).get("segments") or []
+        except Exception:
+            edl = []
+    out = []
+    for seg in data.get("segments", []):
+        for w in seg.get("words", []):
+            texto = str(w.get("w", "")).strip()
+            if not texto:
+                continue
+            s0 = round(float(w.get("s", 0)), 3)
+            # `t` es None cuando esa palabra ya no esta en el montaje. Se manda
+            # igual, porque enseñar tachado lo que ya se quito dice mas que
+            # esconderlo: asi se ve QUE se llevo el corte automatico.
+            t = to_edited(s0, edl) if edl else s0
+            out.append({"w": texto, "s": s0, "e": round(float(w.get("e", 0)), 3),
+                        "t": round(t, 3) if t is not None else None})
+    return {"ok": True, "words": out, "lang": data.get("language", ""),
+            "edited": bool(edl),
+            "duration": round(float(data.get("duration", 0)), 2)}
+
+
 def session_save(workdir, state):
     """What a second round of prompts needs to know, next to the transcript."""
     try:
@@ -2618,6 +2661,18 @@ class Handler(BaseHTTPRequestHandler):
                             "result": st.get("result", ""),
                             "scope": st.get("scope") or scope_now(),
                             "can": bool(st.get("edl"))})
+        elif self.path.startswith("/words"):
+            # Las palabras con su segundo, tal y como salieron de la
+            # transcripcion. Se sirven planas (una lista, no segmentos) porque
+            # quien las va a pintar es un parrafo, no un subtitulo.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            video = (q.get("video") or [""])[0]
+            try:
+                self._send(words_of(video))
+            except Exception as e:
+                traceback.print_exc()
+                self._send({"ok": False, "words": [], "error": str(e)[:200]})
         elif self.path == "/clips":
             # No bridge_status() gate on purpose. That check allows two seconds,
             # and the moment this gets asked is app startup, when Resolve is busy
