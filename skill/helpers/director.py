@@ -331,8 +331,12 @@ VAGUE_RULES = (
     # "cortalo", "corta el video", "cambia los cortes": nombra el corte sin
     # decir con que criterio, y hay tres. Ojo con no pisar a `ratio`, que se
     # queda con "recorta" y "reencuadra", que en video es encuadrar y no cortar.
-    ("cuts", r"\bcorta\b|\bcortar\b|\bcortes\b|\bcort[aá]lo\b|\bcortame\b|"
-             r"\bcut\b|\bcuts\b|vuelve a cortar|otra vez los cortes"),
+    # Ojo con "en los cortes" y "en cada corte": ahi el corte es DONDE pasa otra
+    # cosa, no lo que se pide cambiar. Medido: "ponle temblor en los cortes"
+    # preguntaba con que criterio cortar, que no es lo que nadie dijo.
+    ("cuts", r"(?<!en los )(?<!en cada )(?<!en el )(?<!de los )"
+             r"(\bcorta\b|\bcortar\b|\bcortes\b|\bcort[aá]lo\b|\bcortame\b|"
+             r"\bcut\b|\bcuts\b|vuelve a cortar|otra vez los cortes)"),
 )
 
 

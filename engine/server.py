@@ -1761,7 +1761,7 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
     # eso lo lleva director.actions. Sin esta linea contestaba "esto no se
     # hacerlo: un zoom en el segundo 11" y acto seguido otra parte del programa
     # lo hacia, o sea que la respuesta era falsa.
-    if director.wants_moments(prompt):
+    if director.wants_moments(prompt) or director.needs_where(prompt):
         cannot = []
     words = director.from_words(prompt)
     delta.update(words)
@@ -1780,7 +1780,42 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
     if delta.get("captions") is False:
         out["captionAnim"] = ""
     changed = sorted(k for k in delta if out.get(k) != base.get(k))
+    # Un "no puedo" que habla de lo que SI se ha hecho, o de lo que se esta a
+    # punto de preguntar, no es un limite: es una contradiccion. Medido contra un
+    # video real: "hazme un resumen con los mejores momentos" cambiaba el corte a
+    # montaje y en la misma respuesta decia que no sabia hacer un resumen.
+    tocado = set(changed) | set(director.vague(prompt, director.decided(prompt)))
+    if tocado:
+        cannot = [c for c in cannot if not _echoes(c, tocado)]
     return out, changed, cannot
+
+
+# Como se llama cada ajuste en la frase de alguien, para reconocer cuando un
+# "no puedo" esta hablando de eso mismo.
+ECHO_WORDS = {
+    "ratio": ("vertical", "horizontal", "cuadrad", "formato", "tiktok", "short",
+              "reel", "encuadre"),
+    "transition": ("transicion", "transición", "transitions", "fundido",
+                   "disolvencia", "corte a negro"),
+    "captions": ("subtitul", "subtítul", "caption", "rotulo"),
+    "captionPreset": ("subtitul", "subtítul", "caption", "estilo"),
+    "captionAnim": ("animaci", "animad", "entrada", "aparec"),
+    "cuts": ("corte", "cortar", "resumen", "mejores momentos", "montaje",
+             "silencios", "podcast", "highlight"),
+    "look": ("color", "filtro", "cinemato", "calid", "cálid", "frio", "frío",
+             "blanco y negro", "vintage", "tono", "look"),
+    "shake": ("temblor", "tiembl", "sacudid", "shake", "impacto", "golpe de camara"),
+    "output": ("mp4", "resolve", "timeline"),
+}
+
+
+def _echoes(text, keys):
+    """True si este 'no puedo' esta hablando de alguna de esas claves."""
+    low = (text or "").lower()
+    for key in keys:
+        if any(w in low for w in ECHO_WORDS.get(key, ())):
+            return True
+    return False
 
 
 def note_stopped(video, prompt):

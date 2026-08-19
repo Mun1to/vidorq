@@ -102,6 +102,28 @@ VAGUE = [
     # Stated outright: nothing to ask.
     ("ponlo en vertical", []),
     ("ponlo en blanco y negro", []),
+    # "en los cortes" is WHERE something happens, not a request to change how it
+    # cuts. Measured against a real video: this asked which cutting criterion
+    # you wanted, which nobody had mentioned.
+    ("ponle temblor en los cortes", []),
+    ("pon un fundido en el corte", []),
+    ("pon transiciones en cada corte", ["transition"]),
+]
+
+# ---------------------------------------------------------------------------
+# A "cannot" that talks about something that WAS done, or about something that
+# is being asked, is not a limit - it is a contradiction. Measured on a real
+# 10.7 minute video: "hazme un resumen con los mejores momentos" switched the
+# cut to montage and in the same breath said it could not make a summary.
+# ---------------------------------------------------------------------------
+ECHO = [
+    ("hacer un resumen con los mejores momentos", {"cuts"}, True),
+    ("ha pedido un filtro de color pero no dice cual", {"look"}, True),
+    ("hacer un zoom en un momento concreto", {"cuts"}, False),
+    ("subir el video a YouTube", {"cuts", "look"}, False),
+    ("anadir musica epica", {"captions", "ratio"}, False),
+    ("ponerlo en vertical", {"ratio"}, True),
+    ("el temblor de impacto", {"shake"}, True),
 ]
 
 # ---------------------------------------------------------------------------
@@ -148,7 +170,25 @@ def main():
             bad.append("needs_where(%r) esperaba %s y devolvio %s"
                        % (sentence, want, got))
 
-    total = len(WORDS) + len(VAGUE) + len(WHERE)
+    # `_echoes` vive en el motor, que importa muchas mas cosas. Si no se puede
+    # cargar (falta una dependencia del render, por ejemplo), se dice y se sigue
+    # en vez de tumbar las otras 60 comprobaciones, que no dependen de el.
+    echo_n = 0
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "engine"))
+        saved, sys.argv = sys.argv, ["test"]
+        import server  # noqa: E402
+        sys.argv = saved
+        for text, keys, want in ECHO:
+            echo_n += 1
+            got = server._echoes(text, keys)
+            if got != want:
+                bad.append("_echoes(%r, %s) esperaba %s y devolvio %s"
+                           % (text, keys, want, got))
+    except Exception as e:
+        print("(no pude probar _echoes: %s)" % str(e)[:70])
+
+    total = len(WORDS) + len(VAGUE) + len(WHERE) + echo_n
     if bad:
         print("%d de %d casos MAL:\n" % (len(bad), total))
         for line in bad:
