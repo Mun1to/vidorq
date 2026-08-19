@@ -1769,7 +1769,7 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
     # del modelo para esa clave se cae aqui. Que el modelo conteste "disolvencia"
     # a "pon transiciones" no significa que tu lo hayas dicho, y aplicarlo seria
     # volver a adivinar por otro camino.
-    for key in director.vague(prompt, set(words)):
+    for key in director.vague(prompt, director.decided(prompt)):
         delta.pop(key, None)
     for key, value in delta.items():
         if key == "captionAnim" and value == "__any__":
@@ -2018,7 +2018,7 @@ def run_job(req):
             # se decia que no se entendia; las dos son peores que preguntar, y
             # preguntar es ademas la unica que ensena lo que hay.
             pending = ask_for(director.vague(prompt or "",
-                                             set(director.from_words(prompt or ""))),
+                                             director.decided(prompt or "")),
                               _lang)
             if pending and not (prompt and director.wants_moments(prompt)):
                 answer = {"you": prompt, "did": [], "cannot": blocked,
@@ -2270,7 +2270,7 @@ def run_job(req):
                   "ask": (ask_for(director.NEXT_ASK[picked], _lang)
                           if picked in director.NEXT_ASK
                           else ask_for(director.vague(
-                              prompt or "", set(director.from_words(prompt or ""))),
+                              prompt or "", director.decided(prompt or "")),
                               _lang))
                          if again else [],
                   "offer": ({"kind": "mp4"} if blocked else {}),

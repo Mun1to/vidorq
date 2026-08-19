@@ -356,6 +356,18 @@ FAMILY = {"captionPreset": ("captionAnim",)}
 NEXT_ASK = {"captionPreset": ["captionAnim"]}
 
 
+def decided(prompt):
+    """Las claves que la frase deja DECIDIDAS de verdad.
+
+    Distinto de `set(from_words(...))` en un caso que importa: "cambia la
+    animacion" deja `captionAnim` a `__any__`, que quiere decir "animada, pero
+    cual es un juicio". Eso no es una decision, es exactamente la pregunta, y
+    contarlo como decidido hacia que el atajo "Animacion" no preguntara nada y se
+    quedara con la animacion que trajera el estilo.
+    """
+    return {k for k, v in from_words(prompt).items() if v != "__any__"}
+
+
 def vague(prompt, already):
     """Que categorias nombra la frase sin decir cual, para poder preguntarlo.
 
@@ -373,6 +385,12 @@ def vague(prompt, already):
     cerradas = set(already)
     for key in list(cerradas):
         cerradas.update(FAMILY.get(key, ()))
+    # Hablar de la ANIMACION de los subtitulos es hablar de la animacion, no del
+    # estilo. Los dos patrones matchean la misma frase, y como el del estilo va
+    # primero, el atajo "Animacion" acababa enseñando los diez estilos, que es
+    # contestar a una pregunta que nadie hizo.
+    if re.search(r"animaci[oó]n|animad|movimiento del texto", low, re.I):
+        cerradas.add("captionPreset")
     out = []
     for key, pattern in VAGUE_RULES:
         if key in cerradas:
