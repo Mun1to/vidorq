@@ -261,6 +261,30 @@ fotogramas exportados:
   barra son redondas y en el MP4 son rectas, porque libass dibuja un rectángulo y redondearlo
   pediría una figura `\p1` a mano. El color, el alfa, el sitio y el segundo sí coinciden.
 
+## El fundido de entrada no iba, y no era la curva
+
+Comprobado el 19-ago-2026 con las **nueve** entradas dentro de Resolve, midiendo el ancho de
+las letras en dos fotogramas. Las nueve asientan en el mismo tamaño (869 px), o sea que
+ninguna curva se prolonga mas alla de su ultima clave. Pero **el fundido no ocurria**.
+
+El alfa de un Text+ se escribia en sus `Alpha<n>`, y eso Fusion no lo mueve. Medirlo costo
+dos intentos y el primero **no valia**: el fotograma que exporta Resolve trae solo RGB, asi
+que un texto al 20% de alfa sale igual de blanco que uno al 100%. Compuesto sobre un clip
+rojo si se ve: el fotograma 0 (que deberia ser invisible) daba **41,31%** de pixeles blancos
+y el 20 daba 41,41%. Ninguno.
+
+Y no era que la comp estuviera congelada, que es lo primero que hay que descartar: la curva
+del TAMAÑO del mismo clip movia las letras de 538 px a 921 y las asentaba en 869, exactamente
+lo que dice la curva.
+
+El arreglo es un **Merge** detras del texto sobre un `Background` transparente, con el
+`Blend` animado. El `Blend` de un Merge si anima, y funde el grupo entero de una vez, que es
+lo que se queria al fundir cada elemento por separado. Medido despues: 0% en los fotogramas
+0, 1 y 2; 39,49% en el 3; 41,41% del 5 en adelante.
+
+Afecta a **cuatro** de las nueve entradas (`fade`, `zoom`, `rise`, `focus`), que son las que
+tienen `fade: True`.
+
 ## El Glow de Fusion se come las letras que no tienen contorno
 
 Comprobado el 19-ago-2026 metiendo los **diez** estilos en un timeline y mirando los diez

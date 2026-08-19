@@ -658,14 +658,18 @@ def _anim_splines(a, dur, size, els):
             tools += _spline("AnimSize", k)
             wires["Size"] = "AnimSize"
     if a["fade"]:
-        # Every enabled element fades, not just the fill, or the shadow sits
-        # there waiting while the text arrives.
-        for idx, _shape, _rgb, alpha, _extra in els:
-            k = keys([(0.0, 0.0), (0.9, alpha / max(alpha, 1e-6))], alpha)
-            if len(k) > 1:
-                sp = "Fade%d" % idx
-                tools += _spline(sp, k)
-                wires["Alpha%d" % idx] = sp
+        # El fundido va en un Merge detras del texto, NO en los `Alpha<n>` del
+        # Text+. Asi estuvo y no se veia: medido en Resolve componiendo sobre un
+        # clip rojo, el fotograma 0 (alfa 0, o sea invisible) daba 41.31% de
+        # pixeles blancos y el 20 daba 41.41%. O sea, ninguno. Y no era que la
+        # comp estuviera congelada: la curva del TAMAÑO del mismo clip movia las
+        # letras de 538 px a 921 y las asentaba en 869, exactamente como dice.
+        # El `Blend` de un Merge si anima, y ademas funde el grupo entero de una
+        # vez, que es lo que se queria al fundir todos los elementos.
+        k = keys([(0.0, 0.0), (0.9, 1.0)])
+        if len(k) > 1:
+            tools += _spline("Fundido", k)
+            extra["fade"] = "Fundido"
     if a["blur"] > 0:
         k = keys([(0.0, a["blur"]), (1.5, 0.0)])
         if len(k) > 1:
@@ -714,6 +718,35 @@ def _text_inputs(p, chunk, w, h, dur, wires, size, y, els):
                            'Alpha%d = Input { Value = %.4f, },' % (idx, alpha)))
         lines += extra
     return "\n\t\t\t\t".join(x for x in lines if x)
+
+
+def _fade_tool(src, spline, w, h, x):
+    """Un Merge sobre nada, con el Blend animado: asi se funde el grupo entero.
+
+    El fondo es un Background transparente, no el video: la comp no lleva
+    MediaIn a proposito (asi se puede anidar encima de cualquier plano), y
+    fundir contra transparencia es exactamente lo que hace falta.
+    """
+    return (
+        '\t\tVacio = Background {\n'
+        '\t\t\tInputs = {\n'
+        '\t\t\t\tGlobalOut = Input { Value = 1000, },\n'
+        '\t\t\t\tWidth = Input { Value = %d, },\n'
+        '\t\t\t\tHeight = Input { Value = %d, },\n'
+        '\t\t\t\tUseFrameFormatSettings = Input { Value = 1, },\n'
+        '\t\t\t\tTopLeftAlpha = Input { Value = 0, },\n'
+        '\t\t\t},\n'
+        '\t\t\tViewInfo = OperatorInfo { Pos = { %d, 115 } },\n'
+        '\t\t},\n'
+        '\t\tMezcla = Merge {\n'
+        '\t\t\tInputs = {\n'
+        '\t\t\t\tBackground = Input { SourceOp = "Vacio", Source = "Output", },\n'
+        '\t\t\t\tForeground = Input { SourceOp = "%s", Source = "Output", },\n'
+        '\t\t\t\tBlend = Input { SourceOp = "%s", Source = "Value", },\n'
+        '\t\t\t},\n'
+        '\t\t\tViewInfo = OperatorInfo { Pos = { %d, 49.5 } },\n'
+        '\t\t},\n'
+        % (w, h, x, src, spline, x))
 
 
 def _blur_tool(src, spline, x):
@@ -817,6 +850,10 @@ def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None):
         chain += _glow_tool(out, p["glow"], extra.get("glow"), x,
                             keep_edge=not p["outline"])
         out = "Shine"
+    if extra.get("fade"):
+        x += 165
+        chain += _fade_tool(out, extra["fade"], w, h, x)
+        out = "Mezcla"
 
     comp = (
         'Composition {\n'
