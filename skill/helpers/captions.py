@@ -229,7 +229,7 @@ ANIMS = {
     },
     "zoom": {
         "label": {"es": "Zoom", "en": "Zoom"},
-        "note": {"es": "Entra grande y se cierra hasta su tamano. Cinematografica.",
+        "note": {"es": "Entra grande y se cierra hasta su tamaño. Cinematográfica.",
                  "en": "Starts big and closes down to size. Cinematic."},
         "scale": [(0.0, 1.38), (1.3, 1.0)],
         "fade": True, "blur": 0.0, "glow": 0.0,

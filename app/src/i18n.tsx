@@ -41,7 +41,7 @@ const es = {
 
   "drop.inproject": "O elige uno de este proyecto de Resolve",
   "preview.head": "Así va a quedar",
-  "preview.note": "Hecho con el mismo motor que el video final, sobre tu propio metraje.",
+  "preview.note": "Hecho con el mismo motor que el vídeo final, sobre tu propio metraje.",
   "preview.gallery": "Ver la galería",
   "gal.title": "Galería de estilos",
   "gal.looks": "Estilo",
@@ -88,7 +88,7 @@ const es = {
   "words.drop": "Quitar esto",
   "more": "Más ajustes",
   "shake": "Temblor de impacto",
-  "shake.note": "Un golpe de camara al caer el corte. Solo en el MP4: Resolve no admite keyframes por API.",
+  "shake.note": "Un golpe de cámara al caer el corte. Solo en el MP4: Resolve no admite keyframes por API.",
   "drop.title": "Arrastra tu vídeo aquí",
   "drop.sub": "o pega la ruta del archivo y pulsa Enter",
   "drop.change": "cambiar",
