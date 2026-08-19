@@ -1587,7 +1587,20 @@ def blocked_by_output(output, settings, asked, want_voice=False, want_shake=Fals
 PICK = "pick:"
 
 
+# Los tres cortes, con el nombre y el criterio de cada uno. En el motor y no en
+# la ventana porque la pregunta se contesta aqui.
+CUT_LABELS = {
+    "es": {"clean": "Limpio (quita silencios)", "podcast": "Podcast (preguntas)",
+           "montage": "Montaje (mejores momentos)"},
+    "en": {"clean": "Clean (drops silences)", "podcast": "Podcast (questions)",
+           "montage": "Montage (best bits)"},
+}
+
+
 def choices_for(key, lang="es"):
+    if key == "cuts":
+        words = CUT_LABELS.get(lang, CUT_LABELS["es"])
+        return [{"id": c, "label": words.get(c, c)} for c in director.CUTS]
     if key == "transition":
         words = TRANSITION_LABELS.get(lang, TRANSITION_LABELS["es"])
         return [{"id": t, "label": words.get(t, t)}
@@ -1608,10 +1621,10 @@ def choices_for(key, lang="es"):
 ASK_WORDS = {
     "es": {"transition": "¿Que transicion?", "captionPreset": "¿Que estilo de subtitulo?",
            "captionAnim": "¿Como quieres que entren?", "look": "¿Que filtro de color?",
-           "ratio": "¿Que formato?"},
+           "ratio": "¿Que formato?", "cuts": "¿Como quieres que lo corte?"},
     "en": {"transition": "Which transition?", "captionPreset": "Which caption look?",
            "captionAnim": "How should they come in?", "look": "Which colour filter?",
-           "ratio": "Which frame?"},
+           "ratio": "Which frame?", "cuts": "How should I cut it?"},
 }
 
 
@@ -1754,6 +1767,7 @@ def run_job(req):
                 prompt, base, ai_choice(req), req.get("directorModel") or None,
                 log=lambda m: set_progress(tr("refining", turn), 7, m))
             ratio = fresh.get("ratio", ratio)
+            preset = fresh.get("cuts", preset)
             transition = fresh.get("transition", transition)
             captions = fresh.get("captions", captions)
             caption_preset = fresh.get("captionPreset") or caption_preset
@@ -1826,11 +1840,17 @@ def run_job(req):
         # correction, and a podcast does not want its camera flinching.
         shake = bool(req.get("shake"))
         report = {}
-        if again:
+        # Cambiar el ESTILO de corte es lo unico de un retoque que obliga a
+        # volver a cortar: los demas ajustes se pintan encima de la misma
+        # edicion, pero "limpio" y "montaje" son dos ediciones distintas. Sin
+        # esto la pregunta "como quieres que lo corte" tenia tres botones que no
+        # hacian nada, que es peor que no preguntar.
+        recut = again and "cuts" in changed
+        if again and not recut:
             # Los cortes que ya hay se respetan: esta frase es un retoque, no
             # una edicion nueva. Lo que la frase pida se aplica ENCIMA.
             edl = [dict(x) for x in keep_edl]
-        elif prompt:
+        elif prompt and not again:
             packed = packed_view(workdir, transcript, video)
             if look.get("shots"):
                 # The model reads the video instead of watching it: the visual

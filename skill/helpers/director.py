@@ -275,6 +275,8 @@ WORD_RULES = (
     ("cuts", "montage", r"resumen|mejores momentos|highlight|montaje|best bits|"
                         r"lo mejor\b"),
     ("cuts", "podcast", r"podcast|entrevista|preguntas y respuestas|\bq&a\b"),
+    ("cuts", "clean", r"quita los silencios|sin silencios|quita las pausas|"
+                      r"solo lo hablado|limpia los silencios|\bmuletillas\b"),
     # Sin un "negro" suelto: "ponlo en blanco y negro" es un filtro de color, y
     # con el comodin salia ademas un fundido a negro que nadie habia pedido.
     ("transition", "dip", r"fundido a negro|dip to black|a negro"),
@@ -311,6 +313,11 @@ VAGUE_RULES = (
              r"\bfiltros\b|\blook\b"),
     ("ratio", r"recorta|recortar|reencuadr|\bformato\b|\bencuadre\b"),
     ("captionAnim", r"animaci[oó]n|animad|movimiento del texto"),
+    # "cortalo", "corta el video", "cambia los cortes": nombra el corte sin
+    # decir con que criterio, y hay tres. Ojo con no pisar a `ratio`, que se
+    # queda con "recorta" y "reencuadra", que en video es encuadrar y no cortar.
+    ("cuts", r"\bcorta\b|\bcortar\b|\bcortes\b|\bcort[aá]lo\b|\bcortame\b|"
+             r"\bcut\b|\bcuts\b|vuelve a cortar|otra vez los cortes"),
 )
 
 
