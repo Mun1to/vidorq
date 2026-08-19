@@ -73,14 +73,26 @@ export default function Chat({
   onStop, running, step, detail, percent, error,
 }: Props) {
   const { t } = useLang();
-  const endRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
-  // Siempre al ultimo mensaje: una conversacion que se queda mirando el
-  // principio es una conversacion en la que no te enteras de lo que acaba de
-  // pasar, que es justo lo que se viene a ver.
+  /* Siempre al ultimo mensaje: una conversacion que se queda mirando el
+     principio es una conversacion en la que no te enteras de lo que acaba de
+     pasar, que es justo lo que se viene a ver.
+
+     Se mueve el contenedor a mano y no con scrollIntoView sobre un ancla:
+     la burbuja que trabaja CRECE despues (le entra el detalle, la barra, el
+     boton de parar), asi que el ancla ya se habia colocado y la burbuja
+     quedaba medio tapada por los atajos, con el boton de parar debajo del
+     corte. Medido en pantalla el 2026-08-19. */
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [turns.length, running, step, detail]);
+    const el = bodyRef.current;
+    if (!el) return;
+    const alFondo = () => { el.scrollTop = el.scrollHeight; };
+    alFondo();
+    // Y otra vez cuando el navegador haya pintado el alto nuevo.
+    const r = requestAnimationFrame(alFondo);
+    return () => cancelAnimationFrame(r);
+  }, [turns.length, running, step, detail, percent]);
 
   return (
     <section className="chat">
@@ -99,7 +111,7 @@ export default function Chat({
         </div>
       </header>
 
-      <div className="chat-body">
+      <div className="chat-body" ref={bodyRef}>
         {turns.map((turn, i) => (
           <div className="turn" key={i}>
             <p className="bubble you">{turn.you}</p>
@@ -139,7 +151,9 @@ export default function Chat({
                       </div>
                     </div>
                   ))}
-                  {turn.result && <code className="bubble-path">{turn.result}</code>}
+                  {turn.result && i === turns.length - 1 && (
+                    <code className="bubble-path">{turn.result}</code>
+                  )}
                   {turn.offer?.kind === "mp4" && (
                     <button className="offer" onClick={() => onOffer("mp4")}>
                       <IconSpark size={13} className="icon" />{t("chat.offer.mp4")}
@@ -178,7 +192,6 @@ export default function Chat({
           </div>
         )}
 
-        <div ref={endRef} />
       </div>
 
       <div className="chips">
