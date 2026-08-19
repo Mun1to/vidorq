@@ -91,8 +91,11 @@ export default function Gallery({
     const q = new URLSearchParams({ ratio: kind === "ratio" ? id : ratio,
                                     lang, video, kind });
     // Un rotulo tampoco se recorta a la banda: lo que hay que ver es DONDE cae
-    // en el cuadro, y la banda esconde justo eso.
-    if (kind !== "look" && kind !== "ratio" && kind !== "card") q.set("band", "1");
+    // en el cuadro, y la banda esconde justo eso. Una transicion, menos aun:
+    // pasa por todo el cuadro, y recortada a la franja del subtitulo no se
+    // distingue de la de al lado.
+    if (kind !== "look" && kind !== "ratio" && kind !== "card"
+        && kind !== "transition") q.set("band", "1");
     if (kind === "anim") { q.set("id", id); q.set("preset", style); }
     else q.set("id", id);
     return `${ENGINE}/preview?${q.toString()}`;
@@ -182,15 +185,12 @@ export default function Gallery({
                     : tab === "style" ? onStyle(it.pick) : onAnim(it.pick))}
                   title={it.note}
                 >
-                  {tab === "transition" ? (
-                    // Sin foto a proposito: una imagen fija de una transicion no
-                    // enseña nada. Lo que decide cual eliges es donde funciona.
-                    <div className="tile-shot flat">
-                      <span className={RESOLVE_OK.includes(it.id) ? "ok" : "only"}>
-                        {RESOLVE_OK.includes(it.id) ? t("gal.tr.both") : t("gal.tr.mp4")}
-                      </span>
-                    </div>
-                  ) : (
+                  {/* La transicion tambien se ve. Antes era una caja vacia con
+                      la etiqueta flotando en medio, con el argumento de que una
+                      foto fija no enseña movimiento; pero su MITAD si dice lo
+                      que hace, que es lo que hay que decidir: si mezcla los dos
+                      planos, si pasa por negro, o si uno empuja al otro. La
+                      etiqueta de donde funciona se queda, en una esquina. */}
                   <div className={`tile-shot ${ready[key] ? "" : "loading"}`}>
                     <img
                       src={url(tab, it.id)}
@@ -199,9 +199,13 @@ export default function Gallery({
                       onLoad={() => setReady((r) => ({ ...r, [key]: true }))}
                       onError={() => setReady((r) => ({ ...r, [key]: true }))}
                     />
+                    {tab === "transition" && (
+                      <span className={`tile-where ${RESOLVE_OK.includes(it.id) ? "ok" : "only"}`}>
+                        {RESOLVE_OK.includes(it.id) ? t("gal.tr.both") : t("gal.tr.mp4")}
+                      </span>
+                    )}
                     {sel && <span className="tile-tick"><IconCheck size={13} /></span>}
                   </div>
-                  )}
                   <span className="tile-name">{it.label}</span>
                 </button>
               );

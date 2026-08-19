@@ -2966,6 +2966,9 @@ class Handler(BaseHTTPRequestHandler):
                                                video, lang, w, h, at)
                 elif kind == "ratio":
                     path = previews.ratio_still(ratio, video, w, h, at)
+                elif kind == "transition":
+                    path = previews.transition_still(one("id", "dip"), ratio,
+                                                     video, w, h, at)
                 elif kind == "anim":
                     path = previews.anim_loop(one("id", "pop"),
                                               one("preset", cap.DEFAULT_PRESET),

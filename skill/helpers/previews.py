@@ -443,6 +443,98 @@ def ratio_still(ratio, video="", width=1920, height=1080, at=1.0):
     return dest
 
 
+# Los dos momentos del video con los que se arma una transicion: el plano que
+# se va y el que entra. Separados de verdad, porque dos fotogramas contiguos se
+# parecen tanto que una disolvencia entre ellos no se ve.
+# Lo mas separados que se puede sin caer en la cabecera ni en el cierre, que
+# son los dos sitios donde es mas probable encontrar un negro o una careta. Y
+# cuanto mas separados, mas probable es que sean dos PLANOS distintos, que es
+# lo unico que hace legible el borde de un barrido: entre dos fotogramas del
+# mismo plano continuo, la union del barrido no se ve, y no porque este mal.
+TRANS_AT = (0.18, 0.82)
+
+
+def transition_still(kind, ratio="source", video="", width=1920, height=1080,
+                     at=1.0):
+    """Una transicion congelada por la mitad, sobre TU metraje.
+
+    La pestaña enseñaba seis rectangulos vacios con una etiqueta flotando en
+    medio, que es justo lo que esta galeria existe para no hacer: un nombre no
+    es una eleccion. Una transicion es movimiento y no cabe entera en una foto,
+    pero su MITAD si dice lo que hace, que es lo que hay que decidir: si mezcla
+    los dos planos, si pasa por negro, o si uno empuja al otro.
+
+    Se hace con ffmpeg y con el mismo recorte que el render, como todo lo demas
+    de este modulo, para que la foto no pueda mentir sobre el resultado.
+    """
+    out_w, out_h, crop_w, crop_h = _shape(ratio, width, height)
+    dest = CACHE / ("tr_%s.png" % _key(kind, ratio, video, out_w, out_h,
+                                       PREVIEW_LONG, TRANS_AT))
+    if dest.exists():
+        return dest
+    exe = ffmpeg()
+    if not exe:
+        raise RuntimeError("ffmpeg no esta instalado")
+    CACHE.mkdir(parents=True, exist_ok=True)
+
+    dur = _duration(video) if video else 0.0
+    fx = _face_x(video, at) if video else 0.5
+    recorte = _crop_chain(width, height, out_w, out_h, crop_w, crop_h, fx)
+
+    def entrada(frac):
+        cuando = round(dur * frac, 2) if dur > 2 else at
+        return _source_args(video, cuando, out_w, out_h)
+
+    src_a, real = entrada(TRANS_AT[0])
+    cadena = (recorte if real else []) + [_fit(out_w, out_h)]
+    dos = kind in ("dissolve", "wipe", "slide")
+    args = list(src_a)
+    if dos:
+        args += list(entrada(TRANS_AT[1])[0])
+
+    def rama(indice, nombre):
+        # La etiqueta va PEGADA al primer filtro. Con una coma en medio ffmpeg
+        # lee un filtro vacio y contesta "No such filter: ''".
+        return "[%d:v]%s[%s]" % (indice, ",".join(cadena) or "null", nombre)
+
+    filtro = [rama(0, "a")]
+    if dos:
+        filtro.append(rama(1, "b"))
+
+    # La mitad de cada transicion, dicha en filtros.
+    if kind == "dissolve":
+        filtro.append("[a][b]blend=all_mode=average[out]")
+    elif kind == "dip":
+        # A oscuras pero no negro del todo: el negro puro no enseña nada, y lo
+        # que hay que entender es que el plano se APAGA.
+        filtro.append("[a]drawbox=color=black@0.62:t=fill[out]")
+    elif kind == "white":
+        filtro.append("[a]drawbox=color=white@0.62:t=fill[out]")
+    elif kind == "zoom":
+        filtro.append("[a]scale=iw*1.35:ih*1.35,crop=iw/1.35:ih/1.35[out]")
+    elif kind == "wipe":
+        # Corte limpio por el medio: cada plano enseña su propio centro.
+        filtro.append("[b]crop=iw/2:ih:iw/2:0[br]")
+        filtro.append("[a][br]overlay=W/2:0[out]")
+    elif kind == "slide":
+        # Uno empuja al otro, asi que lo que se ve de cada uno es el borde por
+        # el que se tocan, no su centro. Por eso no es la misma foto que wipe.
+        filtro.append("[a]crop=iw/2:ih:iw/2:0[ar]")
+        filtro.append("[b]crop=iw/2:ih:0:0[bl]")
+        filtro.append("[ar][bl]hstack=inputs=2[out]")
+    else:
+        filtro.append("[a]null[out]")
+
+    tmp = dest.with_suffix(".part%s.png" % uuid.uuid4().hex[:8])
+    subprocess.run(
+        [exe, "-hide_banner", "-loglevel", "error", "-nostdin"] + args +
+        ["-filter_complex", ";".join(filtro), "-map", "[out]",
+         "-frames:v", "1", "-y", str(tmp)],
+        creationflags=NO_WINDOW, capture_output=True, timeout=90, check=True)
+    shutil.move(str(tmp), str(dest))
+    return dest
+
+
 def clear():
     """Throw the cache away. The previews rebuild themselves on demand."""
     shutil.rmtree(CACHE, ignore_errors=True)

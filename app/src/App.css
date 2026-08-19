@@ -760,21 +760,6 @@ select:focus-visible,
 .grid.full { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
 .grid.full .tile-shot { height: 128px;
 }
-/* La baldosa mientras se pinta. El componente ya ponia la clase `loading` y no
-   habia una sola regla detras, asi que abrir la galeria eran seis agujeros
-   negros durante los ~20 s que cuesta pintar diez estilos sobre TU metraje, sin
-   ninguna señal de que estuviera pasando algo. Medido el 19-ago: a los 7 s
-   seguian vacias; a los 25 s estaban todas. */
-.tile-shot.loading {
-  background: linear-gradient(100deg,
-              var(--panel2) 30%, var(--line-soft) 48%, var(--panel2) 66%);
-  background-size: 300% 100%;
-  animation: shimmer 1.25s linear infinite;
-}
-@keyframes shimmer {
-  from { background-position: 150% 0; }
-  to { background-position: -50% 0; }
-}
 .tile-shot img { display: block; max-width: 100%; max-height: 100%; }
 .tile:hover .tile-shot { border-color: var(--accent-soft); }
 .tile.sel .tile-shot { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-fill); }
@@ -790,20 +775,30 @@ select:focus-visible,
 .tile.sel .tile-name { color: var(--text); }
 /* Mismo latido que la preview suelta, para que un hueco vacio se lea como
    "viene de camino" y no como "esto esta roto". */
-/* La baldosa de transicion no lleva foto: lleva el dato que decide. */
-.tile-shot.flat {
-  display: grid; place-items: center; background: var(--panel2);
+/* Donde funciona esa transicion, encima de la foto y no en medio de un hueco.
+   Sigue siendo el dato que decide cual eliges, pero ya no es lo unico que hay
+   que mirar. */
+.tile-where {
+  position: absolute; left: 7px; bottom: 7px;
+  font-size: 10.5px; font-weight: 600; letter-spacing: .2px;
+  border-radius: 999px; padding: 3px 9px;
+  background: rgba(9, 11, 15, .82); border: 1px solid var(--line);
 }
-.tile-shot.flat span {
-  font-size: 11px; font-weight: 600; letter-spacing: .2px;
-  border-radius: 999px; padding: 4px 11px; border: 1px solid var(--line);
-}
-.tile-shot.flat .ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
-.tile-shot.flat .only { color: var(--muted); }
+.tile-where.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.tile-where.only { color: var(--text-dim); }
 
+/* El latido existia desde el principio, pero a rgba(255,255,255,.05) sobre un
+   panel casi negro no se ve: medido el 19-ago con la galeria abierta sobre un
+   video nuevo, las baldosas se leian como seis agujeros durante los ~20 s que
+   cuesta pintarlas. Una señal que no se distingue de la nada no es una señal.
+   El borde y el barrido suben a un contraste que el ojo pilla sin buscarlo. */
+.tile-shot.loading {
+  border-color: var(--line-soft);
+  background: var(--panel);
+}
 .tile-shot.loading::after {
   content: ""; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent);
   animation: preview-wait 1.1s linear infinite;
 }
 .preview-box {
@@ -816,7 +811,7 @@ select:focus-visible,
 .preview-box.loading { min-width: 220px; }
 .preview-box.loading::after {
   content: ""; position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.16), transparent);
   animation: preview-wait 1.1s linear infinite;
 }
 @keyframes preview-wait { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
