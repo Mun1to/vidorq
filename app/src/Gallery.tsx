@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CaptionStyle, ENGINE } from "./api";
 import { useLang } from "./i18n";
-import { IconCheck, IconDrop, IconPlay, IconSpark } from "./Icons";
+import { IconCheck, IconDrop, IconPlay, IconSpark, IconVideo, IconZap } from "./Icons";
+
+// Las que Resolve SI puede hacer por su API: son solidos con opacidad animada.
+// Las otras tres necesitan mezclar los dos planos, y eso Resolve no lo da.
+const RESOLVE_OK = ["dip", "white", "flash"];
 
 /**
  * La pared de estilos, como la de CapCut.
@@ -17,8 +21,11 @@ import { IconCheck, IconDrop, IconPlay, IconSpark } from "./Icons";
  * animado, porque el fotograma en reposo de "Rebote" es identico al de
  * "Ninguna" y ensenarlo quieto es prometer algo que no se ve.
  */
+type Tab = "style" | "anim" | "look" | "ratio" | "transition";
+
 export default function Gallery({
   styles, anims, animOf, style, anim, ratio, video, colours, colour,
+  ratios, transitions, transition, onRatio, onTransition,
   onStyle, onAnim, onColour, onClose,
 }: {
   styles: CaptionStyle[];
@@ -30,6 +37,11 @@ export default function Gallery({
   video: string;
   colours: CaptionStyle[];
   colour: string;
+  ratios: Record<string, string>;
+  transitions: Record<string, string>;
+  transition: string;
+  onRatio: (id: string) => void;
+  onTransition: (id: string) => void;
   onStyle: (id: string) => void;
   onAnim: (id: string) => void;
   onColour: (id: string) => void;
@@ -46,7 +58,7 @@ export default function Gallery({
     boxRef.current?.focus();
     return () => antes?.focus?.();
   }, []);
-  const [tab, setTab] = useState<"style" | "anim" | "look">("style");
+  const [tab, setTab] = useState<Tab>("style");
   // Cuales han terminado de cargar. Sin esto la cuadricula aparece a trozos y
   // parece rota; con esto cada hueco tiene su latido hasta que llega su imagen.
   const [ready, setReady] = useState<Record<string, boolean>>({});
@@ -62,17 +74,19 @@ export default function Gallery({
   // Al cambiar de pestana o de estilo base, las baldosas de movimiento son
   // otras: se pintan sobre el look elegido.
   useEffect(() => { setReady({}); }, [tab, style, ratio, video]);
-  const gridClass = tab === "look" ? "grid full" : "grid";
+  const gridClass = (tab === "look" || tab === "ratio") ? "grid full" : "grid";
 
-  const url = useMemo(() => (kind: "style" | "anim" | "look", id: string) => {
+  const url = useMemo(() => (kind: Tab, id: string) => {
     // band=1: la baldosa es un primer plano de la banda del subtitulo. El
     // fotograma entero lo ensena la preview de abajo, que responde a otra
     // pregunta; aqui se comparan letras y a tamano de baldosa un estilo fino
     // sobre el cuadro completo no se ve.
     // El color se juzga sobre el cuadro ENTERO, no sobre la banda del
     // subtitulo: lo que hay que ver es la piel y el cielo, no las letras.
-    const q = new URLSearchParams({ ratio, lang, video, kind });
-    if (kind !== "look") q.set("band", "1");
+    // La pestaña de formato pide el cuadro con ESE encuadre, no con el actual.
+    const q = new URLSearchParams({ ratio: kind === "ratio" ? id : ratio,
+                                    lang, video, kind });
+    if (kind !== "look" && kind !== "ratio") q.set("band", "1");
     if (kind === "anim") { q.set("id", id); q.set("preset", style); }
     else q.set("id", id);
     return `${ENGINE}/preview?${q.toString()}`;
@@ -82,7 +96,17 @@ export default function Gallery({
   // que el autor del look eligio para el, y casi siempre es la buena.
   const own = anims.find((a) => a.id === animOf[style]);
   const items: { id: string; label: string; note: string; pick: string }[] =
-    tab === "look"
+    tab === "ratio"
+      ? Object.entries(ratios).map(([id, label]) => ({
+          id, label, note: t("gal.ratio.sub"), pick: id }))
+      : tab === "transition"
+      ? Object.entries(transitions).filter(([id]) => id !== "none")
+          .map(([id, label]) => ({
+            id, label,
+            // Lo unico que hace falta saber para elegir una: donde funciona.
+            note: RESOLVE_OK.includes(id) ? t("gal.tr.both") : t("gal.tr.mp4"),
+            pick: id }))
+      : tab === "look"
       ? colours.map((c) => ({ ...c, pick: c.id }))
       : tab === "style"
       ? styles.map((s) => ({ ...s, pick: s.id }))
@@ -92,6 +116,8 @@ export default function Gallery({
          ...anims.map((a) => ({ ...a, pick: a.id }))];
 
   const chosen = tab === "look" ? (colour || "none")
+    : tab === "ratio" ? ratio
+    : tab === "transition" ? transition
     : tab === "style" ? style : anim;
 
   return (
@@ -110,12 +136,21 @@ export default function Gallery({
             <button className={tab === "look" ? "sel" : ""} onClick={() => setTab("look")}>
               <IconDrop size={14} className="icon" />{t("gal.looks.tab")}
             </button>
+            <button className={tab === "ratio" ? "sel" : ""} onClick={() => setTab("ratio")}>
+              <IconVideo size={14} className="icon" />{t("gal.ratio")}
+            </button>
+            <button className={tab === "transition" ? "sel" : ""}
+                    onClick={() => setTab("transition")}>
+              <IconZap size={14} className="icon" />{t("gal.tr")}
+            </button>
           </div>
         </div>
 
         <div className="modal-body">
           <p className="hint">
             {tab === "look" ? t("gal.colour.sub")
+              : tab === "ratio" ? t("gal.ratio.hint")
+              : tab === "transition" ? t("gal.tr.hint")
               : tab === "style" ? t("gal.looks.sub") : t("gal.moves.sub")}
           </p>
           <div className={gridClass}>
@@ -127,9 +162,20 @@ export default function Gallery({
                   key={key}
                   className={`tile ${sel ? "sel" : ""}`}
                   onClick={() => (tab === "look" ? onColour(it.pick)
+                    : tab === "ratio" ? onRatio(it.pick)
+                    : tab === "transition" ? onTransition(it.pick)
                     : tab === "style" ? onStyle(it.pick) : onAnim(it.pick))}
                   title={it.note}
                 >
+                  {tab === "transition" ? (
+                    // Sin foto a proposito: una imagen fija de una transicion no
+                    // enseña nada. Lo que decide cual eliges es donde funciona.
+                    <div className="tile-shot flat">
+                      <span className={RESOLVE_OK.includes(it.id) ? "ok" : "only"}>
+                        {RESOLVE_OK.includes(it.id) ? t("gal.tr.both") : t("gal.tr.mp4")}
+                      </span>
+                    </div>
+                  ) : (
                   <div className={`tile-shot ${ready[key] ? "" : "loading"}`}>
                     <img
                       src={url(tab, it.id)}
@@ -140,6 +186,7 @@ export default function Gallery({
                     />
                     {sel && <span className="tile-tick"><IconCheck size={13} /></span>}
                   </div>
+                  )}
                   <span className="tile-name">{it.label}</span>
                 </button>
               );

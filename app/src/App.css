@@ -706,6 +706,17 @@ select:focus-visible,
 .tile.sel .tile-name { color: var(--text); }
 /* Mismo latido que la preview suelta, para que un hueco vacio se lea como
    "viene de camino" y no como "esto esta roto". */
+/* La baldosa de transicion no lleva foto: lleva el dato que decide. */
+.tile-shot.flat {
+  display: grid; place-items: center; background: var(--panel2);
+}
+.tile-shot.flat span {
+  font-size: 11px; font-weight: 600; letter-spacing: .2px;
+  border-radius: 999px; padding: 4px 11px; border: 1px solid var(--line);
+}
+.tile-shot.flat .ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.tile-shot.flat .only { color: var(--muted); }
+
 .tile-shot.loading::after {
   content: ""; position: absolute; inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.05), transparent);

@@ -860,6 +860,8 @@ function App() {
           styles={capStyles} anims={capAnims} animOf={animOf}
           style={capStyle} anim={capAnim} ratio={ratio} video={video}
           colours={colours} colour={colour}
+          ratios={ratios} transitions={transitions} transition={transition}
+          onRatio={setRatio} onTransition={setTransition}
           onStyle={setCapStyle} onAnim={setCapAnim}
           onColour={(id) => setColour(id === "none" ? "" : id)}
           onClose={() => setGalOpen(false)}
