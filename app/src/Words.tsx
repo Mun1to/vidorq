@@ -188,21 +188,27 @@ export default function Words({
            tabIndex={-1} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{t("words.title")}</h2>
-          <div className="tabs2">
-            <button className={modo === "palabras" ? "sel" : ""}
-                    onClick={() => setModo("palabras")}>{t("words.tabWords")}</button>
-            <button className={modo === "orden" ? "sel" : ""}
-                    onClick={() => setModo("orden")}>{t("words.tabOrder")}</button>
+          {/* Las pestañas y el buscador en la MISMA fila. La cabecera del modal
+              apila en columna, asi que el buscador con `margin-left: auto` se
+              iba a su propio renglon y dejaba un hueco de aire debajo de las
+              pestañas. */}
+          <div className="head-row">
+            <div className="tabs2">
+              <button className={modo === "palabras" ? "sel" : ""}
+                      onClick={() => setModo("palabras")}>{t("words.tabWords")}</button>
+              <button className={modo === "orden" ? "sel" : ""}
+                      onClick={() => setModo("orden")}>{t("words.tabOrder")}</button>
+            </div>
+            {modo === "palabras" && (
+              <input className="find" value={busca} placeholder={t("words.find")}
+                     onChange={(e) => setBusca(e.target.value)} />
+            )}
+            {modo === "palabras" && span && (
+              <button className="link" onClick={() => { setA(null); setB(null); }}>
+                {t("words.clear")}
+              </button>
+            )}
           </div>
-          {modo === "palabras" && (
-            <input className="find" value={busca} placeholder={t("words.find")}
-                   onChange={(e) => setBusca(e.target.value)} />
-          )}
-          {modo === "palabras" && span && (
-            <button className="link" onClick={() => { setA(null); setB(null); }}>
-              {t("words.clear")}
-            </button>
-          )}
         </div>
 
         {modo === "orden" ? (
