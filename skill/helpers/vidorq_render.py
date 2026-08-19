@@ -39,6 +39,7 @@ import numpy as np
 
 import captions as cap
 import looks
+import overlays
 
 AUDIO_RATE = 48000
 FADE_MS = 30
@@ -165,9 +166,31 @@ def shake_crop(zw, zh, zx, zy, secs=SHAKE_SECONDS, hz=SHAKE_HZ):
             f":y='if(lt(t,{secs}),{y},{zy})'")
 
 
+def _cards_by_kind(cards, desde, hasta):
+    """Los rotulos que caen en este trozo, agrupados por tipo.
+
+    Los segundos de `cards` son del MONTAJE, como los que manda el motor. Se
+    devuelven con forma de chunk porque quien los va a escribir es to_ass, que
+    solo sabe de chunks.
+    """
+    if not cards:
+        return []
+    por_tipo = {}
+    for c in cards:
+        a = float(c.get("at", 0.0))
+        b = a + float(c.get("secs") or 3.0)
+        if b <= desde or a >= hasta:
+            continue
+        texto = str(c.get("text") or "")
+        por_tipo.setdefault(c.get("kind") or "rotulo", []).append(
+            {"start": a, "end": b, "text": texto,
+             "words": [{"w": texto, "s": a, "e": b}]})
+    return sorted(por_tipo.items())
+
+
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
                  preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5,
-                 look="", cdl=None, chunks_edited=False):
+                 look="", cdl=None, chunks_edited=False, cards=None):
     """`chunks_edited` dice en que reloj vienen los subtitulos.
 
     Los que se construyen aqui salen de la transcripcion, o sea del reloj del
@@ -250,6 +273,19 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
             cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, a0, b0, out_w, out_h,
                        preset, anim)
             vf.append(f"subtitles=seg_{i:04d}.ass")
+        # Los rotulos y las chapas van en su PROPIO archivo .ass, uno por tipo:
+        # un ASS lleva un estilo por nombre y aqui hacen falta dos pintas
+        # distintas a la vez (la barra de abajo y la etiqueta de arriba). Van
+        # despues de los subtitulos en la cadena de filtros, o sea encima.
+        for j, (kind, trozo) in enumerate(_cards_by_kind(cards, ed_at,
+                                                         ed_at + (e - s))):
+            p_ov = overlays.as_preset(kind)
+            if not p_ov:
+                continue
+            name = f"seg_{i:04d}_c{j}.ass"
+            cap.to_ass(seg_dir / name, trozo, ed_at, ed_at + (e - s),
+                       out_w, out_h, p=p_ov)
+            vf.append(f"subtitles={name}")
         ed_at += e - s
         seg_name = f"seg_{i:04d}.mp4"
 
@@ -530,6 +566,13 @@ def main():
         cdl = json.loads(
             Path(sys.argv[sys.argv.index("--cdl") + 1]).read_text(encoding="utf-8"))
         cdl = {k: (tuple(v) if isinstance(v, list) else v) for k, v in cdl.items()}
+    # Los rotulos, en segundos del MONTAJE. Van en archivo por lo mismo que el
+    # resto: un texto del usuario en la linea de comandos es una linea de
+    # comandos que se rompe con la primera comilla.
+    cards = None
+    if "--cards" in sys.argv:
+        cards = json.loads(
+            Path(sys.argv[sys.argv.index("--cards") + 1]).read_text(encoding="utf-8"))
     voices = None
     if "--voices" in sys.argv:
         voices = json.loads(
@@ -557,7 +600,8 @@ def main():
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
                                  do_caps, do_zoom, preset, anim, ratio, crop_x,
-                                 look, cdl, chunks_edited=bool(given_chunks))
+                                 look, cdl, chunks_edited=bool(given_chunks),
+                                 cards=cards)
         render_audio(source, edl, tmp_a, voices)
         concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out, transition)
     finally:

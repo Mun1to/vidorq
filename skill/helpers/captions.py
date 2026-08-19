@@ -428,14 +428,18 @@ def ass_time(t):
 
 
 def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET,
-           anim_name=None, still=False):
+           anim_name=None, still=False, p=None):
     """Write one ASS file for one EDL segment, times shifted to segment-local.
 
     libass measures Fontsize as the GDI cell height, so the preset's cap-height
     fraction is scaled by 1.41 (Arial Black winAscent+winDescent / em) to land
     on the size the preset asks for.
+
+    `p` takes a preset-shaped dict straight, for looks that are not caption
+    styles and have no business in the gallery of caption styles - a lower
+    third, say. Same trick and same reason as looks.cube(name, p=...).
     """
-    p = preset(name)
+    p = p or preset(name)
     a = anim(anim_name) or anim(p["anim"]) or ANIMS[DEFAULT_ANIM]
     em = line_ref(w, h) * p["size"]
     fs = max(8, int(em * 1.411))

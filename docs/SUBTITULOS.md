@@ -250,9 +250,16 @@ fotogramas exportados:
   un cartel, un rótulo y una chapa son tres cosas y él las nombra distinto.
 - El segundo que dice se traduce a **tiempo de montaje** antes de colocarlo, porque los
   cortes de delante ya han movido ese segundo.
-- **En el MP4 no existe la barra.** libass sabe hacerla (`BorderStyle 3`), pero eso pide un
-  segundo estilo dentro del `.ass` y `to_ass` escribe uno solo; mientras tanto el rótulo
-  sale como un cartel y el turno lo dice con esas palabras.
+- **En el MP4 también sale la barra**, por libass y no por Fusion: en `BorderStyle 3`
+  libass rellena la caja con el color del contorno y usa `Outline` como relleno alrededor
+  del texto. El rótulo va en su PROPIO `.ass` (uno por tipo, porque un ASS lleva un estilo
+  por nombre y la barra de abajo y la etiqueta de arriba son dos pintas a la vez), encadenado
+  detrás del de los subtítulos, o sea encima. `overlays.as_preset()` traduce el overlay a la
+  forma que espera `to_ass`, y `to_ass` acepta `p=<dict>` para que no haya que meter un
+  rótulo en el catálogo de estilos de subtítulo.
+  **Una diferencia que queda**, medida renderizando los dos: en Resolve las esquinas de la
+  barra son redondas y en el MP4 son rectas, porque libass dibuja un rectángulo y redondearlo
+  pediría una figura `\p1` a mano. El color, el alfa, el sitio y el segundo sí coinciden.
 
 ## Lo que NO se puede hacer, dicho claro
 

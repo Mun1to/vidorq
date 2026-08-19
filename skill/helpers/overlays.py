@@ -105,6 +105,27 @@ def kind_list(lang="es", only=None):
             for k, v in KINDS.items() if only is None or k in only]
 
 
+def as_preset(kind):
+    """El mismo overlay con la forma que espera captions.to_ass.
+
+    libass sabe pintar la barra: en `BorderStyle 3` rellena la caja con el
+    color del contorno y usa `Outline` de relleno alrededor del texto. O sea que
+    lo unico que hace falta para tener la misma pinta en el MP4 es hablarle en
+    su idioma, y ese idioma es un preset.
+
+    Los campos que un overlay no usa van a None a proposito y no a un valor
+    "por si acaso": un contorno que nadie pidio se ve.
+    """
+    k = KINDS.get(kind) or KINDS["rotulo"]
+    if k.get("shape") != "text":
+        return None
+    return {"words": 12, "max_chars": 90, "upper": False,
+            "font": k["font"], "style": k["style"], "size": k["size"],
+            "fill": k["fill"], "outline": None, "shadow": None,
+            "y": k["y"], "anim": "fade", "glow": None, "panel": k["panel"],
+            "word_fx": None, "accent": k["fill"], "tracking": k["tracking"]}
+
+
 def seconds(kind):
     return SECONDS.get(kind, 0.4)
 
