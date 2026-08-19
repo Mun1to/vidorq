@@ -168,6 +168,9 @@ TEXT = {
         "did_caps": "%d subtitulos",
         "did_titles": "%d carteles",
         "carded": "%d de tipo %s puestos.",
+        "card_only_resolve": ("El rotulo con su barra solo lo se hacer en el "
+                              "timeline de Resolve. Aqui va como un cartel, "
+                              "con la pinta de los subtitulos."),
         "did_voice": "%d voz en off",
         "painting": "Coloreando en Resolve...",
         "painting_help": "Una correccion primaria por clip, que puedes seguir tocando a mano",
@@ -230,6 +233,9 @@ TEXT = {
         "did_caps": "%d captions",
         "did_titles": "%d cards",
         "carded": "%d %s placed.",
+        "card_only_resolve": ("The bar behind a lower third only happens on the "
+                              "Resolve timeline. Here it comes out as a card, "
+                              "looking like the captions."),
         "did_voice": "%d voice line(s)",
         "painting": "Grading in Resolve...",
         "painting_help": "One primary correction per clip, still yours to adjust by hand",
@@ -2428,6 +2434,10 @@ def run_job(req):
             did = [d for d in did if not d.startswith(("color:", "colour:"))]
             did.append(("color: " if _lang == "es" else "colour: ") + ", ".join(auto_did))
         did += said_deeds(deeds, _lang)
+        # Un rotulo pedido en el MP4 sale como un cartel, y callarselo es dejar
+        # que lo descubra mirando el video y creyendo que no le hicimos caso.
+        if want_titles and output != "resolve" and director.title_style(prompt):
+            not_understood = list(not_understood) + [tr("card_only_resolve")]
         # Pediste algo en un momento y no salio nada: se dice. Un turno que se
         # calla es indistinguible de uno que lo ha hecho, que es de donde sale el
         # "no se que ha hecho".
