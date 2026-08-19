@@ -30,10 +30,10 @@ import director  # noqa: E402
 
 # Un boton pulsado, y como se lee en la conversacion.
 PICKS = [
-    ("pick:transition=dip", "transicion: Fundido a negro"),
+    ("pick:transition=dip", "transición: Fundido a negro"),
     ("pick:captionPreset=neon", "estilo: Neon"),
     # Dos pares: la transicion que se pidio y la salida por la que si sale.
-    ("pick:transition=dissolve&output=mp4", "transicion: Disolvencia, salida: MP4"),
+    ("pick:transition=dissolve&output=mp4", "transición: Disolvencia, salida: MP4"),
     # Lo escrito a mano no se toca.
     ("quita un trozo del segundo 5 al 9", "quita un trozo del segundo 5 al 9"),
 ]

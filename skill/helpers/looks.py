@@ -39,7 +39,7 @@ CUBE_SIZE = 33
 PRESETS = {
     "none": {
         "label": {"es": "Sin filtro", "en": "No filter"},
-        "note": {"es": "El color tal y como salio de la camara.",
+        "note": {"es": "El color tal y como salió de la cámara.",
                  "en": "The colour straight out of the camera."},
         "slope": (1.0, 1.0, 1.0), "offset": (0.0, 0.0, 0.0),
         "power": (1.0, 1.0, 1.0), "sat": 1.0,
@@ -48,9 +48,9 @@ PRESETS = {
     # con los neutros para que exista en el catalogo y se pueda elegir; los de
     # verdad los pone `autocolor` en cada edicion.
     "auto": {
-        "label": {"es": "Automatico", "en": "Auto"},
-        "note": {"es": "Mira TU video y le corrige los niveles, la dominante de "
-                       "color y la saturacion. No impone un look: arregla el que hay.",
+        "label": {"es": "Automático", "en": "Auto"},
+        "note": {"es": "Mira TU vídeo y le corrige los niveles, la dominante de "
+                       "color y la saturación. No impone un look: arregla el que hay.",
                  "en": "Looks at YOUR video and fixes its levels, colour cast and "
                        "saturation. It imposes no look: it fixes the one you have."},
         "slope": (1.0, 1.0, 1.0), "offset": (0.0, 0.0, 0.0),
@@ -66,8 +66,8 @@ PRESETS = {
         "power": (1.05, 1.03, 0.98), "sat": 0.88,
     },
     "calido": {
-        "label": {"es": "Calido", "en": "Warm"},
-        "note": {"es": "Mas rojo y menos azul, como una tarde. Favorece la piel.",
+        "label": {"es": "Cálido", "en": "Warm"},
+        "note": {"es": "Más rojo y menos azul, como una tarde. Favorece la piel.",
                  "en": "More red, less blue, like late afternoon. Kind to skin."},
         "slope": (1.06, 1.01, 0.93), "offset": (0.008, 0.002, -0.006),
         "power": (0.98, 1.0, 1.03), "sat": 1.05,
@@ -95,7 +95,7 @@ PRESETS = {
     },
     "bn": {
         "label": {"es": "Blanco y negro", "en": "Black and white"},
-        "note": {"es": "Sin color y con algo mas de contraste.",
+        "note": {"es": "Sin color y con algo más de contraste.",
                  "en": "No colour, and a little more contrast."},
         "slope": (1.04, 1.04, 1.04), "offset": (-0.006, -0.006, -0.006),
         "power": (0.97, 0.97, 0.97), "sat": 0.0,

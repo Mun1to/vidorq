@@ -33,13 +33,13 @@ import captions as cap
 KINDS = {
     "dip": {
         "label": {"es": "Fundido a negro", "en": "Dip to black"},
-        "note": {"es": "El video se va a negro y vuelve. Para separar bloques.",
+        "note": {"es": "El vídeo se va a negro y vuelve. Para separar bloques.",
                  "en": "The video goes to black and comes back. To separate blocks."},
         "rgb": (0.0, 0.0, 0.0), "peak": 1.0, "shape": "solid",
     },
     "white": {
         "label": {"es": "Fundido a blanco", "en": "Dip to white"},
-        "note": {"es": "Igual pero en blanco. Mas alegre y menos definitivo.",
+        "note": {"es": "Igual pero en blanco. Más alegre y menos definitivo.",
                  "en": "The same in white. Brighter and less final."},
         "rgb": (1.0, 1.0, 1.0), "peak": 1.0, "shape": "solid",
     },

@@ -79,7 +79,11 @@ export default function Settings({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        <div className="modal-foot">
+        {/* A la izquierda, y no debajo de "Guardar": las dos pegadas al mismo
+            lado y en dos filas parecian un fallo de maquetacion, no dos
+            acciones distintas. Guardar es del formulario; cerrar es del
+            dialogo. */}
+        <div className="modal-foot foot-left">
           <button className="ghost" onClick={onClose}>{t("close")}</button>
         </div>
       </div>

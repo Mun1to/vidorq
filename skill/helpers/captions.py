@@ -82,7 +82,7 @@ PRESETS = {
     "marker": {
         "label": {"es": "Marcador", "en": "Marker"},
         "note": {"es": "Cada palabra sobre un trazo de rotulador que se ajusta a ella. "
-                       "En el MP4 pinta ademas la palabra que suena.",
+                       "En el MP4 pinta además la palabra que suena.",
                  "en": "Each word on a marker stroke that fits it. The MP4 also "
                        "paints the word being said."},
         "words": 2, "max_chars": 20, "upper": True,
@@ -120,7 +120,7 @@ PRESETS = {
     },
     "minimal": {
         "label": {"es": "Minimal", "en": "Minimal"},
-        "note": {"es": "Frase completa, fina y discreta. Para contenido mas serio.",
+        "note": {"es": "Frase completa, fina y discreta. Para contenido más serio.",
                  "en": "Full sentence, thin and discreet. For more serious content."},
         "words": 0, "max_chars": 42, "upper": False,
         "font": "Arial", "style": "Regular", "size": 0.048,
@@ -148,8 +148,8 @@ PRESETS = {
     },
     "ember": {
         "label": {"es": "Brasa", "en": "Ember"},
-        "note": {"es": "Halo naranja calido, como una luz detras del texto. Menos grito "
-                       "que el neon.",
+        "note": {"es": "Halo naranja cálido, como una luz detrás del texto. Menos grito "
+                       "que el neón.",
                  "en": "Warm orange halo, like a light behind the text. Less shouty than "
                        "neon."},
         "words": 2, "max_chars": 22, "upper": True,
@@ -163,8 +163,8 @@ PRESETS = {
     },
     "halo": {
         "label": {"es": "Halo", "en": "Halo"},
-        "note": {"es": "Frase entera con un resplandor calido detras. Elegante, y entra "
-                       "enfocandose.",
+        "note": {"es": "Frase entera con un resplandor cálido detrás. Elegante, y entra "
+                       "enfocándose.",
                  "en": "Full line with a warm bloom behind it. Elegant, and it focuses in."},
         "words": 0, "max_chars": 36, "upper": False,
         "font": "Arial", "style": "Bold", "size": 0.056,
@@ -185,7 +185,7 @@ PRESETS = {
     "mono": {
         "label": {"es": "Mono", "en": "Mono"},
         "note": {"es": "Monoespaciada, sobria y con contorno fino. Para tutoriales "
-                       "y cualquier cosa con codigo.",
+                       "y cualquier cosa con código.",
                  "en": "Monospaced, sober, thin outline. For tutorials and anything "
                        "with code in it."},
         "words": 0, "max_chars": 40, "upper": False,
@@ -222,7 +222,7 @@ ANIMS = {
     },
     "bounce": {
         "label": {"es": "Rebote", "en": "Bounce"},
-        "note": {"es": "Muelle de tres tiempos, la de CapCut. La mas energica.",
+        "note": {"es": "Muelle de tres tiempos, la de CapCut. La más enérgica.",
                  "en": "Three-beat spring, the CapCut one. The most energetic."},
         "scale": [(0.0, 0.35), (0.75, 1.14), (1.25, 0.93), (1.7, 1.0)],
         "fade": False, "blur": 0.0, "glow": 0.0,
@@ -243,7 +243,7 @@ ANIMS = {
     },
     "fade": {
         "label": {"es": "Fundido", "en": "Fade"},
-        "note": {"es": "Solo aparece, sin moverse. La mas sobria.",
+        "note": {"es": "Solo aparece, sin moverse. La más sobria.",
                  "en": "It just appears, no movement. The soberest."},
         "scale": [], "fade": True, "blur": 0.0, "glow": 0.0,
     },
@@ -273,7 +273,7 @@ ANIMS = {
     },
     "none": {
         "label": {"es": "Ninguna", "en": "None"},
-        "note": {"es": "Sin animacion. El subtitulo esta y ya.",
+        "note": {"es": "Sin animación. El subtítulo está y ya.",
                  "en": "No animation. The caption is just there."},
         "scale": [], "fade": False, "blur": 0.0, "glow": 0.0,
     },

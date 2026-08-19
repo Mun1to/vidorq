@@ -64,7 +64,7 @@ PROVIDERS = {
         "label": "Ollama local",
         "protocol": "ollama", "base": "", "needs_key": False,
         "key_url": "", "default": "",
-        "note": {"es": "Gratis, sin clave y sin salir de tu maquina. Lo que trae de fabrica.",
+        "note": {"es": "Gratis, sin clave y sin salir de tu máquina. Lo que trae de fábrica.",
                  "en": "Free, no key, never leaves your machine. What ships by default."},
     },
     "anthropic": {
@@ -73,7 +73,7 @@ PROVIDERS = {
         "needs_key": True, "key_url": "https://console.anthropic.com/settings/keys",
         "default": "claude-sonnet-5",
         "note": {"es": "Clave de la API, que se paga por tokens y NO va incluida en la "
-                       "suscripcion de Claude.ai.",
+                       "suscripción de Claude.ai.",
                  "en": "An API key, billed per token. A Claude.ai subscription does NOT "
                        "include it."},
     },
@@ -90,7 +90,7 @@ PROVIDERS = {
         "needs_key": True, "key_url": "https://openrouter.ai/keys",
         "default": "anthropic/claude-sonnet-4.5",
         "note": {"es": "Una sola clave para cientos de modelos de casi todos los "
-                       "proveedores. El que mas cunde si vas a probar varios.",
+                       "proveedores. El que más cunde si vas a probar varios.",
                  "en": "One key for hundreds of models across nearly every vendor. The "
                        "best value if you plan to try several."},
     },
@@ -107,7 +107,7 @@ PROVIDERS = {
     # `model_flag` es como se le dice que modelo, o "" si no se le dice.
     # Los flags de apagar herramientas no son opcionales, ver la cabecera.
     "claude-cli": {
-        "label": "Claude Code (tu suscripcion)",
+        "label": "Claude Code (tu suscripción)",
         "protocol": "cli", "base": "", "needs_key": False, "key_url": "",
         "default": "",
         # `--setting-sources ""` es lo que hace que conteste como Vidorq: sin el
@@ -122,8 +122,8 @@ PROVIDERS = {
         # de pegada delante del texto del usuario. Reemplaza el de fabrica, que
         # es lo que se quiere: aqui no hace falta un agente de programacion.
         "system_flag": "--system-prompt",
-        "note": {"es": "Usa el Claude Code que ya tienes instalado y con sesion "
-                       "iniciada, asi que gasta de tu suscripcion y NO de una clave "
+        "note": {"es": "Usa el Claude Code que ya tienes instalado y con sesión "
+                       "iniciada, así que gasta de tu suscripción y NO de una clave "
                        "de API. Sin clave, sin configurar nada.",
                  "en": "Uses the Claude Code you already have installed and signed "
                        "in, so it spends your subscription and NOT an API key. No "
@@ -140,7 +140,7 @@ PROVIDERS = {
                 "--ignore-user-config"],
         "model_flag": "--model",
         "note": {"es": "El Codex de OpenAI que ya tienes instalado. Gasta de tu "
-                       "suscripcion de ChatGPT, no de una clave.",
+                       "suscripción de ChatGPT, no de una clave.",
                  "en": "The OpenAI Codex you already have installed. Spends your "
                        "ChatGPT subscription, not a key."},
     },
