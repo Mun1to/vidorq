@@ -2505,8 +2505,12 @@ def run_job(req):
                           "unknown": not_understood,
                           "offer": ({"kind": "mp4"} if blocked else {}),
                           "ok": False}
-                past["history"] = history + [answer]
-                session_save(sesdir, past)
+                # Sin frase y sin cambios no hay turno que recordar. Guardarlo
+                # dejaba una burbuja VACIA en la conversacion, que se lee como
+                # un mensaje que se perdio por el camino.
+                if answer["you"]:
+                    past["history"] = history + [answer]
+                    session_save(sesdir, past)
                 set_progress(tr("done"), 100,
                              result=(blocked[0]["why"] if blocked
                                      else tr("not_understood")))

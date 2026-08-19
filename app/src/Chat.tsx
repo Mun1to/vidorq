@@ -177,7 +177,10 @@ export default function Chat({
             {/* De que proyecto es esta conversacion. Va aqui porque el mismo
                 video en dos proyectos son dos conversaciones distintas, y sin
                 verlo escrito parece que el programa se ha vuelto loco. */}
-            {scope && <span className="chat-scope">{scope}</span>}
+            {/* La preposicion va aqui y no en el CSS: estaba escrita como
+                `content: "en "`, o sea en español para todo el mundo, y en la
+                interfaz inglesa ponia "en test5". */}
+            {scope && <span className="chat-scope">{t("chat.in")} {scope}</span>}
             {/* Lo que tiene puesto AHORA, de un vistazo. Sin esto habia que
                 leer la conversacion hacia atras para saber si seguia en
                 vertical, y con quince turnos eso no se puede hacer. */}
