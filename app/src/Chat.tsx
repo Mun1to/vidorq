@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import { useLang } from "./i18n";
-import { IconAlert, IconCheck, IconSliders, IconSpark, IconStop, IconVideo } from "./Icons";
+import {
+  IconAlert, IconCheck, IconFolder, IconPlay, IconSliders, IconSpark, IconStop,
+  IconVideo,
+} from "./Icons";
 import logo from "./assets/logo.png";
 
 /** Un turno de la conversacion, tal y como lo guarda el motor en sesion.json. */
@@ -46,9 +49,52 @@ export const SHORTCUTS: { key: string; send: string }[] = [
   { key: "sc.piece", send: "quita un trozo" },
 ];
 
+/** Lo que la edicion tiene puesto ahora mismo, tal y como lo guarda el motor. */
+export interface Settings {
+  ratio?: string;
+  transition?: string;
+  captions?: boolean;
+  captionPreset?: string;
+  captionAnim?: string;
+  cuts?: string;
+  look?: string;
+  shake?: boolean;
+  output?: string;
+}
+
+/* Las pastillas del estado. Solo lo que esta PUESTO: una fila con "sin filtro",
+   "sin temblor" y "sin transicion" no informa de nada y ocupa el doble. */
+function StateRow({ now, label }: { now: Settings; label?: Props["label"] }) {
+  const say = label || ((_k: string, id: string) => id);
+  const bits: string[] = [];
+  if (now.ratio && now.ratio !== "source") bits.push(say("ratio", now.ratio));
+  if (now.cuts) bits.push(say("cuts", now.cuts));
+  if (now.captions) {
+    bits.push(now.captionPreset ? say("captionPreset", now.captionPreset) : "subs");
+  }
+  if (now.look) bits.push(say("look", now.look));
+  if (now.transition && now.transition !== "none") {
+    bits.push(say("transition", now.transition));
+  }
+  if (now.shake) bits.push("temblor");
+  if (!bits.length) return null;
+  return (
+    <div className="chat-state">
+      {bits.map((b) => <span key={b}>{b}</span>)}
+    </div>
+  );
+}
+
 interface Props {
   title: string;
   turns: Turn[];
+  /** Los ajustes de ahora, para la fila de estado de la cabecera. */
+  now?: Settings;
+  /** Como se lee cada valor: lo trae el motor y lo tiene ya la ventana. */
+  label?: (key: string, id: string) => string;
+  /** El archivo o el timeline del ultimo resultado, y como abrirlo. */
+  made?: string;
+  onOpen?: (what: "file" | "folder") => void;
   draft: string;
   onDraft: (v: string) => void;
   onSend: (text?: string) => void;
@@ -77,8 +123,8 @@ interface Props {
  * lado. Un limite que ademas te ofrece la salida deja de ser un muro.
  */
 export default function Chat({
-  title, turns, draft, onDraft, onSend, onOffer, onPick, onSetup, onNewVideo,
-  onStop, running, step, detail, percent, error,
+  title, turns, now, label, made, onOpen, draft, onDraft, onSend, onOffer,
+  onPick, onSetup, onNewVideo, onStop, running, step, detail, percent, error,
 }: Props) {
   const { t } = useLang();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -107,7 +153,13 @@ export default function Chat({
       <header className="chat-head">
         <div className="chat-title">
           <img src={logo} alt="" className="chat-logo" />
-          <strong>{title}</strong>
+          <div className="chat-who">
+            <strong>{title}</strong>
+            {/* Lo que tiene puesto AHORA, de un vistazo. Sin esto habia que
+                leer la conversacion hacia atras para saber si seguia en
+                vertical, y con quince turnos eso no se puede hacer. */}
+            {now && <StateRow now={now} label={label} />}
+          </div>
         </div>
         <div className="chat-acts">
           <button className="ghost small" onClick={onSetup}>
@@ -160,7 +212,21 @@ export default function Chat({
                     </div>
                   ))}
                   {turn.result && i === turns.length - 1 && (
-                    <code className="bubble-path">{turn.result}</code>
+                    made && made.startsWith("http") === false
+                      && /\.(mp4|mov|mkv|webm)$/i.test(made) && onOpen ? (
+                      // El momento en que el programa demuestra que funciona no
+                      // puede acabar en una ruta que no se puede pulsar.
+                      <div className="made">
+                        <button className="offer" onClick={() => onOpen("file")}>
+                          <IconPlay size={13} className="icon" />{t("chat.open")}
+                        </button>
+                        <button className="ghost small" onClick={() => onOpen("folder")}>
+                          <IconFolder size={13} className="icon" />{t("chat.folder")}
+                        </button>
+                      </div>
+                    ) : (
+                      <code className="bubble-path">{turn.result}</code>
+                    )
                   )}
                   {turn.offer?.kind === "mp4" && (
                     <button className="offer" onClick={() => onOffer("mp4")}>
@@ -174,7 +240,7 @@ export default function Chat({
         ))}
 
         {running && (
-          <div className="turn">
+          <div className="turn" aria-live="polite" aria-atomic="true">
             <div className="bubble them working">
               <img src={logo} alt="" className="bubble-logo" />
               <div className="bubble-text">
@@ -192,7 +258,7 @@ export default function Chat({
         )}
 
         {error && (
-          <div className="turn">
+          <div className="turn" role="alert">
             <div className="bubble them bad">
               <img src={logo} alt="" className="bubble-logo" />
               <div className="bubble-text"><p className="done-line">{error}</p></div>

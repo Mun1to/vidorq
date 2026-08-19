@@ -129,7 +129,7 @@ TEXT = {
         "stopped": "Parado",
         "no_moment": "no he encontrado el momento exacto; dime el segundo o el minuto y lo hago",
         "stopped_help": "Lo que ya estaba puesto se queda en el timeline",
-        "stopped_by_you": "Lo paraste tu a mitad. Lo que ya estaba hecho se queda.",
+        "stopped_by_you": "Lo paraste tú a mitad. Lo que ya estaba hecho se queda.",
         "timeline_made": "Timeline '%s' creado en Resolve",
         "captioning": "Poniendo los subtitulos en Resolve...",
         "captioning_n": "%d subtitulos, uno a uno",
@@ -1696,14 +1696,14 @@ def spans_ask(prompt, edl, transcript=None, lang="es"):
                          prompt.strip().rstrip("."), int(t), int(round(t + dur)))})
         t += dur
     return [{"what": "at",
-             "question": ("¿En que parte?" if lang == "es" else "Which part?"),
+             "question": ("¿En qué parte?" if lang == "es" else "Which part?"),
              "options": opts}]
 
 
 ASK_WORDS = {
-    "es": {"transition": "¿Que transicion?", "captionPreset": "¿Que estilo de subtitulo?",
-           "captionAnim": "¿Como quieres que entren?", "look": "¿Que filtro de color?",
-           "ratio": "¿Que formato?", "cuts": "¿Como quieres que lo corte?"},
+    "es": {"transition": "¿Qué transición?", "captionPreset": "¿Qué estilo de subtítulo?",
+           "captionAnim": "¿Cómo quieres que entren?", "look": "¿Qué filtro de color?",
+           "ratio": "¿Qué formato?", "cuts": "¿Cómo quieres que lo corte?"},
     "en": {"transition": "Which transition?", "captionPreset": "Which caption look?",
            "captionAnim": "How should they come in?", "look": "Which colour filter?",
            "ratio": "Which frame?", "cuts": "How should I cut it?"},

@@ -5,7 +5,7 @@ import Brand from "./Brand";
 import Settings from "./Settings";
 import Guia from "./Guia";
 import Gallery from "./Gallery";
-import Chat, { Turn } from "./Chat";
+import Chat, { Settings as ChatState, Turn } from "./Chat";
 import logo from "./assets/logo.png";
 import {
   IconAlert, IconBook, IconBrand, IconCheck, IconChevron, IconClock, IconDrop,
@@ -100,6 +100,11 @@ function App() {
   const [guiaOpen, setGuiaOpen] = useState(() => !localStorage.getItem("vidorq.guiaVista"));
   const [phase, setPhase] = useState<Phase>("idle");
   const [progress, setProgress] = useState<Progress>({ step: "", percent: 0 });
+  // Lo que la edicion tiene puesto ahora, y el ultimo archivo que salio. Los dos
+  // los servia /session desde el principio; la ventana simplemente no los leia,
+  // asi que no habia forma de saber en que estado estaba tu propio video.
+  const [now, setNow] = useState<ChatState>({});
+  const [made, setMade] = useState("");
   const [engineUp, setEngineUp] = useState<boolean | null>(null);
   const [retry, setRetry] = useState(0);
   const [dragOver, setDragOver] = useState(false);
@@ -221,7 +226,9 @@ function App() {
   useEffect(() => {
     if (!video) { setChat([]); return; }
     if (phase === "running") return;
-    apiGet<{ history: Turn[] }>(`/session?video=${encodeURIComponent(video)}`)
+    apiGet<{ history: Turn[]; settings?: ChatState; result?: string }>(
+      `/session?video=${encodeURIComponent(video)}`)
+      .then((d) => { setNow(d.settings || {}); setMade(d.result || ""); return d; })
       // Lo que sigue en la fila todavia no existe para el motor, asi que se
       // vuelve a poner detras: sin esto, tus mensajes en espera desaparecian de
       // la pantalla en cuanto contestaba el turno anterior.
@@ -237,6 +244,37 @@ function App() {
       : what === "captionPreset" ? capStyles : [];
     const hit = lista.find((x) => x.id === id);
     return hit ? hit.label : (transitions[id] || ratios[id] || id);
+  }
+
+  /** El nombre de un ajuste tal y como se lee, no su id interno. */
+  function labelOf(key: string, id: string) {
+    const lista = key === "look" ? colours
+      : key === "captionAnim" ? capAnims
+      : key === "captionPreset" ? capStyles : [];
+    const hit = lista.find((x) => x.id === id);
+    if (hit) return hit.label;
+    if (key === "transition") return transitions[id] || id;
+    if (key === "ratio") return ratios[id] || id;
+    if (key === "cuts") return t(`preset.${id}` as never) || id;
+    return id;
+  }
+
+  /**
+   * Abrir lo que ha salido. El vidorq corre dentro de una ventana de Tauri, que
+   * SI puede abrir un archivo del disco; en un navegador normal (que es donde se
+   * prueba el diseño) no hay nada que abrir y no pasa nada.
+   */
+  async function openMade(what: "file" | "folder") {
+    if (!made) return;
+    try {
+      const mod = await import("@tauri-apps/plugin-opener");
+      if (what === "folder") await mod.revealItemInDir(made);
+      else await mod.openPath(made);
+    } catch (e) {
+      // Sin Tauri detras no hay abridor. Se dice en la consola y se sigue: no es
+      // motivo para romper la conversacion.
+      console.warn("no puedo abrirlo desde aqui:", e);
+    }
   }
 
   function askMore(text?: string) {
@@ -439,6 +477,10 @@ function App() {
         <Chat
           title={fileName || t("head.title")}
           turns={chat}
+          now={now}
+          label={labelOf}
+          made={made}
+          onOpen={openMade}
           draft={followUp}
           onDraft={setFollowUp}
           onSend={(text) => askMore(text)}
@@ -448,6 +490,7 @@ function App() {
           onNewVideo={() => {
             setPhase("idle"); setProgress({ step: "", percent: 0 }); setVideo("");
             setChat([]); setFollowUp(""); setSetup(false);
+            setNow({}); setMade("");
           }}
           running={phase === "running"}
           onStop={stopEdit}
