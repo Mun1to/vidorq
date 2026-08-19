@@ -126,6 +126,8 @@ const es = {
   "sc.vertical": "Vertical",
   "sc.zoom": "Zoom",
   "sc.piece": "Quitar un trozo",
+  "sc.rotulo": "Rotulo",
+  "sc.chapa": "Chapa",
   "more.note": "Se aplica sobre este montaje. No vuelve a transcribir, así que tarda segundos en vez de minutos.",
 
   "guide.title": "Empezar con Resolve",
@@ -333,6 +335,8 @@ const en: Record<keyof typeof es, string> = {
   "sc.vertical": "Vertical",
   "sc.zoom": "Zoom",
   "sc.piece": "Drop a bit",
+  "sc.rotulo": "Lower third",
+  "sc.chapa": "Badge",
   "more.note": "Applied on top of this edit. It does not transcribe again, so it takes seconds instead of minutes.",
 
   "guide.title": "Start with Resolve",

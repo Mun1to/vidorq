@@ -47,6 +47,11 @@ export const SHORTCUTS: { key: string; send: string }[] = [
   // señales uno. Saberse el segundo de memoria no era trabajo del usuario.
   { key: "sc.zoom", send: "haz un zoom" },
   { key: "sc.piece", send: "quita un trozo" },
+  // Estos dos SI dejan la frase a medias, y es lo correcto: un rotulo sin texto
+  // no es un rotulo a medio pedir, es un rotulo vacio. Lo unico que falta es lo
+  // que tiene que decir, asi que se deja el cursor justo ahi.
+  { key: "sc.rotulo", send: "pon un rotulo que diga " },
+  { key: "sc.chapa", send: "pon una chapa que diga " },
 ];
 
 /** Lo que la edicion tiene puesto ahora mismo, tal y como lo guarda el motor. */
@@ -130,6 +135,10 @@ export default function Chat({
 }: Props) {
   const { t } = useLang();
   const bodyRef = useRef<HTMLDivElement>(null);
+  // El redactor, para poder dejar el cursor dentro cuando un atajo escribe una
+  // frase a medias. Sin esto hay que ir a pulsar la caja antes de escribir, que
+  // es justo el clic que el atajo venia a ahorrar.
+  const askRef = useRef<HTMLInputElement>(null);
 
   /* Siempre al ultimo mensaje: una conversacion que se queda mirando el
      principio es una conversacion en la que no te enteras de lo que acaba de
@@ -279,7 +288,13 @@ export default function Chat({
           <button key={sc.key} onClick={() => {
             // Los que acaban en espacio piden un numero: se dejan escritos en
             // el redactor para que solo haya que completarlos.
-            if (sc.send.endsWith(" ")) onDraft(sc.send);
+            if (sc.send.endsWith(" ")) {
+              onDraft(sc.send);
+              // Al final del texto, no al principio: lo que falta va detras.
+              const el = askRef.current;
+              if (el) { el.focus(); requestAnimationFrame(() =>
+                el.setSelectionRange(el.value.length, el.value.length)); }
+            }
             else onSend(sc.send);
           }}>{t(sc.key as never)}</button>
         ))}
@@ -287,6 +302,7 @@ export default function Chat({
 
       <div className="chat-foot">
         <input
+          ref={askRef}
           value={draft}
           onChange={(e) => onDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") onSend(); }}
