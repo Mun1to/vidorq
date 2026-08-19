@@ -49,8 +49,13 @@ con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en dire
       Munir el 2026-08-17: "trabaja más en el backend". Condición de desbloqueo: que alguien
       con Studio confirme que el panel se dibuja, o que Blackmagic lo abra en Free.
       `resolve/VidorqProbe.py` queda en el repo para medir en qué llamada exacta corta.
-- [ ] **Historial de ediciones**: la entrada existe en la barra lateral pero está vacía, porque
-      el motor no guarda nada de las ediciones anteriores. Siguiente pieza obvia del backend.
+- [x] **Historial de ediciones** (2026-08-19): la entrada de la barra lateral ya no está
+      vacía. Cada edición se anota en `%APPDATA%\Vidorq\ediciones.json` (las tres salidas:
+      terminada, parada por ti y fallida) y se sirve en `GET /history`. La lista agrupa por
+      día y **cada fila abre su vídeo**, con su conversación entera detrás. Va aparte de
+      `sesion.json` a propósito: esa responde "qué le pedí a este vídeo en este proyecto",
+      y el historial responde "qué hice el martes", que es lo que se pregunta cuando ya no
+      te acuerdas ni del nombre del archivo. Verificado con las tres salidas en pantalla.
 - [x] **Compatibilidad de Resolve 21 verificada por API** (2026-08-17, versión 21.0.4.5 Free).
       El puente responde `{"connected": true, "product": "DaVinci Resolve", "version": "21.0.4.5"}`
       y devuelve proyecto y timeline reales. La actualización del instalador no se llevó por

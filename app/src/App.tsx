@@ -6,6 +6,7 @@ import Settings from "./Settings";
 import Guia from "./Guia";
 import Gallery from "./Gallery";
 import Words from "./Words";
+import History from "./History";
 import Chat, { Settings as ChatState, Turn } from "./Chat";
 import logo from "./assets/logo.png";
 import {
@@ -487,11 +488,9 @@ function App() {
       </aside>
 
       {view === "history" ? (
-        <section className="run">
-          <IconClock size={40} className="icon" />
-          <h2>{t("history.title")}</h2>
-          <p className="stepn">{t("history.sub")}</p>
-        </section>
+        // Pulsar una edicion vuelve a su video, que es lo unico que se puede
+        // querer hacer con una fila del historial: seguir con aquello.
+        <History onOpen={(v) => { setVideo(v); setView("edit"); }} />
       ) : chatting ? (
         <Chat
           title={fileName || t("head.title")}

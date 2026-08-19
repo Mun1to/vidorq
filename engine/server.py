@@ -11,6 +11,8 @@ Endpoints:
     POST /workspaces -> {"create": name} | {"activate": name}
     POST /profile    -> saves brand profile into the active workspace
     POST /config     -> {"anthropicKey"|"openaiKey"|"geminiKey": ...} -> config.json
+    GET  /history    -> {"edits": [...]} every edit made, newest first
+    POST /history    -> clears that list
     POST /edit       -> {"video", "preset", "captions", "output", "prompt"} starts a job
 
 Workspaces live in %APPDATA%/Vidorq/workspaces/<name>/ (brand.json + future memory);
@@ -31,6 +33,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import traceback
 import urllib.request
 from collections import deque
@@ -1659,6 +1662,66 @@ def session_dir(video, scope=None):
     return workdir_for(video) / "p" / (scope or scope_now())
 
 
+# --------------------------------------------------------------------------- #
+# Historial de ediciones
+# --------------------------------------------------------------------------- #
+# Vive en la carpeta de configuracion y NO junto al video, a proposito: el
+# historial es de la persona, no del archivo. La pregunta que responde es "que
+# hice el martes" cuando ya no se recuerda ni como se llamaba aquel video, y
+# esa pregunta no se puede contestar desde una carpeta que hay que encontrar
+# antes. La sesion de al lado (`sesion.json`) sigue siendo lo otro: la
+# conversacion de ESE video en ESE proyecto, para poder retocarlo.
+LEDGER = CONFIG_DIR / "ediciones.json"
+LEDGER_MAX = 200
+
+
+def ledger_read():
+    try:
+        got = json.loads(LEDGER.read_text(encoding="utf-8"))
+        return got if isinstance(got, list) else []
+    except Exception:
+        return []
+
+
+def ledger_add(entry):
+    """Anota una edicion. Nunca revienta el turno que acaba de hacerla."""
+    try:
+        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        rows = ledger_read()
+        rows.append(entry)
+        LEDGER.write_text(
+            json.dumps(rows[-LEDGER_MAX:], ensure_ascii=False, indent=1),
+            encoding="utf-8")
+    except Exception:
+        # Perder la anotacion es menos grave que perder la edicion, igual que en
+        # session_save: se cuenta por consola y se sigue.
+        traceback.print_exc()
+
+
+def ledger_entry(video, prompt, output, scope, started, **more):
+    """La forma de una fila, en un solo sitio.
+
+    Hay tres finales posibles para una edicion (terminada, parada por ti, y
+    fallida) y las tres se anotan. Una que solo guardara las que salieron bien
+    contaria una historia falsa del dia.
+    """
+    row = {"at": time.time(),
+           "seconds": round(max(0.0, time.time() - started), 1),
+           "video": video or "",
+           "name": Path(video).name if video else "",
+           "prompt": prompt or "",
+           "output": output or "",
+           "scope": scope or "",
+           "did": [],
+           "cuts": 0,
+           "result": "",
+           "ok": True,
+           "stopped": False,
+           "error": ""}
+    row.update(more)
+    return row
+
+
 # Que sabe hacer cada salida. Una sola tabla, porque antes esto vivia como una
 # condicion suelta en el render (la transicion solo se pasaba al MP4) y en la
 # salida a Resolve se caia sin decir nada: pediste transiciones, no pasaron, y
@@ -2012,6 +2075,12 @@ def run_job(req):
     # en la primera fase, antes de que el cuerpo haya definido nada.
     stop_video = req.get("video") or ""
     stop_prompt = (req.get("prompt") or "").strip()
+    # Cuando empezo, para poder decir en el historial cuanto tardo. Fuera del
+    # try por lo mismo que los dos de arriba: parar puede pasar antes. Y el
+    # proyecto, para que una edicion parada se anote con el suyo en vez de
+    # aparecer sin proyecto en una lista donde las demas si lo llevan.
+    started = time.time()
+    job_scope = ""
     try:
         video = req["video"]
         preset = req.get("preset", "clean")
@@ -2055,7 +2124,7 @@ def run_job(req):
         # De que proyecto es esta conversacion. Se calcula UNA vez por turno:
         # preguntarselo al puente cuesta una llamada y el proyecto no cambia a
         # mitad de una edicion.
-        scope = scope_now()
+        scope = job_scope = scope_now()
         past0, sesdir = session_for(video, scope)
         again = bool(req.get("refine")) and bool(past0.get("edl"))
         keep_edl, history, turn = None, [], 1
@@ -2566,6 +2635,11 @@ def run_job(req):
             "timelines": made_names,
             "result": result,
         })
+        # La misma frase que ve en el chat, no el prompt crudo: en la primera
+        # edicion el prompt esta vacio y la frase dice "primera edicion".
+        ledger_add(ledger_entry(video, answer["you"], output, scope, started,
+                                did=answer["did"], cuts=len(edl), result=result,
+                                timelines=made_names))
 
         if srt_paths:
             result += "  |  " + tr("srt_made", ", ".join(Path(p).name for p in srt_paths))
@@ -2575,9 +2649,13 @@ def run_job(req):
         # estan en el timeline y borrarlos seria una sorpresa peor. Se dice lo
         # que quedo a medias y ya.
         note_stopped(stop_video, stop_prompt)
+        ledger_add(ledger_entry(stop_video, stop_prompt, req.get("output") or "",
+                                job_scope, started, ok=False, stopped=True))
         set_stopped(tr("stopped"), tr("stopped_help"))
     except Exception as e:
         traceback.print_exc()
+        ledger_add(ledger_entry(stop_video, stop_prompt, req.get("output") or "",
+                                job_scope, started, ok=False, error=str(e)[:200]))
         set_progress("", 0, error=str(e))
     finally:
         _busy = False
@@ -2704,6 +2782,10 @@ class Handler(BaseHTTPRequestHandler):
                             "result": st.get("result", ""),
                             "scope": st.get("scope") or scope_now(),
                             "can": bool(st.get("edl"))})
+        elif self.path == "/history":
+            # Al reves que en el archivo: lo ultimo arriba, que es lo que se
+            # busca al abrir la pestaña.
+            self._send({"edits": list(reversed(ledger_read()))})
         elif self.path.startswith("/words"):
             # Las palabras con su segundo, tal y como salieron de la
             # transcripcion. Se sirven planas (una lista, no segmentos) porque
@@ -2872,6 +2954,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(seek_to(float(body.get("at", 0.0))))
             except Exception as e:
                 traceback.print_exc()
+                self._send({"ok": False, "error": str(e)[:200]})
+        elif self.path == "/history":
+            # Borrar el historial es suyo, no mio: son sus ediciones y su disco.
+            # Solo se borra la lista; los videos y los timelines no se tocan.
+            try:
+                LEDGER.unlink(missing_ok=True)
+                self._send({"ok": True, "edits": []})
+            except Exception as e:
                 self._send({"ok": False, "error": str(e)[:200]})
         elif self.path == "/stop":
             # Parar el turno en marcha. Idempotente y sin cuerpo: se puede
