@@ -1195,10 +1195,16 @@ def to_original(t, edl):
     video ends is a mistake worth dropping, not rounding to the last frame.
     """
     left = max(0.0, float(t))
-    for seg in edl:
+    for i, seg in enumerate(edl):
         a, b = float(seg["start"]), float(seg["end"])
         span = b - a
-        if left <= span:
+        # Menor ESTRICTO salvo en el ultimo. El final de un trozo y el principio
+        # del siguiente son el mismo segundo del montaje, y con `<=` ese segundo
+        # se resolvia al final del trozo de delante, que es material CORTADO:
+        # justo el fotograma que no esta. Lo que el usuario ve en ese instante
+        # es el plano siguiente. En el ultimo si vale, porque ahi no hay
+        # siguiente y el final del video es un sitio legitimo al que apuntar.
+        if left < span or (left == span and i == len(edl) - 1):
             return a + left
         left -= span
     return None
