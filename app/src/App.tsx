@@ -220,6 +220,7 @@ function App() {
   // La preview de la combinacion elegida AHORA: estilo, entrada, formato y el
   // recorte real sobre el video del usuario. Se pide animada cuando hay entrada,
   // porque un movimiento no se ve en una foto quieta.
+  const [previewOk, setPreviewOk] = useState(true);
   const previewUrl = useMemo(() => {
     if (!captions && ratio === "source") return "";
     const q = new URLSearchParams({ ratio, lang, video });
@@ -237,7 +238,10 @@ function App() {
     return `${ENGINE}/preview?${q.toString()}`;
   }, [captions, capStyle, capAnim, ratio, video, lang, colour]);
 
-  useEffect(() => { setPreviewReady(false); }, [previewUrl]);
+  // Si la foto no llega (el motor apagado, sobre todo), la seccion entera se
+  // va. Antes se quedaba el titulo "Asi va a quedar" con una caja vacia debajo
+  // y una raya de un pixel, que es peor que no prometer nada.
+  useEffect(() => { setPreviewReady(false); setPreviewOk(true); }, [previewUrl]);
 
   // Al elegir un video se recupera lo que ya se le pidio, para poder seguir la
   // conversacion aunque la ventana se haya cerrado por el medio.
@@ -625,7 +629,13 @@ function App() {
           {engineUp === false && (
             <div className="alert">
               <IconAlert size={16} className="icon" />
-              <span>{t("alert.engineOff")} <code>engine\start_engine.bat</code></span>
+              {/* Primero lo que de verdad hace un usuario, que es un clic en
+                  Resolve; el .bat es para quien tiene el repositorio delante.
+                  Al reves mandaba a todo el mundo a buscar un archivo suelto. */}
+              <span>
+                {t("alert.engineOff")} <code>Workspace &gt; Scripts &gt; Vidorq</code>.{" "}
+                {t("alert.engineOff2")} <code>engine\start_engine.bat</code>
+              </span>
             </div>
           )}
           {phase === "error" && progress.error && (
@@ -740,7 +750,7 @@ function App() {
 
           {seeVideo && <small className="capnote">{t("vision.note")}</small>}
 
-          {previewUrl && (
+          {previewUrl && previewOk && (
             <section className="preview">
               <span className="preview-head">
                 {t("preview.head")}
@@ -755,7 +765,7 @@ function App() {
                   src={previewUrl}
                   alt=""
                   onLoad={() => setPreviewReady(true)}
-                  onError={() => setPreviewReady(true)}
+                  onError={() => { setPreviewReady(true); setPreviewOk(false); }}
                 />
               </div>
               <small className="under">{t("preview.note")}</small>

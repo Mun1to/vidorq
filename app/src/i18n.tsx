@@ -35,7 +35,8 @@ const es = {
   "out.mp4": "MP4 directo",
   "out.resolve": "Timeline en Resolve",
 
-  "alert.engineOff": "El motor local está apagado. Arráncalo con",
+  "alert.engineOff": "El motor está apagado. Se enciende solo desde Resolve:",
+  "alert.engineOff2": "Y si trabajas desde el código, con",
   "alert.noEngine": "No se pudo hablar con el motor. ¿Está encendido?",
 
   "drop.inproject": "O elige uno de este proyecto de Resolve",
@@ -282,7 +283,8 @@ const en: Record<keyof typeof es, string> = {
   "out.mp4": "Direct MP4",
   "out.resolve": "Timeline in Resolve",
 
-  "alert.engineOff": "The local engine is off. Start it with",
+  "alert.engineOff": "The engine is off. Resolve turns it on for you:",
+  "alert.engineOff2": "Or, if you run it from the source, with",
   "alert.noEngine": "Could not reach the engine. Is it running?",
 
   "drop.inproject": "Or pick one from this Resolve project",
