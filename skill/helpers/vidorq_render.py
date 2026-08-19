@@ -19,6 +19,7 @@ Usage:
     python vidorq_render.py <source> <edl.json> <transcript.json> <out.mp4>
                             [--no-captions] [--no-zoom] [--preset <name>]
                             [--anim <name>] [--chunks <ready.json>]
+    Ojo con --chunks: esos vienen en el reloj del MONTAJE, no en el del original.
                             [--transition <none|dissolve|dip|white|slide|wipe|zoom>]
                             [--ratio <source|vertical|portrait|square|wide>]
                             [--crop-x <0..1>]   0 left, 0.5 centre, 1 right
@@ -166,7 +167,17 @@ def shake_crop(zw, zh, zx, zy, secs=SHAKE_SECONDS, hz=SHAKE_HZ):
 
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
                  preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5,
-                 look="", cdl=None):
+                 look="", cdl=None, chunks_edited=False):
+    """`chunks_edited` dice en que reloj vienen los subtitulos.
+
+    Los que se construyen aqui salen de la transcripcion, o sea del reloj del
+    ORIGINAL, y cada trozo se filtra con sus propios segundos de origen. Los que
+    llegan por `--chunks` ya vienen del MONTAJE (el motor los arma sobre la
+    transcripcion recortada), y filtrarlos con el reloj del original los tira
+    todos: un cartel pedido en el segundo 1 del montaje cae antes del principio
+    del primer trozo y no se dibuja. Medido: cero lineas de Dialogue en los dos
+    trozos de un EDL de prueba.
+    """
     src = av.open(source)
     vs = src.streams.video[0]
     w, h = vs.codec_context.width, vs.codec_context.height
@@ -192,6 +203,10 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
     encoder = "h264_nvenc"
     seg_files = []
     done = 0
+    # Donde empieza cada trozo en el MONTAJE: la suma de lo que dura todo lo
+    # anterior. Es el reloj que ve el usuario y el de los chunks que llegan
+    # hechos de fuera.
+    ed_at = 0.0
     for i, seg in enumerate(edl):
         s, e = float(seg["start"]), float(seg["end"])
         zoom = float(seg.get("zoom", 1.0)) if do_zoom else 1.0
@@ -231,9 +246,11 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
         if look_vf:
             vf.append(look_vf)
         if do_caps:
-            cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, s, e, out_w, out_h,
+            a0, b0 = (ed_at, ed_at + (e - s)) if chunks_edited else (s, e)
+            cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, a0, b0, out_w, out_h,
                        preset, anim)
             vf.append(f"subtitles=seg_{i:04d}.ass")
+        ed_at += e - s
         seg_name = f"seg_{i:04d}.mp4"
 
         def cmd_for(enc):
@@ -540,7 +557,7 @@ def main():
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
                                  do_caps, do_zoom, preset, anim, ratio, crop_x,
-                                 look, cdl)
+                                 look, cdl, chunks_edited=bool(given_chunks))
         render_audio(source, edl, tmp_a, voices)
         concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out, transition)
     finally:
