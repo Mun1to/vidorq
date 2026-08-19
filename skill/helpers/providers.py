@@ -26,6 +26,12 @@ Vidorq to call". That was wrong, and it was measured wrong: `claude -p`,
 which is the entire contract this file needs. Paying for an API key while a
 subscription sits unused was a worse answer than checking.
 
+A third thing makes it CORRECT, and it was found the hard way: a coding-agent
+CLI reads its owner's own configuration. Ask Claude Code a plain question on a
+machine whose user has a dialect output style set, and the answer comes back in
+that dialect. Vidorq shows those answers in its window and parses them as JSON,
+so every CLI here runs with the user's settings switched off.
+
 Two things make that safe, and both are load-bearing. These are AGENTS, with
 file tools, and the prompt they get carries a transcript from a stranger's
 video. So the prompt goes in on STDIN, never as an argument, and the tools are
@@ -104,8 +110,18 @@ PROVIDERS = {
         "label": "Claude Code (tu suscripcion)",
         "protocol": "cli", "base": "", "needs_key": False, "key_url": "",
         "default": "",
-        "cmd": ["claude", "-p", "--tools", "", "--permission-mode", "plan"],
+        # `--setting-sources ""` es lo que hace que conteste como Vidorq: sin el
+        # carga la configuracion personal del usuario (su estilo de salida, su
+        # CLAUDE.md global) y contesta con ella. Medido: pregunta neutra, y la
+        # respuesta salio en el dialecto que su dueno tiene configurado. Eso se
+        # ve en la ventana y, peor, se parsea como JSON.
+        "cmd": ["claude", "-p", "--tools", "", "--permission-mode", "plan",
+                "--setting-sources", ""],
         "model_flag": "--model",
+        # Su instruccion va donde tiene que ir, en el prompt de sistema, en vez
+        # de pegada delante del texto del usuario. Reemplaza el de fabrica, que
+        # es lo que se quiere: aqui no hace falta un agente de programacion.
+        "system_flag": "--system-prompt",
         "note": {"es": "Usa el Claude Code que ya tienes instalado y con sesion "
                        "iniciada, asi que gasta de tu suscripcion y NO de una clave "
                        "de API. Sin clave, sin configurar nada.",
@@ -117,7 +133,11 @@ PROVIDERS = {
         "label": "Codex (tu ChatGPT)",
         "protocol": "cli", "base": "", "needs_key": False, "key_url": "",
         "default": "",
-        "cmd": ["codex", "exec", "--skip-git-repo-check", "--sandbox", "read-only"],
+        # `--ignore-user-config` por lo mismo que en Claude: sin el se trae el
+        # ~/.codex/config.toml del usuario, con sus instrucciones. Aqui no hay
+        # flag de prompt de sistema, asi que ese sigue viajando pegado delante.
+        "cmd": ["codex", "exec", "--skip-git-repo-check", "--sandbox", "read-only",
+                "--ignore-user-config"],
         "model_flag": "--model",
         "note": {"es": "El Codex de OpenAI que ya tienes instalado. Gasta de tu "
                        "suscripcion de ChatGPT, no de una clave.",
@@ -286,10 +306,19 @@ def _cli(p, model, system, user, timeout):
     cmd = [exe] + p["cmd"][1:]
     if model and p.get("model_flag"):
         cmd += [p["model_flag"], model]
+    # La instruccion de Vidorq, en el sitio donde una CLI la respeta de verdad.
+    # Va en el comando y no en stdin porque es corta y fija (el catalogo de
+    # opciones); el que puede pesar decenas de kilobytes es el user, y ese sigue
+    # entrando por la tuberia.
+    if p.get("system_flag") and system:
+        cmd += [p["system_flag"], system]
+        payload = user
+    else:
+        payload = "%s\n\n%s" % (system, user)
     work = tempfile.mkdtemp(prefix="vidorq_cli_")
     try:
         r = subprocess.run(
-            cmd, input=("%s\n\n%s" % (system, user)).encode("utf-8"),
+            cmd, input=payload.encode("utf-8"),
             cwd=work, capture_output=True, timeout=timeout,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except subprocess.TimeoutExpired:
