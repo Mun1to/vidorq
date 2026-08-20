@@ -3147,6 +3147,14 @@ class Handler(BaseHTTPRequestHandler):
                         "looks": looks.catalogue(lang),
                         "cards": overlays.kind_list(lang, only=overlays.WITH_TEXT),
                         "transitions": TRANSITION_LABELS.get(lang, TRANSITION_LABELS["es"]),
+                        # Cuales sabe hacer Resolve. Lo sabe la tabla
+                        # CAPABILITIES y lo tenian copiado a mano DOS ficheros
+                        # de la ventana, que ya se habian separado entre si: la
+                        # galeria contaba el destello y el panel no.
+                        "resolveTransitions": [
+                            t for t in TRANSITION_LABELS.get(
+                                lang, TRANSITION_LABELS["es"])
+                            if t == "none" or can_do("resolve", "transition", t)],
                         "ratios": RATIO_LABELS.get(lang, RATIO_LABELS["es"])})
         else:
             self._send({"error": "not found"}, 404)

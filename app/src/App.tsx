@@ -16,10 +16,6 @@ import {
 } from "./Icons";
 import "./App.css";
 
-// Las unicas que Resolve sabe hacer, porque solo TAPAN el corte y no hay que
-// mezclar los dos planos. Medido el 19-ago con el fotograma de cada union.
-const RESOLVE_TRANS = ["none", "dip", "white"];
-
 type Preset = "clean" | "podcast" | "montage";
 type Output = "mp4" | "resolve";
 type Phase = "idle" | "running" | "done" | "error" | "stopped";
@@ -74,6 +70,9 @@ function App() {
   const [langs, setLangs] = useState<Record<string, string>>({});
   const [transition, setTransition] = useState("none");
   const [transitions, setTransitions] = useState<Record<string, string>>({});
+  // Cuales de ellas sabe hacer Resolve. Lo dice el motor, que es quien tiene la
+  // tabla; tenerlo escrito aqui es como se separo de la galeria.
+  const [resolveTrans, setResolveTrans] = useState<string[]>(["none"]);
   // El filtro de color. Vacio es "sin filtro", igual que en el motor.
   const [colours, setColours] = useState<CaptionStyle[]>([]);
   const [colour, setColour] = useState("");
@@ -172,6 +171,7 @@ function App() {
       default: string; list: CaptionStyle[];
       anims?: CaptionStyle[]; animOf?: Record<string, string>;
       langs?: Record<string, string>; transitions?: Record<string, string>;
+      resolveTransitions?: string[];
       ratios?: Record<string, string>; looks?: CaptionStyle[];
       cards?: CaptionStyle[];
     }>(`/captions/presets?lang=${lang}`)
@@ -183,6 +183,7 @@ function App() {
         if (c.animOf) setAnimOf(c.animOf);
         if (c.langs) setLangs(c.langs);
         if (c.transitions) setTransitions(c.transitions);
+        if (c.resolveTransitions) setResolveTrans(c.resolveTransitions);
         if (c.ratios) setRatios(c.ratios);
         if (Array.isArray(c.looks)) setColours(c.looks);
         if (Array.isArray(c.cards)) setCards(c.cards);
@@ -883,7 +884,7 @@ function App() {
                 <div className="capstyles anims">
                   <span className="caplabel">{t("transition")}</span>
                   {Object.entries(transitions).map(([id, label]) => {
-                    const fuera = output === "resolve" && !RESOLVE_TRANS.includes(id);
+                    const fuera = output === "resolve" && !resolveTrans.includes(id);
                     return (
                       <button key={id}
                               className={`capstyle ${transition === id ? "sel" : ""}${fuera ? " elsewhere" : ""}`}
@@ -895,7 +896,7 @@ function App() {
                   })}
                   <small className="capnote">
                     {transition === "none" ? t("transition.noneNote")
-                     : output === "resolve" && !RESOLVE_TRANS.includes(transition)
+                     : output === "resolve" && !resolveTrans.includes(transition)
                        ? t("transition.mp4only") : t("transition.note")}
                   </small>
                 </div>
@@ -916,7 +917,8 @@ function App() {
           styles={capStyles} anims={capAnims} animOf={animOf}
           style={capStyle} anim={capAnim} ratio={ratio} video={video}
           colours={colours} colour={colour}
-          ratios={ratios} transitions={transitions} transition={transition}
+          ratios={ratios} transitions={transitions} resolveTrans={resolveTrans}
+          transition={transition}
           onRatio={setRatio} onTransition={setTransition}
           cards={cards}
           // Un efecto no se "pone": se pide, y lo unico que falta es lo que

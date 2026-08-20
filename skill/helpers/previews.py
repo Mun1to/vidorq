@@ -567,6 +567,11 @@ def transition_still(kind, ratio="source", video="", width=1920, height=1080,
         filtro.append("[a]drawbox=color=black@0.62:t=fill[out]")
     elif kind == "white":
         filtro.append("[a]drawbox=color=white@0.62:t=fill[out]")
+    elif kind == "flash":
+        # El destello es el mismo blanco pero mas corto y mas fuerte: en su
+        # punto alto casi no queda imagen, y eso es justo lo que hay que ver
+        # para distinguirlo del fundido a blanco de al lado.
+        filtro.append("[a]drawbox=color=white@0.88:t=fill[out]")
     elif kind == "zoom":
         filtro.append("[a]scale=iw*1.35:ih*1.35,crop=iw/1.35:ih/1.35[out]")
     elif kind == "wipe":

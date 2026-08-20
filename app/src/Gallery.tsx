@@ -5,8 +5,6 @@ import { IconCheck, IconDrop, IconPlay, IconSpark, IconVideo, IconZap } from "./
 
 // Las que Resolve SI puede hacer por su API: son solidos con opacidad animada.
 // Las otras tres necesitan mezclar los dos planos, y eso Resolve no lo da.
-const RESOLVE_OK = ["dip", "white", "flash"];
-
 /**
  * La pared de estilos, como la de CapCut.
  *
@@ -25,7 +23,7 @@ type Tab = "style" | "anim" | "look" | "ratio" | "transition" | "card";
 
 export default function Gallery({
   styles, anims, animOf, style, anim, ratio, video, colours, colour,
-  ratios, transitions, transition, onRatio, onTransition,
+  ratios, transitions, resolveTrans, transition, onRatio, onTransition,
   cards, onCard,
   onStyle, onAnim, onColour, onClose,
 }: {
@@ -40,6 +38,10 @@ export default function Gallery({
   colour: string;
   ratios: Record<string, string>;
   transitions: Record<string, string>;
+  /* Cuales sabe hacer Resolve. Viene del motor y no escrito aqui: estaba
+     copiado a mano en este fichero y en App.tsx, y las dos copias ya se habian
+     separado (esta contaba el destello y la otra no). */
+  resolveTrans: string[];
   transition: string;
   onRatio: (id: string) => void;
   onTransition: (id: string) => void;
@@ -115,7 +117,7 @@ export default function Gallery({
           .map(([id, label]) => ({
             id, label,
             // Lo unico que hace falta saber para elegir una: donde funciona.
-            note: RESOLVE_OK.includes(id) ? t("gal.tr.both") : t("gal.tr.mp4"),
+            note: resolveTrans.includes(id) ? t("gal.tr.both") : t("gal.tr.mp4"),
             pick: id }))
       : tab === "look"
       ? colours.map((c) => ({ ...c, pick: c.id }))
@@ -200,8 +202,8 @@ export default function Gallery({
                       onError={() => setReady((r) => ({ ...r, [key]: true }))}
                     />
                     {tab === "transition" && (
-                      <span className={`tile-where ${RESOLVE_OK.includes(it.id) ? "ok" : "only"}`}>
-                        {RESOLVE_OK.includes(it.id) ? t("gal.tr.both") : t("gal.tr.mp4")}
+                      <span className={`tile-where ${resolveTrans.includes(it.id) ? "ok" : "only"}`}>
+                        {resolveTrans.includes(it.id) ? t("gal.tr.both") : t("gal.tr.mp4")}
                       </span>
                     )}
                     {sel && <span className="tile-tick"><IconCheck size={13} /></span>}
