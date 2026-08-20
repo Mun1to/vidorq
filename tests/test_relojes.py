@@ -210,6 +210,31 @@ def casos():
     yield "tramos: el segundo cae detras", (t[1]["from"], t[1]["to"]), (10.0, 20.0)
     yield "tramos: lo que se dice en el primero", t[0]["text"], "uno dos"
     yield "tramos: y en el segundo", t[1]["text"], "tres cuatro"
+
+    # Y las reglas que cumple SIEMPRE, sobre un montaje mas largo y ademas
+    # reordenado, que es donde un acumulador mal puesto se nota. Medidas antes
+    # contra el video de verdad (26 tramos, 582,38 s) y aqui congeladas.
+    LARGO = [{"start": 40.0, "end": 47.5}, {"start": 5.0, "end": 15.0},
+             {"start": 60.0, "end": 60.25}, {"start": 20.0, "end": 30.0},
+             {"start": 33.0, "end": 39.0}]
+    HABLA_L = {"segments": [{"words": [{"w": "x", "s": p["start"] + 0.1,
+                                        "e": p["start"] + 0.2}]}
+                            for p in LARGO]}
+    tl = server.tramos_de(HABLA_L, LARGO)["tramos"]
+    yield "tramos: sale uno por trozo", len(tl), len(LARGO)
+    # 1. cada tramo dura lo mismo en los dos relojes
+    yield ("tramos: misma duracion en los dos relojes",
+           [round((x["end"] - x["start"]) - (x["to"] - x["from"]), 6) for x in tl],
+           [0.0] * len(LARGO))
+    # 2. el montaje es continuo: ni huecos ni solapes
+    yield ("tramos: el montaje no tiene huecos",
+           [round(tl[i]["from"] - tl[i - 1]["to"], 6) for i in range(1, len(tl))],
+           [0.0] * (len(LARGO) - 1))
+    # 3. empieza en cero y suma lo que dura
+    yield "tramos: empieza en cero", tl[0]["from"], 0.0
+    yield ("tramos: el ultimo acaba en la suma",
+           round(tl[-1]["to"], 6),
+           round(sum(p["end"] - p["start"] for p in LARGO), 6))
     # La palabra del segundo 17 cayo en el corte: no esta en ningun tramo.
     yield ("tramos: lo cortado no aparece",
            any("fuera" in x["text"] for x in t), False)
