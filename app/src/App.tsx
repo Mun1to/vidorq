@@ -70,6 +70,11 @@ function App() {
   const [animOf, setAnimOf] = useState<Record<string, string>>({});
   // Mirar el video y traducir cuestan minutos, asi que van apagados de serie.
   const [seeVideo, setSeeVideo] = useState(false);
+  /* Si hay algun modelo local con el que describir la imagen. La mitad de
+     lo que promete "que mire el video" pasa por Ollama, asi que sin
+     modelos esa mitad no ocurre y hasta ahora no se sabia hasta el final.
+     null mientras no se ha preguntado: no se avisa de lo que no se sabe. */
+  const [eyeReady, setEyeReady] = useState<boolean | null>(null);
   const [shake, setShake] = useState(false);
   const [transLang, setTransLang] = useState("");
   const [burnTrans, setBurnTrans] = useState(false);
@@ -436,6 +441,12 @@ function App() {
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
   }, [wsOpen]);
+
+  useEffect(() => {
+    apiGet<{ list: { id: string; installed: boolean }[] }>(`/providers?lang=${lang}`)
+      .then((d) => setEyeReady(!!d.list?.find((p) => p.id === "local")?.installed))
+      .catch(() => setEyeReady(null));
+  }, [lang]);
 
   const fileName = useMemo(() => video.split(/[\\/]/).pop() ?? "", [video]);
   /* Una ruta escrita a mano no se comprobaba. Con una letra de mas el nombre
@@ -821,7 +832,12 @@ function App() {
             <span className="profile-note">{t("workspace")} <b>{ws.active}</b></span>
           </div>
 
-          {seeVideo && <small className="capnote">{t("vision.note")}</small>}
+          {seeVideo && <small className="capnote solo">{t("vision.note")}</small>}
+          {seeVideo && eyeReady === false && (
+            <small className="warn-line capnote solo">
+              <IconAlert size={13} className="icon" />{t("vision.noEye")}
+            </small>
+          )}
 
           {previewUrl && previewOk && (
             <section className="preview">
