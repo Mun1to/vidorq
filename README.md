@@ -246,6 +246,15 @@ details worth knowing, because "local" is not the same as "private":
   are now. A caption saying `{n8}` used to jump to the top of the frame, and
   one carrying a blank line used to split the .srt and forge an extra subtitle
   at second zero.
+- The same transcript also goes into the prompt, next to your instruction, and
+  there it is fenced and labelled as data. A video that says "ignore the above"
+  out loud was tried: through Claude only the title that had actually been asked
+  for came back. That is one model on one day, so it is not the defence. The
+  defence is that nothing the model returns is trusted: five verbs are allowed
+  and anything else is dropped, times must fall inside the video, and the text
+  is capped and stripped. The fence just removes the easy path, and it cannot be
+  closed from the inside - a video reading the closing marker aloud gets it
+  taken out of the text.
 
 ## Honest limits
 
