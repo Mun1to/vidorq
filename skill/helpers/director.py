@@ -43,7 +43,8 @@ DIRECTORS = ("llama3.1:8b", "granite4.1:3b", "phi4-mini:3.8b", "qwen3.5:4b",
              "phi4:14b", "mistral-small:24b", "gpt-oss:20b", "qwen3.5:27b")
 
 RATIOS = ("source", "vertical", "portrait", "square", "wide")
-TRANSITIONS = ("none", "dissolve", "dip", "white", "slide", "wipe", "zoom")
+TRANSITIONS = ("none", "dissolve", "dip", "white", "flash", "slide",
+               "wipe", "zoom")
 CUTS = ("clean", "podcast", "montage")
 
 
@@ -302,7 +303,11 @@ WORD_RULES = (
     # Sin un "negro" suelto: "ponlo en blanco y negro" es un filtro de color, y
     # con el comodin salia ademas un fundido a negro que nadie habia pedido.
     ("transition", "dip", r"fundido a negro|dip to black|a negro"),
-    ("transition", "white", r"fundido a blanco|dip to white|a blanco|\bflash\b|destello"),
+    ("transition", "white", r"fundido a blanco|dip to white|a blanco"),
+    # El destello estaba metido en la regla del fundido a blanco, que dura
+    # el doble. Existia de verdad en overlays desde el principio; lo unico
+    # que le faltaba era que alguien pudiera pedirlo por su nombre.
+    ("transition", "flash", r"\bflash\b|destello"),
     ("transition", "wipe", r"barrido|\bwipe\b"),
     ("transition", "slide", r"deslizamient|\bslide\b|desliza"),
     ("transition", "dissolve", r"disolvenc|\bfundido\b|cross ?dissolve"),

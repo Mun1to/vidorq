@@ -298,10 +298,11 @@ def missing_modules():
 # has to offer them and Resolve cannot do transitions by API at all.
 TRANSITION_LABELS = {
     "es": {"none": "Corte seco", "dissolve": "Disolvencia", "dip": "Fundido a negro",
-           "white": "Fundido a blanco", "slide": "Deslizamiento", "wipe": "Barrido",
-           "zoom": "Zoom"},
+           "white": "Fundido a blanco", "flash": "Destello",
+           "slide": "Deslizamiento", "wipe": "Barrido", "zoom": "Zoom"},
     "en": {"none": "Hard cut", "dissolve": "Dissolve", "dip": "Dip to black",
-           "white": "Dip to white", "slide": "Slide", "wipe": "Wipe", "zoom": "Zoom"},
+           "white": "Dip to white", "flash": "Flash", "slide": "Slide",
+           "wipe": "Wipe", "zoom": "Zoom"},
 }
 
 

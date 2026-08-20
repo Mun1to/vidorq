@@ -63,6 +63,13 @@ OFFERS = [
 # the same bug as missing something they did.
 # ---------------------------------------------------------------------------
 WORDS = [
+    # Cada transicion por su nombre. El destello vivia dentro de la regla
+    # del fundido a blanco, que dura el doble, asi que pedirlo daba otra
+    # cosa: la palabra existia y el efecto tambien, pero no se tocaban.
+    ("pon un destello en cada corte", {"transition": "flash"}),
+    ("ponle flash entre planos", {"transition": "flash"}),
+    ("pon un fundido a blanco", {"transition": "white"}),
+    ("pon un fundido a negro", {"transition": "dip"}),
     # The frame
     ("ponlo en vertical", {"ratio": "vertical"}),
     ("hazlo para tiktok", {"ratio": "vertical"}),

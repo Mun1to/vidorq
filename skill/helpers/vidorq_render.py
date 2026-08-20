@@ -316,6 +316,9 @@ TRANSITIONS = {
     "dissolve": "fade",
     "dip": "fadeblack",
     "white": "fadewhite",
+    # El destello es el mismo blanco pero corto: lo que lo hace un golpe de luz
+    # y no un fundido es que dura 0,18 s, y eso lo dice overlays.seconds().
+    "flash": "fadewhite",
     "slide": "slideleft",
     "wipe": "wiperight",
     "zoom": "zoomin",
@@ -363,7 +366,7 @@ def concat_with_transitions(ffmpeg, seg_dir: Path, seg_files, out_path, kind, du
 
 
 def concat_and_mux(ffmpeg, seg_dir: Path, seg_files, audio_path, out_path,
-                   transition="none", trans_dur=0.30):
+                   transition="none", trans_dur=None):
     """Join the segments and marry the audio back on.
 
     With a transition the video has to be re-encoded, so it happens once into a
@@ -373,6 +376,15 @@ def concat_and_mux(ffmpeg, seg_dir: Path, seg_files, audio_path, out_path,
     joined = None
     if transition and transition != "none":
         joined = seg_dir / "_xfade.mp4"
+        # Cuanto dura, de la misma tabla que usa Resolve. Antes eran 0,30 s para
+        # todas, asi que un fundido a negro duraba 0,50 en el timeline y 0,30 en
+        # el MP4: el mismo nombre y dos cosas distintas segun por donde saliera.
+        if trans_dur is None:
+            try:
+                import overlays
+                trans_dur = overlays.seconds(transition)
+            except Exception:
+                trans_dur = 0.30
         if not concat_with_transitions(ffmpeg, seg_dir, seg_files, joined,
                                        transition, trans_dur):
             joined = None
