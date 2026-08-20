@@ -546,7 +546,24 @@ peor que un cartel que no salió, porque solo uno de los dos se nota.
 completo a partir de *«ponlo en vertical»* rellena todos los demás campos con su opinión y
 deshace en silencio el estilo que elegiste dos rondas antes. `from_words()` informa
 **solo de lo que la frase dice literalmente**, cuesta 0,00 s y no puede inventar. Para los
-momentos concretos sí se usa el modelo, porque ahí hace falta leer la transcripción.
+momentos concretos se usa el modelo **solo cuando hace falta leer la transcripción**: si la
+frase ya trae el verbo y los dos segundos, es una resta y no se pregunta a nadie.
+
+**Y desde el 20-ago-2026 eso vale también para el montaje entero, no solo para la acción.**
+Antes el modelo construía el EDL de todas formas y la acción literal se aplicaba encima, o
+sea sobre un montaje al que ya le faltaba ese trozo: no llegaba a corregir nada. Medido sobre
+un clip de 18,018 s con *«quita un trozo del segundo 4 al 7»* (tres segundos): salían 13,866 s,
+o sea **4,15 s fuera**, porque el modelo cortaba de 4,0 a 8,16 para caer en un límite de frase
+y anotaba *«Continuación tras el corte solicitado (4s-7s)»*. Las dos conductas estaban escritas
+a propósito y se contradecían: `SEG_SYSTEM` le manda cortar en límites de frase, y el bloque
+literal del motor dice que es aritmética. Ganaba la que corría antes.
+
+Ahora manda la resta. `es_aritmetica()` es la regla, y lo que la descalifica no son los
+ajustes globales (esos los decide `look()`, por su cuenta) sino pedir que **elija otro**:
+«lo mejor», «un resumen», «los mejores momentos». Con una de esas delante vuelve el modelo,
+aunque la frase traiga números. Medido en el mismo clip: base del panel sola 11,830 s, con la
+frase 8,830 s, tres segundos justos. Y de paso se nota en el reloj, porque la vuelta al modelo
+no se paga: **36,1 s con la frase literal contra 76,3 s cuando hay que interpretarla**.
 
 ### En Resolve se sustituye, no se acumula
 
