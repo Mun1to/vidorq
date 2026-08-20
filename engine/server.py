@@ -1152,11 +1152,13 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     # marca pedida en el segundo 6 aterrizaba en el 7,5, y cuanto mas avanzado
     # el video, mas lejos. Medido el 20-ago-2026.
     record_s = 0.0
+    inserted = 0
     for seg in edl:
         sf = round(seg["start"] * fps)
         ef = max(sf, round(seg["end"] * fps) - 1)
-        bridge_post("/media/insert", {"clipName": Path(video).name,
-                                      "startFrame": sf, "endFrame": ef})
+        if bridge_post("/media/insert", {"clipName": Path(video).name,
+                                         "startFrame": sf, "endFrame": ef}).get("success"):
+            inserted += 1
         if seg.get("note"):
             # Donde cae dentro del tramo, si se pidio en un segundo concreto.
             dentro = max(0.0, min(float(seg.get("note_at") or 0.0),
@@ -1166,6 +1168,23 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
                          "color": "Yellow",
                          "name": seg["note"][:40], "note": seg["note"]})
         record_s += (ef - sf + 1) / max(1.0, fps)
+    if edl and not inserted:
+        raise RuntimeError(
+            "Resolve no acepto ningun trozo de '%s' en el timeline."
+            % Path(video).name)
+    # `AppendToTimeline` puede contestar exito y devolver un TimelineItem real
+    # incluso cuando Resolve clasifico el archivo como SOLO AUDIO o como fuera
+    # de linea: medido el 20-ago-2026 con un origen AV1/Opus, la pista de video
+    # se quedaba vacia con la API diciendo que todo habia ido bien. La unica
+    # forma fiable de saberlo es volver a mirar la pista.
+    if edl:
+        on_track = bridge_get("/timeline/clips?track_type=video&track_index=1") or {}
+        if not (on_track.get("clips") or []):
+            raise RuntimeError(
+                "Resolve dice que ha insertado '%s' pero la pista de video del "
+                "timeline se ha quedado vacia: seguramente el archivo tiene un "
+                "codec que Resolve no decodifica (medido con AV1/Opus). Prueba "
+                "con la salida MP4, que decodifica por su cuenta." % Path(video).name)
     fill = fill_zoom(width, height, out_w, out_h)
     for i, seg in enumerate(edl):
         punch = float(seg.get("zoom", 1.0))
