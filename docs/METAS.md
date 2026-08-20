@@ -139,14 +139,17 @@ menos de 30 minutos.
 - [ ] Firmar los instaladores para que Windows no los marque como origen desconocido.
 - [ ] GIF del flujo real en el README (el texto en inglés ya está; falta la imagen que
       enseña el timeline montándose solo dentro de Resolve, que es lo que no se puede contar).
-- [~] **Landing con el copy de la investigación**. Hecho (2026-08-20): el **contraste
+- [x] **Landing con el copy de la investigación** (2026-08-20): el **contraste
       explícito** ya es una sección propia con el titular *"Los demás exportan XML a Resolve.
       Vidorq vive en Resolve"*, y el **cierre participativo con prompts de ejemplo** también,
       con las cuatro frases que el programa entiende de verdad (tres de ellas sin pasar por
       ningún modelo). De paso se quitó de la página una función que no existe: la sección
       central vendía el entrenamiento de estilo en presente y ahora va como "En camino".
-      Falta: la **analogía-ancla** en el hero (*"tu agente de edición, dentro de un NLE de
-      verdad"*, hoy el hero dice otra cosa) y la **sección changelog**.
+      Cerrado el mismo día: el hero ya abre con la **analogía-ancla** ("tu agente de edición,
+      dentro de un editor de verdad") en vez de con la categoría, y hay **sección de
+      novedades** con las tres últimas entradas fechadas por sus commits. El titular decía
+      "todas las semanas" y se cambió a "esto no está parado", porque entre el 22-jul y el
+      10-ago hubo diecinueve días sin un solo commit y el dato es público.
 - [ ] Vídeo de lanzamiento editado CON Vidorq (dogfooding: la demo es el producto).
 - [x] **Barrido de seguridad** (2026-08-19): ni una clave, ni en el árbol de ahora ni en el
       historial entero (los dos `sk-ant-...` y `AIza...` que saltaron son los *placeholders*

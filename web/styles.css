@@ -395,3 +395,32 @@ h2 {
   font-size: 15px; line-height: 1.4;
 }
 @media (max-width: 640px) { .say { font-size: 14px; padding: 11px 13px; } }
+
+/* ---------- lo ultimo (changelog) ----------
+   Una lista con la fecha a la izquierda y el cambio a la derecha. Es la prueba
+   de que el proyecto esta vivo, asi que se lee de un vistazo y no pide clic. */
+.log { list-style: none; display: flex; flex-direction: column; gap: 0; }
+
+.log-row {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  gap: 20px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+}
+.log-row:last-child { border-bottom: 1px solid var(--line); }
+
+.log-when {
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  color: var(--accent2);
+  padding-top: 2px;
+}
+
+.log-row h3 { font-size: 16px; margin-bottom: 6px; }
+.log-row p { font-size: 14.5px; color: var(--muted); line-height: 1.6; }
+
+@media (max-width: 640px) {
+  .log-row { grid-template-columns: 1fr; gap: 6px; }
+}
