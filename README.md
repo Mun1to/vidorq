@@ -236,6 +236,16 @@ details worth knowing, because "local" is not the same as "private":
   your own agent, Python - are unaffected.
 - Keys live in `%APPDATA%/Vidorq/config.json`, outside this repository, one per
   provider, and the engine never hands one back out.
+- Text that came from somewhere else cannot give orders. A transcript is
+  somebody else's material and so is whatever a model writes back, and both get
+  drawn into files that have their own syntax. All five places were checked by
+  attacking them: the Fusion comp escapes quotes and braces and its structure
+  does not move; the Windows voice passes the line, the voice and the
+  destination as files rather than as PowerShell arguments, so a line carrying
+  `"; Set-Content ...` is read aloud instead of run; and two that were not safe
+  are now. A caption saying `{n8}` used to jump to the top of the frame, and
+  one carrying a blank line used to split the .srt and forge an extra subtitle
+  at second zero.
 
 ## Honest limits
 
