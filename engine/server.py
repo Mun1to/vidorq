@@ -1842,14 +1842,29 @@ def tramos_de(transcript, edl):
     return {"ok": True, "tramos": out, "total": round(at, 2)}
 
 
+def _atomic_write(path, text):
+    """Escribe sin dejar el archivo a medias si el proceso muere a mitad.
+
+    `Path.write_text` directo trunca el archivo ANTES de escribir el contenido
+    nuevo: un corte de luz o un "Finalizar tarea" justo ahi deja un JSON roto,
+    y `sesion.json`/`ediciones.json` rotos se leen como "no habia nada", asi
+    que el siguiente turno pisa el historial entero con uno vacio. Se escribe
+    aparte y se renombra, que en Windows es la operacion atomica de verdad.
+    """
+    path = Path(path)
+    tmp = path.with_suffix(path.suffix + ".part%d" % os.getpid())
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
 def session_save(workdir, state):
     """What a second round of prompts needs to know, next to the transcript."""
     try:
         # La carpeta del proyecto puede no existir todavia: es la primera vez que
         # se habla de este video EN ESTE proyecto.
         Path(workdir).mkdir(parents=True, exist_ok=True)
-        (Path(workdir) / SESSION).write_text(
-            json.dumps(state, ensure_ascii=False, indent=1), encoding="utf-8")
+        _atomic_write(Path(workdir) / SESSION,
+                      json.dumps(state, ensure_ascii=False, indent=1))
     except Exception:
         # Losing the ability to refine is a smaller failure than losing the
         # edit that was just made, so this never raises.
@@ -1952,9 +1967,8 @@ def ledger_add(entry):
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         rows = ledger_read()
         rows.append(entry)
-        LEDGER.write_text(
-            json.dumps(rows[-LEDGER_MAX:], ensure_ascii=False, indent=1),
-            encoding="utf-8")
+        _atomic_write(LEDGER,
+                      json.dumps(rows[-LEDGER_MAX:], ensure_ascii=False, indent=1))
     except Exception:
         # Perder la anotacion es menos grave que perder la edicion, igual que en
         # session_save: se cuenta por consola y se sigue.
