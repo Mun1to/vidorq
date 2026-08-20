@@ -121,6 +121,9 @@ function App() {
   // Si hay un paso atras al que volver. Lo dice el motor, que es quien guarda
   // el montaje de antes.
   const [canUndo, setCanUndo] = useState(false);
+  // Si el siguiente deshacer seria en realidad un rehacer. Lo dice el motor,
+  // que es quien sabe si lo ultimo que paso fue deshacer.
+  const [undoIsRedo, setUndoIsRedo] = useState(false);
   const [cards, setCards] = useState<CaptionStyle[]>([]);
   // La caja de "cuentale que quieres", para poder dejar el cursor dentro cuando
   // una baldosa de la galeria escribe media frase.
@@ -288,11 +291,12 @@ function App() {
     if (!video) { setChat([]); return; }
     if (phase === "running") return;
     apiGet<{ history: Turn[]; settings?: ChatState; result?: string; scope?: string;
-             canUndo?: boolean }>(
+             canUndo?: boolean; undoIsRedo?: boolean }>(
       `/session?video=${encodeURIComponent(video)}`)
       .then((d) => {
         setNow(d.settings || {}); setMade(d.result || ""); setScope(d.scope || "");
         setCanUndo(!!d.canUndo);
+        setUndoIsRedo(!!d.undoIsRedo);
         // Y el panel se pone al dia con lo que de verdad tiene el montaje. Sin
         // esto, decir "ponlo en vertical" por el chat dejaba el desplegable
         // diciendo "Como el original": la cabecera contaba una cosa y el panel
@@ -625,6 +629,7 @@ function App() {
           onSetup={() => setSetup(true)}
           onWords={() => setWordsOpen(true)}
           canUndo={canUndo}
+          undoIsRedo={undoIsRedo}
           onUndo={() => {
             setChat((c) => [...c, { you: t("chat.undo") }]);
             if (phase === "running") return;

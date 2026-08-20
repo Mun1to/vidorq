@@ -255,6 +255,7 @@ TEXT = {
         "said_order": "cambiar de sitio un tramo",
         "only_mp4": "en el MP4",
         "did_undo": "vuelto al montaje de antes",
+        "did_redo": "rehecho el último cambio",
         "said_undo": "deshacer el último cambio",
         "voice_making": "Poniendo voz a la línea %d de %d...",
         "voice_only_mp4": "%d voz(es) generadas, pero en Resolve no se pueden meter por API: salen solo en el MP4.",
@@ -380,6 +381,7 @@ TEXT = {
         "said_order": "move a segment",
         "only_mp4": "in the MP4",
         "did_undo": "back to the previous edit",
+        "did_redo": "the last change is back",
         "said_undo": "undo the last change",
         "voice_making": "Voicing line %d of %d...",
         "voice_only_mp4": "%d voice line(s) made, but Resolve takes no audio over its API: they only come out in the MP4.",
@@ -3310,7 +3312,7 @@ def run_job(req):
                 and (director.wants_moments(prompt) or director.needs_where(prompt))):
             not_understood = list(not_understood) + [tr("no_moment")]
         if undo:
-            did.append(tr("did_undo"))
+            did.append(tr("did_redo") if past0.get("undone") else tr("did_undo"))
         elif moved:
             did.append(tr("did_order", len(edl)))
         did += [tr("did_cut" if len(edl) == 1 else "did_cuts", len(edl))]
@@ -3389,6 +3391,11 @@ def run_job(req):
             # deshacer: un solo boton que va y vuelve.
             "edl_prev": prev_edl,
             "settings_prev": prev_settings,
+            # Y hacia donde apunta el boton. Alterna, porque el boton alterna:
+            # deshacer sobre un deshacer es un REHACER, y despues de rehacer el
+            # siguiente vuelve a ser un deshacer. Sin el `and not`, se quedaba
+            # diciendo "Rehacer" para siempre desde el primer deshacer.
+            "undone": bool(undo) and not past0.get("undone"),
         })
         # La misma frase que ve en el chat, no el prompt crudo: en la primera
         # edicion el prompt esta vacio y la frase dice "primera edicion".
@@ -3619,7 +3626,11 @@ class Handler(BaseHTTPRequestHandler):
                             "can": bool(st.get("edl")),
                             # Si hay un paso atras al que volver. La ventana no
                             # puede saberlo sola: el montaje de antes vive aqui.
-                            "canUndo": bool(st.get("edl_prev"))})
+                            "canUndo": bool(st.get("edl_prev")),
+                            # Si lo ultimo que se hizo fue deshacer, el boton
+                            # de deshacer devuelve el cambio: es un rehacer, y
+                            # llamarlo igual hace pensar que retrocede dos pasos.
+                            "undoIsRedo": bool(st.get("undone"))})
         elif self.path.startswith("/probe"):
             # Existe ese archivo? La ventana lo pregunta antes de aceptar una
             # ruta escrita a mano. Sin esto, una letra mal puesta se tragaba en
