@@ -37,6 +37,17 @@ from pathlib import Path
 import av
 import numpy as np
 
+# Este script corre como subproceso, y en Windows el stdout de un subproceso
+# hereda la codepage de la consola (cp1252 en un Windows en espanol), no UTF-8,
+# pase lo que pase en el lado que lo lee. Un nombre de archivo con un emoji
+# (arrastrado por el usuario, no elegido por nosotros) revienta el primer
+# `print` que lo mencione con UnicodeEncodeError, y aqui eso pasa siempre:
+# "MUX_OK: <ruta de salida>" lleva el nombre del video de origen. Medido el
+# 20-ago-2026 con "video 🎬 prueba.mp4": el render llegaba al 93% y caia ahi.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import captions as cap
 import looks
 import overlays

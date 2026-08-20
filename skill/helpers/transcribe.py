@@ -26,6 +26,15 @@ import sys
 import time
 from pathlib import Path
 
+# Mismo motivo que en vidorq_render.py: este script tambien corre como
+# subproceso, y el stdout que hereda en Windows no es UTF-8 aunque el lado que
+# lo lee si lo sea. No imprime la ruta hoy, pero cualquier mensaje de error
+# que la incluya (rutas de usuario, con lo que sea que haya en ellas) tiene
+# el mismo riesgo, y es gratis blindarlo aqui tambien.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 def _cuda_on_path():
     """Put the pip-installed CUDA libraries where Windows will actually look.
