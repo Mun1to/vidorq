@@ -191,6 +191,8 @@ TEXT = {
         "framing_help": "Detector local, milisegundos por fotograma",
         "framed": "Encuadre sobre la cara en %d de %d tramos",
         "framed_none": "Sin caras: recorte centrado",
+        "no_music": ("Vidorq todavía no pone música: no sabe mezclar una pista "
+                     "de audio. Lo demás de la frase sí está hecho."),
         "no_face": ("Recorte centrado: no encuentro el modelo del detector de "
                     "caras, así que no he podido buscar a nadie en el cuadro."),
         "no_gpu": "Sin GPU para transcribir, va por CPU y tarda más",
@@ -313,6 +315,8 @@ TEXT = {
         "framing_help": "Local detector, milliseconds per frame",
         "framed": "Framed on the face in %d of %d cuts",
         "framed_none": "No faces found: centred crop",
+        "no_music": ("Vidorq cannot add music yet: it does not know how to mix an "
+                     "audio track. The rest of what you asked for is done."),
         "no_face": ("Centred crop: the face detector model is missing, so there "
                     "was no way to look for anyone in the frame."),
         "no_gpu": "No GPU for transcription, running on CPU and slower",
@@ -2463,6 +2467,19 @@ def said_pick(prompt, lang="es"):
     return ", ".join(dichos) or prompt
 
 
+# Pedir musica. No hay musica en Vidorq: ni pista, ni mezcla, ni flag. Se
+# reconoce para poder DECIRLO, que es lo unico honesto mientras no exista, y
+# porque callarse es como se pierde a alguien en el primer minuto.
+MUSICA_RE = re.compile(
+    r"m[uú]sica|\bmusic\b|banda sonora|soundtrack|\bbso\b|cancion|canción|"
+    r"\bbeat\b|\bbgm\b", re.I)
+
+
+def pide_musica(prompt):
+    """True si la frase pide musica de alguna forma."""
+    return bool(MUSICA_RE.search(prompt or ""))
+
+
 def shown(prompt, lang="es"):
     """Como se ve en la conversacion lo que se mando.
 
@@ -3264,6 +3281,8 @@ def run_job(req):
             # Y el tercer caso, que es el que faltaba: no es que no haya caras,
             # es que no hay con que buscarlas.
             not_understood = list(not_understood) + [tr("no_face")]
+        if pide_musica(prompt):
+            not_understood = list(not_understood) + [tr("no_music")]
         did += said_deeds(deeds, _lang)
         # Pediste algo en un momento y no salio nada: se dice. Un turno que se
         # calla es indistinguible de uno que lo ha hecho, que es de donde sale el
