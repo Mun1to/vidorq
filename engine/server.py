@@ -1619,6 +1619,24 @@ def packed_view(workdir, transcript, video):
 # --------------------------------------------------------------------------- #
 TRANSCRIBE_RE = re.compile(r"^PROGRESO: (\d+)/(\d+)s")
 
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _crash_summary(tail):
+    """The one useful line out of a crashed subprocess's raw output.
+
+    `tail` is the last few lines a helper printed before dying, usually a
+    Python traceback: dozens of stack frames plus, on 3.11+, ANSI colour codes
+    around the culprit. Slicing that blob to its last 400 CHARACTERS (what this
+    used to do) cuts mid-word inside some stack frame and leaves the escape
+    codes in, so the turn showed literal "\\x1b[1;31m" and a sentence that
+    starts mid-line. The line that actually says what broke is the LAST
+    non-empty one, which for a traceback is "ExceptionType: message" - so that
+    is what gets kept, with the color codes stripped either way.
+    """
+    limpio = [ANSI_RE.sub("", x) for x in tail]
+    return next((x for x in reversed(limpio) if x.strip()), "").strip()[:300]
+
 
 def run_transcribe(cmd, out_file, timeout=7200):
     """Run the transcriber and relay its progress instead of swallowing it.
@@ -1663,7 +1681,7 @@ def run_transcribe(cmd, out_file, timeout=7200):
     if _stop.is_set():
         raise Stopped()
     if proc.returncode != 0 or not out_file.exists():
-        raise RuntimeError("Fallo transcribiendo: " + "\n".join(tail)[-400:])
+        raise RuntimeError("Fallo transcribiendo: " + _crash_summary(tail))
 
 
 def run_render(cmd, out_file, timeout=7200):
@@ -1692,7 +1710,7 @@ def run_render(cmd, out_file, timeout=7200):
     if _stop.is_set():
         raise Stopped()
     if proc.returncode != 0 or not out_file.exists():
-        raise RuntimeError("Fallo renderizando: " + "\n".join(tail)[-400:])
+        raise RuntimeError("Fallo renderizando: " + _crash_summary(tail))
 
 
 SESSION = "sesion.json"
