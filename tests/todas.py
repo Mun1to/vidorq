@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """Todas las pruebas de una vez.
 
-Tres archivos y tres comandos es un comando que alguien se salta, y el que se
-salta siempre es el ultimo que se anadio. Ninguna necesita modelo, ni red, ni
+Varios archivos y varios comandos es un comando que alguien se salta, y el que
+se salta siempre es el ultimo que se anadio. Ninguna necesita modelo, ni red, ni
 video: son cuentas, palabras y tildes, asi que caben todas en unos segundos y
 se pueden lanzar en cada cambio.
 
@@ -18,8 +18,10 @@ from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
 # En el orden en que conviene leerlas si algo se rompe: primero las cuentas,
-# luego lo que entiende de una frase, y al final como lo escribe.
-ARCHIVOS = ["test_relojes.py", "test_understanding.py", "test_castellano.py"]
+# luego lo que entiende de una frase, y al final como lo escribe (en castellano
+# y en los dos idiomas a la vez).
+ARCHIVOS = ["test_relojes.py", "test_understanding.py", "test_castellano.py",
+            "test_idiomas.py"]
 
 
 def main():
