@@ -98,8 +98,8 @@ graphics card, `small` on a CPU), then dead air, isolated
 filler sounds and repeated takes come out. Cuts land on a still moment rather
 than mid-gesture, and jump cuts get hidden with a small alternating zoom.
 
-**Subtitles.** Ten styles and nine entrance animations, mixed freely, in both
-outputs. Three styles carry a real halo from Fusion's Glow node. In Resolve they
+**Subtitles.** Ten styles and eight entrance animations (plus none), mixed
+freely, in both outputs. Three styles carry a real halo from Fusion's Glow node. In Resolve they
 arrive as **editable** Text+ titles on their own track, not burned into the
 picture.
 
