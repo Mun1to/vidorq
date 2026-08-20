@@ -41,6 +41,36 @@ from pathlib import Path
 OLLAMA_PORTS = (11434, 11435)
 
 
+# Dos relojes, porque son dos preguntas distintas.
+#
+# TANTEO responde a "hay alguien escuchando ahi?", y eso en tu propia maquina
+# se sabe en milisegundos. Medido el 20-ago-2026 en este ordenador: conectar a
+# 127.0.0.1:11435, donde no escucha nadie, tarda 2,028 s en decir "conexion
+# rechazada" (Windows reintenta el SYN antes de rendirse), asi que con un solo
+# reloj de 2 s CADA vuelta de la lista de proveedores pagaba dos segundos por
+# un puerto muerto: /providers tardaba 2,07 s.
+#
+# LECTURA es el otro: una vez que hay alguien, contestar /api/tags es cosa de
+# Ollama, que puede estar cargando un modelo o generando. Ahi no se le mete
+# prisa, porque quedarse corto seria peor que esperar: se veria como "no tienes
+# Ollama" en una maquina que si lo tiene.
+TANTEO = 0.6
+LECTURA = 3.0
+
+
+def _escucha(url):
+    """Si hay algo aceptando conexiones en ese host, sin llegar a hablarle."""
+    import socket
+    from urllib.parse import urlparse
+    u = urlparse(url)
+    try:
+        with socket.create_connection((u.hostname or "127.0.0.1",
+                                       u.port or 80), TANTEO):
+            return True
+    except OSError:
+        return False
+
+
 def _pick_ollama():
     forced = os.environ.get("OLLAMA_HOST", "")
     if forced:
@@ -48,12 +78,14 @@ def _pick_ollama():
     fallback = "http://127.0.0.1:%d" % OLLAMA_PORTS[0]
     for port in OLLAMA_PORTS:
         url = "http://127.0.0.1:%d" % port
+        if not _escucha(url):
+            continue      # ahi no hay nadie, y saberlo cuesta milisegundos
         try:
-            with urllib.request.urlopen(url + "/api/tags", timeout=2) as r:
+            with urllib.request.urlopen(url + "/api/tags", timeout=LECTURA) as r:
                 if json.loads(r.read().decode()).get("models"):
                     return url
         except Exception:
-            continue      # nada escuchando ahi, o no tiene modelos
+            continue      # contesta, pero no es Ollama o no tiene modelos
     return fallback
 
 
@@ -89,8 +121,10 @@ def ollama_host():
 
 
 def _has_models(url):
+    if not _escucha(url):
+        return False
     try:
-        with urllib.request.urlopen(url + "/api/tags", timeout=2) as r:
+        with urllib.request.urlopen(url + "/api/tags", timeout=LECTURA) as r:
             return bool(json.loads(r.read().decode()).get("models"))
     except Exception:
         return False
