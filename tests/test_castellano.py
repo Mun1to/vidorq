@@ -53,6 +53,10 @@ PELADAS = """
     enfasis exito exitos numero telefono parametro parametros
     estan sera seran hara haran podra podran vera veran quedara quedaran
     ningun algun
+    pelicula peliculas tecnologia tecnologias categoria categorias
+    estetica esteticas dinamico dinamica dinamicos dinamicas
+    geometria teoria garantia compania sintonia armonico organico
+    metrica metricas simetria periodo
     """.split()
 
 # Y las que hay que dejar en paz, porque la version sin tilde tambien existe:

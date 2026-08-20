@@ -58,7 +58,7 @@ PRESETS = {
     },
     "cine": {
         "label": {"es": "Cine", "en": "Cinema"},
-        "note": {"es": "Sombras levantadas y algo desaturado. El look de pelicula "
+        "note": {"es": "Sombras levantadas y algo desaturado. El look de película "
                        "sin pasarse.",
                  "en": "Lifted shadows, slightly desaturated. The film look without "
                        "overdoing it."},
@@ -74,7 +74,7 @@ PRESETS = {
     },
     "frio": {
         "label": {"es": "Frío", "en": "Cool"},
-        "note": {"es": "Azulado y limpio. Para tecnologia y para interiores feos.",
+        "note": {"es": "Azulado y limpio. Para tecnología y para interiores feos.",
                  "en": "Blue and clean. For tech, and for ugly interiors."},
         "slope": (0.93, 0.99, 1.08), "offset": (-0.004, 0.0, 0.010),
         "power": (1.03, 1.0, 0.96), "sat": 0.97,
