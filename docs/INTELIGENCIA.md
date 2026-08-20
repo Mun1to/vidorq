@@ -680,7 +680,28 @@ JSON. Se apaga con `--setting-sources ""` en Claude y `--ignore-user-config` en 
 paso la instruccion de Vidorq viaja como **prompt de sistema** (`--system-prompt`) en vez de
 pegada delante del texto del usuario.
 
-### La red: `tests/test_understanding.py`
+### La red: `tests/todas.py`
+
+Tres archivos y un solo comando, porque tres comandos es un comando que alguien se salta y
+el que se salta siempre es el ultimo que se anadio. Ninguna necesita modelo, ni red, ni
+video, asi que caben en segundos y se pueden lanzar en cada cambio:
+
+| archivo | qué fija |
+| --- | --- |
+| `test_relojes.py` | los dos relojes (original y montaje), el montaje reordenado y la curva del punch zoom |
+| `test_understanding.py` | lo que entiende de una frase, y lo que se ve escrito al pulsar un botón |
+| `test_castellano.py` | que el castellano que ve el usuario lleve sus tildes y sus eñes |
+
+El tercero nació el 19-ago-2026 a la tercera vez de arreglar tildes a mano: 41 cadenas, luego
+7 más media hora después, luego 3 más que solo salieron en un primer arranque limpio. Compara
+439 textos contra una lista de palabras que en castellano SIEMPRE llevan tilde y no tienen
+homógrafo sin ella; nada ambiguo entra (`esta`, `solo`, `aun`, `el`, `tu` son palabras
+distintas según la tilde). Dos cosas que se aprendieron escribiéndolo: los plurales de la
+familia `-ción` **pierden** la tilde (`transiciones`, `ediciones`, `botones`) y sacaron cinco
+falsos positivos; y dejar `mas` fuera por prudencia se comía justo el fallo con el que nació,
+que era «Mas ajustes» en el panel.
+
+### `tests/test_understanding.py`
 
 53 casos, sin modelo ni red, en milisegundos. Cada linea es un fallo que se publico, porque
 las reglas son expresiones regulares sobre español, se solapan, y **el orden entre ellas
