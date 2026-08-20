@@ -53,6 +53,10 @@ function App() {
   const [video, setVideo] = useState<string>("");
   // Por que no vale la ruta que se acaba de escribir. "" = no hay nada que decir.
   const [pathWhy, setPathWhy] = useState("");
+  /* El efecto que escucha el arrastre se monta una sola vez, asi que si
+     llamara a pickVideo directamente se quedaria con el idioma del primer
+     render y contestaria en castellano a quien ya se paso al ingles. */
+  const pickRef = useRef<(raw: string) => void>(() => {});
   const [preset, setPreset] = useState<Preset>("clean");
   const [captions, setCaptions] = useState(true);
   // Los estilos de caption los sirve el motor, que es donde estan definidos:
@@ -146,7 +150,10 @@ function App() {
           else if (e.payload.type === "drop") {
             setDragOver(false);
             const p = e.payload.paths?.[0];
-            if (p && /\.(mp4|mov|mkv|webm|avi)$/i.test(p)) setVideo(p);
+            // Quien dice si eso es un video es el motor, que tiene la
+            // lista entera. Aqui habia otra mas corta, y un .m4v o un
+            // .mts arrastrados no pasaban nada y tampoco lo decian.
+            if (p) pickRef.current(p);
           } else setDragOver(false);
         });
       } catch { /* fuera de Tauri */ }
@@ -448,6 +455,7 @@ function App() {
     setPathWhy("");
     setVideo(path);
   }
+  pickRef.current = pickVideo;
 
   const canEdit = video !== "" && engineUp === true && phase !== "running";
   // El chat manda en cuanto este video tiene conversacion, aunque la ventana se
