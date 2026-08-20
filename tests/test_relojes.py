@@ -217,6 +217,41 @@ def casos():
     yield ("subtitulos: lo cortado no se cuela", coladas, [])
     yield ("subtitulos: y algo sobrevive", len(salieron) > 5, True)
 
+    # --- un corte quita lo pedido y nada mas -------------------------------
+    # De aqui salio el fallo de esta manana: pedir tres segundos y perder 4,15.
+    # Se arreglo en el flujo del motor; esto fija la aritmetica de debajo, que
+    # tiene que aguantar aunque el flujo vuelva a cambiar.
+    def segundos_dentro(lista):
+        """Los decimos de segundo del ORIGINAL que sobreviven en ese montaje."""
+        fuera = set()
+        for p in lista:
+            x = float(p["start"])
+            while x < float(p["end"]) - 1e-9:
+                fuera.add(round(x, 1))
+                x += 0.1
+        return fuera
+
+    CUATRO = [{"start": 0.0, "end": 10.0}, {"start": 20.0, "end": 26.0},
+              {"start": 30.0, "end": 33.0}, {"start": 40.0, "end": 50.0}]
+    for desde, hasta in ((4.0, 7.0), (0.0, 2.0), (9.0, 21.0), (25.0, 31.0),
+                         (32.5, 41.0), (49.0, 60.0), (12.0, 18.0)):
+        antes_lista = [dict(x) for x in CUATRO]
+        antes = segundos_dentro(antes_lista)
+        despues_lista = [dict(x) for x in CUATRO]
+        server.apply_actions(despues_lista, [{"do": "cut", "at": desde, "until": hasta}])
+        despues = segundos_dentro(despues_lista)
+        pedidos = {t for t in antes if desde <= t < hasta - 1e-9}
+        # 1) nada del rango pedido sigue dentro
+        yield ("corte %g-%g: no queda nada del rango" % (desde, hasta),
+               sorted(despues & pedidos)[:4], [])
+        # 2) y nada de fuera se ha ido de mas. `MIN_KEEP_S` puede tirar un
+        #    trozo que se quede demasiado corto, asi que eso se descuenta.
+        de_mas = sorted((antes - pedidos) - despues)
+        cortos = sum(1 for p in antes_lista
+                     if float(p["end"]) - float(p["start"]) < server.MIN_KEEP_S)
+        yield ("corte %g-%g: no se lleva nada de fuera" % (desde, hasta),
+               bool(de_mas) and not cortos and len(de_mas) > 1, False)
+
     # --- la curva del punch zoom -------------------------------------------
     # Son claves de fotograma, o sea el mismo reloj de todo lo de arriba. Lo que
     # se fija aqui es que la curva EMPIECE donde esta y TERMINE donde se pidio,
