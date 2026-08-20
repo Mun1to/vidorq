@@ -34,6 +34,7 @@ const es = {
   "say.eg3": "Los mejores momentos, con música de fondo",
   "out.mp4": "MP4 directo",
   "out.resolve": "Timeline en Resolve",
+  "out.noBridge": "Falta el puente: ábrelo en Resolve con Workspace > Scripts > Vidorq, o edita a MP4.",
 
   "alert.engineOff": "El motor está apagado. Se enciende solo desde Resolve:",
   "alert.engineOff2": "Y si trabajas desde el código, con",
@@ -279,6 +280,7 @@ const en: Record<keyof typeof es, string> = {
   "say.eg3": "The best bits, with background music",
   "out.mp4": "Direct MP4",
   "out.resolve": "Timeline in Resolve",
+  "out.noBridge": "The bridge is not running: start it in Resolve with Workspace > Scripts > Vidorq, or edit to MP4.",
 
   "alert.engineOff": "The engine is off. Resolve turns it on for you:",
   "alert.engineOff2": "Or, if you run it from the source, with",

@@ -53,6 +53,10 @@ function App() {
   const [video, setVideo] = useState<string>("");
   // Por que no vale la ruta que se acaba de escribir. "" = no hay nada que decir.
   const [pathWhy, setPathWhy] = useState("");
+  /* Si el puente esta escuchando. Solo se pregunta mientras la salida
+     elegida es el timeline, que es la unica que lo necesita: con MP4 esa
+     pregunta no le importa a nadie y no hay que gastarla. */
+  const [bridgeUp, setBridgeUp] = useState<boolean | null>(null);
   /* El efecto que escucha el arrastre se monta una sola vez, asi que si
      llamara a pickVideo directamente se quedaria con el idioma del primer
      render y contestaria en castellano a quien ya se paso al ingles. */
@@ -443,6 +447,17 @@ function App() {
   }, [wsOpen]);
 
   useEffect(() => {
+    if (output !== "resolve") { setBridgeUp(null); return; }
+    let vivo = true;
+    const mirar = () => apiGet<{ bridge: boolean }>("/resolve")
+      .then((d) => { if (vivo) setBridgeUp(!!d.bridge); })
+      .catch(() => { if (vivo) setBridgeUp(null); });
+    mirar();
+    const t = setInterval(mirar, 5000);
+    return () => { vivo = false; clearInterval(t); };
+  }, [output]);
+
+  useEffect(() => {
     apiGet<{ list: { id: string; installed: boolean }[] }>(`/providers?lang=${lang}`)
       .then((d) => setEyeReady(!!d.list?.find((p) => p.id === "local")?.installed))
       .catch(() => setEyeReady(null));
@@ -704,6 +719,12 @@ function App() {
             </div>
           </div>
 
+          {output === "resolve" && bridgeUp === false && engineUp !== false && (
+            <div className="alert">
+              <IconAlert size={16} className="icon" />
+              <span>{t("out.noBridge")}</span>
+            </div>
+          )}
           {engineUp === false && (
             <div className="alert">
               <IconAlert size={16} className="icon" />
