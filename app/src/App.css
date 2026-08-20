@@ -241,7 +241,13 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   transition: filter .12s;
 }
 .cta:hover:not(:disabled) { filter: brightness(1.1); }
-.cta:disabled { opacity: .35; cursor: not-allowed; }
+/* Apagado, pero OPACO. Con `opacity` el boton se volvia una ventana: esta
+   pegado al fondo del panel y lo que rueda por debajo se veia a traves de el,
+   asi que con una preview vertical detras aparecian dos manchas claras a los
+   lados. Un boton translucido tampoco se lee como apagado, se lee como roto. */
+.cta:disabled {
+  background: var(--accent-fill); color: var(--faint); cursor: not-allowed;
+}
 .cta.inline { width: auto; padding: 10px 20px; }
 
 /* La accion principal, siempre a la vista. Medido el 2026-08-19: en una pantalla
