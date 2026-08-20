@@ -29,6 +29,7 @@ Se lanza:  python tests/test_relojes.py
 """
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -341,6 +342,37 @@ def casos():
                                "mp4", "Principal", __import__("time").time())
     yield ("historial: la fila ya va tachada",
            "sk-ant-api03" in fila["prompt"], False)
+
+    # --- saber si el modelo ya esta bajado --------------------------------
+    import tempfile as _tmp
+    _guardado = os.environ.get("HF_HOME")
+    try:
+        vacia = _tmp.mkdtemp(prefix="hf_vacio_")
+        os.environ["HF_HOME"] = vacia
+        yield "cache: una carpeta vacia no tiene modelo", server.modelo_en_cache(), False
+
+        # Con el modelo dentro, tal y como lo deja huggingface: una carpeta
+        # `models--<quien>--<que>` al lado de las demas.
+        llena = _tmp.mkdtemp(prefix="hf_lleno_")
+        os.makedirs(os.path.join(llena, "hub",
+                                 "models--Systran--faster-whisper-large-v3-turbo"))
+        os.environ["HF_HOME"] = llena
+        yield "cache: con el modelo dentro, si", server.modelo_en_cache(), True
+
+        # Y otro modelo cualquiera no cuenta como el de transcribir.
+        otro = _tmp.mkdtemp(prefix="hf_otro_")
+        os.makedirs(os.path.join(otro, "hub", "models--google--gemma"))
+        os.environ["HF_HOME"] = otro
+        yield "cache: otro modelo no vale", server.modelo_en_cache(), False
+
+        # Una ruta que no existe no revienta, solo dice que no.
+        os.environ["HF_HOME"] = os.path.join(vacia, "no", "existe")
+        yield "cache: una ruta inventada no revienta", server.modelo_en_cache(), False
+    finally:
+        if _guardado is None:
+            os.environ.pop("HF_HOME", None)
+        else:
+            os.environ["HF_HOME"] = _guardado
 
     # Y lo mismo en el .srt que se lleva el usuario: los bloques se separan por
     # una linea EN BLANCO, asi que un subtitulo con un salto doble dentro parte
