@@ -196,6 +196,23 @@ function App() {
       });
   }, [lang, retry]);
 
+  // El estilo de subtitulo de TU MARCA, que es lo que la pantalla "Tu marca"
+  // sirve para elegir. Sin esto no llegaba nunca: el panel mandaba siempre su
+  // propio valor con cada edicion, asi que la eleccion de la marca se pisaba y
+  // aquella pantalla decidia nada. Se aplica al arrancar y al cambiar de
+  // workspace, que es cuando cambia la marca; despues manda lo que toques.
+  useEffect(() => {
+    let alive = true;
+    apiGet<{ captionPreset?: string; captionAnim?: string }>("/profile")
+      .then((p) => {
+        if (!alive || !p) return;
+        if (p.captionPreset) setCapStyle(p.captionPreset);
+        if (typeof p.captionAnim === "string") setCapAnim(p.captionAnim);
+      })
+      .catch(() => { /* motor apagado: el panel se queda con lo suyo */ });
+    return () => { alive = false; };
+  }, [ws.active]);
+
   // Los clips del proyecto abierto. Se piden al arrancar y al volver de una
   // edicion, que es cuando el proyecto puede haber cambiado.
   useEffect(() => {
