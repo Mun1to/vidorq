@@ -139,6 +139,28 @@ def casos():
                 perdidos.append(clave)
     yield ("ningun atajo del chat acaba en nada", perdidos, [])
 
+    # Toda pregunta que el motor sabe hacer tiene con que contestarla. Cero
+    # opciones es un callejon, y una sola es una eleccion de mentira.
+    sys.path.insert(0, str(RAIZ / "engine"))
+    argv, sys.argv = sys.argv, ["test"]
+    import server
+    sys.argv = argv
+    preguntas = sorted(server.ASK_WORDS.get("es") or {})
+    yield ("el motor sabe preguntar cosas", len(preguntas) >= 5, True)
+    flacas = []
+    for clave in preguntas:
+        for salida in ("mp4", "resolve"):
+            if len(server.choices_for(clave, "es", salida)) < 2:
+                flacas.append("%s/%s" % (clave, salida))
+    yield ("ninguna pregunta se queda sin respuestas", flacas, [])
+
+    # Y las que esta salida no puede hacer se ofrecen con su aviso y con el
+    # cambio de salida puesto, que es lo que evita el "te lo ofrezco y te lo
+    # niego" de la queja original.
+    mudas = [o["id"] for o in server.choices_for("transition", "es", "resolve")
+             if o.get("note") and not o.get("send")]
+    yield ("lo que no cabe en esta salida ofrece la otra", mudas, [])
+
     # Y lo que NO se puede prometer: la ventana no vuelve a sugerir musica.
     i18n = leer("app/src/i18n.tsx")
     ejemplos = re.findall(r'"say\.eg\d+":\s*"([^"]*)"', i18n)
