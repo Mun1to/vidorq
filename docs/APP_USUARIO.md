@@ -1,7 +1,9 @@
 # App de usuario (Tauri + React)
 
 > Decisión de Munir (2026-07-07): interfaz sencilla para el usuario, instalable y anclable
-> a la barra de tareas. Stack Tauri+React (patrón AutoSubs). Presets gratis + Modo Pro BYOK desde v1.
+> a la barra de tareas. Stack Tauri+React (patrón AutoSubs). Presets gratis, y el prompt libre
+> también: funciona con el modelo local o con la herramienta de IA que ya tengas instalada, y
+> la clave de API es solo uno de los caminos.
 
 ## Arquitectura
 
@@ -29,10 +31,16 @@ vidorq_render.py         → mp4 directo (GPU)
    - ✂️ Limpieza: conserva el habla, corta silencios y momentos muertos (VAD de Whisper + fusión de huecos <0.6s).
    - 🎙️ Podcast Q&A: limpieza + detecta preguntas (heurística: "?" o arranque interrogativo) → zoom 1.05 y marcador por pregunta.
    - 🎮 Montage (beta): conserva los tramos de más energía de audio (RMS por segundo, top tercio, mínimo 3s).
-3. **Opciones**: captions on/off · salida "MP4 directo" (render GPU) o "Timeline en Resolve" (requiere CursorBridge activo).
-4. **✨ Modo Pro**: textarea de prompt libre → el engine llama a la API de Anthropic
-   (claude-sonnet-5) con la transcripción empaquetada y devuelve el EDL. Requiere la API key
-   del usuario (Ajustes ⚙️; se guarda en `%APPDATA%/Vidorq/config.json`, solo local).
+3. **Opciones**: captions on/off · salida "MP4 directo" (render GPU) o "Timeline en Resolve"
+   (requiere el puente activo: **Workspace > Scripts > Vidorq**).
+4. **El prompt libre**, en la misma pantalla y sin llamarse nada: escribes lo que quieres y el
+   motor decide el montaje entero (formato, estilo de subtítulo, entrada, transición y corte).
+   Lo que la frase dice con **números puestos** ("quita un trozo del segundo 5 al 9", "pon un
+   rótulo en el segundo 3 que diga X") no pasa por ningún modelo: es aritmética. Para lo demás
+   elige el proveedor en Ajustes: el Ollama de tu máquina, la herramienta de IA que ya tengas
+   instalada y con sesión iniciada (Claude Code, Codex, Gemini CLI), o una clave de API. Las
+   claves se guardan en `%APPDATA%/Vidorq/config.json`, solo local, y el motor nunca las
+   devuelve.
 5. **Progreso**: barra con pasos (Transcribiendo → Decidiendo cortes → Renderizando) vía polling a `/progress`.
 
 ## Endpoints del engine (127.0.0.1:9877)
