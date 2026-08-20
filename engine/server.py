@@ -1692,9 +1692,18 @@ def tramos_of(video):
     edl = st.get("edl") or []
     if not edl:
         return {"ok": False, "tramos": [], "why": "no_edit"}
-    data = json.loads(path.read_text(encoding="utf-8"))
+    return tramos_de(json.loads(path.read_text(encoding="utf-8")), edl)
+
+
+def tramos_de(transcript, edl):
+    """Lo mismo, ya con la transcripcion y el montaje en la mano.
+
+    Aparte del de arriba para poder fijarlo con casos: el otro lee de disco y
+    pregunta al puente en que proyecto estas, y eso no cabe en una prueba que
+    tiene que correr sin nada delante.
+    """
     palabras = []
-    for seg in data.get("segments", []):
+    for seg in (transcript or {}).get("segments", []):
         for w in seg.get("words", []):
             texto = str(w.get("w", "")).strip()
             if texto:
@@ -1702,6 +1711,10 @@ def tramos_of(video):
     out, at = [], 0.0
     for i, seg in enumerate(edl):
         a, b = float(seg["start"]), float(seg["end"])
+        # Las palabras de ESTE tramo, en el orden en que se dicen. El orden es
+        # el del original y no el del montaje a proposito: dentro de un tramo
+        # son la misma cosa, y entre tramos manda el bucle de fuera, que ya va
+        # en el orden del montaje aunque el montaje este reordenado.
         dice = " ".join(t for s0, t in palabras if a <= s0 < b)
         out.append({"i": i, "start": round(a, 3), "end": round(b, 3),
                     "from": round(at, 3), "to": round(at + (b - a), 3),

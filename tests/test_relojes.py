@@ -191,6 +191,50 @@ def casos():
     yield "el punch se come la mitad del zoom antes del fotograma 18", mitad < 18, True
 
 
+    # --- los tramos que se enseñan para reordenar ---------------------------
+    # Cada bloque de la pestaña Orden: de donde sale en el ORIGINAL, donde cae
+    # en el MONTAJE, y lo que se dice dentro. Los dos relojes otra vez, esta vez
+    # en la misma fila de la pantalla.
+    HABLA = {"segments": [
+        {"words": [{"w": "uno", "s": 6.0, "e": 6.4}, {"w": "dos", "s": 7.0, "e": 7.4},
+                   {"w": "fuera", "s": 17.0, "e": 17.4}]},
+        {"words": [{"w": "tres", "s": 21.0, "e": 21.4}, {"w": "cuatro", "s": 26.0, "e": 26.4}]},
+    ]}
+    t = server.tramos_de(HABLA, EDL)["tramos"]
+    yield "tramos: salen dos", len(t), 2
+    yield "tramos: el primero viene del 5 al 15", (t[0]["start"], t[0]["end"]), (5.0, 15.0)
+    yield "tramos: y cae al principio del montaje", (t[0]["from"], t[0]["to"]), (0.0, 10.0)
+    yield "tramos: el segundo cae detras", (t[1]["from"], t[1]["to"]), (10.0, 20.0)
+    yield "tramos: lo que se dice en el primero", t[0]["text"], "uno dos"
+    yield "tramos: y en el segundo", t[1]["text"], "tres cuatro"
+    # La palabra del segundo 17 cayo en el corte: no esta en ningun tramo.
+    yield ("tramos: lo cortado no aparece",
+           any("fuera" in x["text"] for x in t), False)
+    yield "tramos: el total es lo que dura el montaje", server.tramos_de(HABLA, EDL)["total"], 20.0
+
+    # Y con el montaje al reves, los tramos salen en el orden en que se VEN.
+    tv = server.tramos_de(HABLA, VUELTA)["tramos"]
+    yield "tramos al reves: primero el que se oye primero", tv[0]["text"], "tres cuatro"
+    yield "tramos al reves: y empieza en el cero del montaje", tv[0]["from"], 0.0
+    yield "tramos al reves: el otro detras", (tv[1]["text"], tv[1]["from"]), ("uno dos", 10.0)
+    # El `i` es la posicion en el MONTAJE, que es lo que la interfaz reordena.
+    yield "tramos: el indice es la posicion de ahora", [x["i"] for x in tv], [0, 1]
+
+    # --- una fila del historial --------------------------------------------
+    fila = server.ledger_entry("C:/videos/clase.mp4", "quita un trozo", "mp4",
+                               "MiProyecto", 0.0, cuts=3, did=["3 tramos"])
+    yield "historial: guarda el nombre del archivo", fila["name"], "clase.mp4"
+    yield "historial: y la ruta entera", fila["video"], "C:/videos/clase.mp4"
+    yield "historial: lo que se pidio", fila["prompt"], "quita un trozo"
+    yield "historial: por donde salio", fila["output"], "mp4"
+    yield "historial: y en que proyecto", fila["scope"], "MiProyecto"
+    yield "historial: lo que hizo", fila["did"], ["3 tramos"]
+    yield "historial: nace bien por defecto", (fila["ok"], fila["stopped"], fila["error"]), (True, False, "")
+    parada = server.ledger_entry("", "", "", "", 0.0, ok=False, stopped=True)
+    yield "historial: una parada no tiene archivo", parada["name"], ""
+    yield "historial: y se marca como parada", (parada["ok"], parada["stopped"]), (False, True)
+
+
 def _dialogos(path, chunks, desde, hasta):
     cap.to_ass(path, chunks, desde, hasta, 1920, 1080)
     return sum(1 for line in path.read_text(encoding="utf-8-sig").splitlines()
