@@ -129,6 +129,9 @@ TEXT = {
     "es": {
         "busy": "Ya hay una edición en marcha",
         "no_video": "No encuentro el vídeo: %s",
+        "no_brain": "he leído tu frase solo con mis reglas, sin modelo: no hay "
+                    "ninguno local instalado ni clave puesta. Entiende bastante, "
+                    "pero para lo raro pon un modelo en Ollama o una clave en Ajustes.",
         "no_speech": "En este vídeo no se oye hablar a nadie, y Vidorq corta por lo "
                      "que se dice. Dime tú el trozo y lo hago: por ejemplo «quédate "
                      "del segundo 2 al 8».",
@@ -202,6 +205,10 @@ TEXT = {
     "en": {
         "busy": "There is already an edit running",
         "no_video": "Cannot find the video: %s",
+        "no_brain": "I read your sentence with my own rules only, with no model: "
+                    "there is none installed locally and no key set. It gets a lot, "
+                    "but for anything unusual add a model to Ollama or a key in "
+                    "Settings.",
         "no_speech": "Nobody speaks in this video, and Vidorq cuts by what is said. "
                      "Tell me the piece yourself and I will do it: for example "
                      "\"keep from second 2 to 8\".",
@@ -2438,6 +2445,14 @@ def run_job(req):
                                                else "sin subtitulos",
                                                caption_preset, caption_anim or "propia")),
                          9, plan.get("why") or said)
+            # Si nadie contesto, se DICE, y en el turno, no en una linea de
+            # progreso que pasa de largo. Sin modelo local y sin clave, una
+            # frase se lee solo con las reglas literales: hace bastante, pero no
+            # lo mismo, y el usuario tiene que poder saber cual de las dos cosas
+            # le acaba de pasar. La pantalla de ajustes le promete que "funciona
+            # sin clave con el modelo local", asi que callarselo es peor.
+            if not plan.get("by"):
+                not_understood = list(not_understood) + [tr("no_brain")]
 
         workdir = Path(video).parent / "edit" / Path(video).stem[:40]
         workdir.mkdir(parents=True, exist_ok=True)
