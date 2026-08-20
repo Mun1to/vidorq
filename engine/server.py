@@ -2807,6 +2807,7 @@ def run_job(req):
                         # the model two words with no sentence around them.
                         edited_tr = tl.translate_transcript(
                             edited, target, req.get("translateModel") or None,
+                            ai=ai_choice(req),
                             log=lambda m: set_progress(
                                 tr("translating", tl.LANGS.get(target, target)), 62, m))
                         done = cap.build_chunks(edited_tr, caption_preset)

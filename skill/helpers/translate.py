@@ -2,13 +2,21 @@
 
 Whisper can already translate, but only ever into English, so it is no use for
 the thing people actually ask for: the same video captioned in three languages.
-This does it with a local model instead, on the caption chunks Vidorq already
+This does it with a local model first, on the caption chunks Vidorq already
 built, which keeps the timings exactly as they were.
 
 Chunks go over in batches, numbered, and come back numbered. A model that
 answers with prose, an apology or a renumbered list gets caught and the batch is
 retried one line at a time, because a translation that silently shifts by one
 line would put every caption on the wrong word.
+
+Local-only until 20-ago-2026: `translate_lines` talked to Ollama and nothing
+else, no matter which AI provider the rest of the app had picked in Ajustes.
+On a machine with zero Ollama models installed (measured: this one) that made
+"traducir subtitulos" unusable regardless of having Claude, OpenAI or Gemini
+configured and working for every other prompt. Local still goes first when a
+model is there, because it is free and keeps the video on the machine; the
+chosen provider is now the fallback instead of a dead end.
 """
 from __future__ import annotations
 
@@ -16,6 +24,7 @@ import json
 import re
 import urllib.request
 
+import providers
 from vision import available_models, ollama_host
 
 # Multilingual first. aya-expanse was trained for exactly this, the qwen3.5
@@ -44,7 +53,16 @@ def pick_model(prefer=None):
     return None
 
 
-def _ask(model, system, user, timeout=240):
+def _ask(model, system, user, ai=None, timeout=240):
+    """One answer, from Ollama if `model` names one, from the chosen provider
+    otherwise. `ai` is the same choice dict `director.py` uses for everything
+    else (provider, model, key, baseUrl): translation was the one caller that
+    never got to use it.
+    """
+    if not model and ai and ai.get("provider") and ai["provider"] != "local":
+        return providers.complete(ai["provider"], ai.get("model") or "", system, user,
+                                  key=ai.get("key", ""), tokens=1400,
+                                  base_url=ai.get("baseUrl", ""))
     req = urllib.request.Request(
         ollama_host() + "/api/generate",
         data=json.dumps({"model": model, "system": system, "prompt": user,
@@ -75,17 +93,20 @@ def _parse(reply, n):
     return [got.get(i + 1) for i in range(n)]
 
 
-def translate_lines(lines, target, model=None, log=None):
+def translate_lines(lines, target, model=None, ai=None, log=None):
     """Translate a list of strings, keeping the list length exactly.
 
     Returns a list the same length; anything the model failed to give back stays
-    as the original rather than becoming an empty caption.
+    as the original rather than becoming an empty caption. Local Ollama goes
+    first when there is a model for it; `ai` (the provider the user picked in
+    Ajustes) is what runs when there is not, instead of failing outright.
     """
-    model = model or pick_model()
-    if not model:
+    picked = model or pick_model()
+    if not picked and not (ai and ai.get("provider") and ai["provider"] != "local"):
         raise RuntimeError(
-            "No hay modelo de traduccion en Ollama. Instala uno (por ejemplo "
-            "'ollama pull aya-expanse:8b').")
+            "No hay modelo de traduccion en Ollama ni un proveedor con clave "
+            "puesto en Ajustes. Instala uno (por ejemplo 'ollama pull "
+            "aya-expanse:8b') o elige un proveedor.")
     lang = LANGS.get(target, target)
     system = SYSTEM % lang
     out = list(lines)
@@ -94,7 +115,7 @@ def translate_lines(lines, target, model=None, log=None):
         batch = lines[start:start + BATCH]
         body = "\n".join("%d. %s" % (i + 1, t) for i, t in enumerate(batch))
         try:
-            got = _parse(_ask(model, system, body), len(batch))
+            got = _parse(_ask(picked, system, body, ai=ai), len(batch))
         except Exception as e:
             if log:
                 log("lote %d sin traducir: %s" % (start // BATCH + 1, str(e)[:70]))
@@ -107,7 +128,7 @@ def translate_lines(lines, target, model=None, log=None):
             got = []
             for one in batch:
                 try:
-                    r = _parse(_ask(model, system, "1. " + one), 1)[0]
+                    r = _parse(_ask(picked, system, "1. " + one, ai=ai), 1)[0]
                 except Exception:
                     r = None
                 got.append(r)
@@ -119,7 +140,7 @@ def translate_lines(lines, target, model=None, log=None):
     return out
 
 
-def translate_transcript(transcript, target, model=None, log=None):
+def translate_transcript(transcript, target, model=None, ai=None, log=None):
     """Translate whole sentences, then hand the words their times back.
 
     Translating the caption chunks directly is the obvious thing and it is
@@ -135,7 +156,7 @@ def translate_transcript(transcript, target, model=None, log=None):
     segs = [s for s in transcript.get("segments", []) if (s.get("text") or "").strip()]
     if not segs:
         return {"duration": transcript.get("duration", 0), "segments": []}
-    done = translate_lines([s["text"].strip() for s in segs], target, model, log)
+    done = translate_lines([s["text"].strip() for s in segs], target, model, ai, log)
 
     out = []
     for seg, text in zip(segs, done):
@@ -154,7 +175,7 @@ def translate_transcript(transcript, target, model=None, log=None):
     return {"duration": transcript.get("duration", 0), "segments": out}
 
 
-def translate_chunks(chunks, target, model=None, log=None):
+def translate_chunks(chunks, target, model=None, ai=None, log=None):
     """Caption chunks in another language, timings kept.
 
     Only for text that is already a full line. For anything chunked into two or
@@ -162,7 +183,7 @@ def translate_chunks(chunks, target, model=None, log=None):
     loses the sentence it belonged to.
     """
     texts = [c["text"] for c in chunks]
-    done = translate_lines(texts, target, model, log)
+    done = translate_lines(texts, target, model, ai, log)
     out = []
     for c, text in zip(chunks, done):
         out.append({"start": c["start"], "end": c["end"], "text": text,
