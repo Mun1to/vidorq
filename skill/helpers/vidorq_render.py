@@ -34,9 +34,6 @@ from collections import deque
 from fractions import Fraction
 from pathlib import Path
 
-import av
-import numpy as np
-
 # Este script corre como subproceso, y en Windows el stdout de un subproceso
 # hereda la codepage de la consola (cp1252 en un Windows en espanol), no UTF-8,
 # pase lo que pase en el lado que lo lee. Un nombre de archivo con un emoji
@@ -44,9 +41,22 @@ import numpy as np
 # `print` que lo mencione con UnicodeEncodeError, y aqui eso pasa siempre:
 # "MUX_OK: <ruta de salida>" lleva el nombre del video de origen. Medido el
 # 20-ago-2026 con "video 🎬 prueba.mp4": el render llegaba al 93% y caia ahi.
+#
+# Va por DELANTE de los imports de terceros a proposito, no solo de los
+# prints propios. Todo lo que se escribe antes del blindaje sale con la
+# codepage vieja, y eso incluye la traza de un import que falle. Medido el
+# mismo dia con un `av` de mentira que lanza el ImportError que da Windows
+# cuando falta una DLL, con el mensaje en un idioma que cp1252 no sabe
+# escribir: con el blindaje detras, el mensaje llego a pantalla convertido
+# en escapes tipo backslash-u; con el blindaje delante, llego tal cual. La
+# version escapada es la que el motor enseña detras de "Fallo renderizando:",
+# o sea el sitio donde mas falta hace entender que ha pasado.
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+import av
+import numpy as np
 
 import captions as cap
 import looks
