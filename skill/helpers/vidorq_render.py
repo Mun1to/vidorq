@@ -42,15 +42,9 @@ from pathlib import Path
 # "MUX_OK: <ruta de salida>" lleva el nombre del video de origen. Medido el
 # 20-ago-2026 con "video 🎬 prueba.mp4": el render llegaba al 93% y caia ahi.
 #
-# Va por DELANTE de los imports de terceros a proposito, no solo de los
-# prints propios. Todo lo que se escribe antes del blindaje sale con la
-# codepage vieja, y eso incluye la traza de un import que falle. Medido el
-# mismo dia con un `av` de mentira que lanza el ImportError que da Windows
-# cuando falta una DLL, con el mensaje en un idioma que cp1252 no sabe
-# escribir: con el blindaje detras, el mensaje llego a pantalla convertido
-# en escapes tipo backslash-u; con el blindaje delante, llego tal cual. La
-# version escapada es la que el motor enseña detras de "Fallo renderizando:",
-# o sea el sitio donde mas falta hace entender que ha pasado.
+# Va por delante de `av` y `numpy` y no detras: lo que se escribe antes del
+# blindaje sale con la codepage vieja, y eso incluye la traza de un import
+# que falle, que es justo la que hay que poder leer.
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
