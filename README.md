@@ -235,7 +235,14 @@ details worth knowing, because "local" is not the same as "private":
   get a 403 before anything happens. Tools with no browser behind them - curl,
   your own agent, Python - are unaffected.
 - Keys live in `%APPDATA%/Vidorq/config.json`, outside this repository, one per
-  provider, and the engine never hands one back out.
+  provider, and the engine never hands one back out. Checked rather than assumed:
+  five fake keys were planted in a throwaway config and every GET endpoint was
+  swept for them - sixteen endpoints, no leaks. The hole was somewhere else. A
+  provider's own error body is relayed to the screen and written to the history,
+  and OpenAI's 401 answers `Incorrect API key provided: sk-ant-C****...9f3a` -
+  the first seven characters and the last four, coming straight back. Anthropic
+  does not do it; a self-chosen OpenAI-compatible endpoint could do worse. The
+  key we sent is now struck out of any error before it is shown or stored.
 - Text that came from somewhere else cannot give orders. A transcript is
   somebody else's material and so is whatever a model writes back, and both get
   drawn into files that have their own syntax. All five places were checked by
