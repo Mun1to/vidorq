@@ -244,6 +244,10 @@ TEXT = {
         "said_by_you": "dicho por ti: ",
         "no_translation": "sin traducir: %s",
         "needs_bridge": "Necesita Resolve abierto con CursorBridge activo",
+        "no_bridge_yet": ("Para montar el timeline hace falta el puente, y no está\n"
+                          "escuchando. Abre Resolve con un proyecto y pulsa Workspace >\n"
+                          "Scripts > Vidorq. Si prefieres no esperar, cambia la salida a\n"
+                          "MP4 directo."),
         "did_order": "%d tramos puestos en otro orden",
         "said_order": "cambiar de sitio un tramo",
         "only_mp4": "en el MP4",
@@ -362,6 +366,10 @@ TEXT = {
         "said_by_you": "you said: ",
         "no_translation": "not translated: %s",
         "needs_bridge": "Needs Resolve open with CursorBridge running",
+        "no_bridge_yet": ("Building the timeline needs the bridge, and it is not\n"
+                          "listening. Open Resolve with a project and click Workspace >\n"
+                          "Scripts > Vidorq. If you would rather not wait, switch the\n"
+                          "output to direct MP4."),
         "did_order": "%d segments put in another order",
         "said_order": "move a segment",
         "only_mp4": "in the MP4",
@@ -2607,6 +2615,12 @@ def run_job(req):
         # que ver con ella. Una clave nunca es parte de un encargo de
         # edicion, asi que quitarla no cambia lo que se pidio.
         prompt = sin_secretos((req.get("prompt") or "").strip())
+        # El puente, lo primero: si la salida es un timeline y no hay puente,
+        # decirlo ahora cuesta medio segundo y decirlo despues cuesta toda la
+        # transcripcion. La comprobacion del paso 5 sigue estando, porque el
+        # puente se puede caer mientras esto trabaja.
+        if output == "resolve" and not bridge_status()["bridge"]:
+            raise RuntimeError(tr("no_bridge_yet"))
         ratio = req.get("ratio") or "source"
         transition = req.get("transition") or "none"
         # `colour` y no `look`: mas abajo `look` es lo que devuelve mirar el
