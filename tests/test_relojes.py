@@ -309,6 +309,57 @@ def casos():
     yield "el punch se come la mitad del zoom antes del fotograma 18", mitad < 18, True
 
 
+    # --- el motor de corte por defecto -------------------------------------
+    # Es lo que corre cuando no escribes nada (el preset Limpieza), o sea el
+    # camino mas usado, y no tenia ni una prueba. Lo que cumple su salida no
+    # depende del audio ni del modelo, asi que se puede fijar.
+    def palabra(w, s0, e0):
+        return {"w": w, "s": round(s0, 2), "e": round(e0, 2)}
+
+    HABLADO = {"duration": 40.0, "language": "es", "segments": [
+        # una frase normal
+        {"text": "hola a todos", "start": 1.0, "end": 2.6, "words": [
+            palabra("hola", 1.0, 1.4), palabra("a", 1.5, 1.6),
+            palabra("todos", 1.7, 2.6)]},
+        # un titubeo SOLO, con silencio a los dos lados
+        {"text": "eh", "start": 6.0, "end": 6.3, "words": [palabra("eh", 6.0, 6.3)]},
+        # otra frase, despues de un silencio largo
+        {"text": "esto es lo que hay", "start": 12.0, "end": 14.2, "words": [
+            palabra("esto", 12.0, 12.4), palabra("es", 12.5, 12.7),
+            palabra("lo", 12.8, 12.9), palabra("que", 13.0, 13.2),
+            palabra("hay", 13.3, 14.2)]},
+        # y una palabra suelta al final, pegada al borde del video
+        # Pegada al final a proposito: 39.95 + el margen de 0.15 se saldria
+        # del video, asi que este es el dato que hace fallar la regla 3 si
+        # alguien quita el tope. Sin el, esa regla no puede saltar nunca.
+        {"text": "adios", "start": 39.3, "end": 39.95,
+         "words": [palabra("adios", 39.3, 39.95)]},
+    ]}
+    corte, informe = server.edl_from_speech(HABLADO, "es")
+    yield ("corte por defecto: salen tramos", len(corte) > 0, True)
+    # 1) en orden y sin pisarse
+    yield ("corte por defecto: en orden y sin pisarse",
+           [(round(corte[i]["end"], 3), round(corte[i + 1]["start"], 3))
+            for i in range(len(corte) - 1)
+            if float(corte[i]["end"]) > float(corte[i + 1]["start"]) + 1e-9], [])
+    # 2) ninguno demasiado corto para ser un plano
+    yield ("corte por defecto: ninguno por debajo del minimo",
+           [round(p["end"] - p["start"], 3) for p in corte
+            if p["end"] - p["start"] < server.MIN_KEEP_S - 1e-9], [])
+    # 3) nada fuera del video
+    yield ("corte por defecto: nada se sale del video",
+           [p for p in corte if p["start"] < -1e-9 or p["end"] > 40.0 + 1e-9], [])
+    # 4) lo que se dice sigue dentro. El titubeo suelto NO cuenta: se va a
+    #    proposito, que para eso esta.
+    def dentro(t):
+        return any(float(p["start"]) - 1e-9 <= t <= float(p["end"]) + 1e-9
+                   for p in corte)
+    perdidas = [w["w"] for seg in HABLADO["segments"] for w in seg["words"]
+                if w["w"] != "eh" and not dentro(w["s"])]
+    yield ("corte por defecto: no se pierde ninguna palabra", perdidas, [])
+    # 5) y el titubeo aislado se fue
+    yield ("corte por defecto: el titubeo suelto se va", dentro(6.1), False)
+
     # --- los tramos que se enseñan para reordenar ---------------------------
     # Cada bloque de la pestaña Orden: de donde sale en el ORIGINAL, donde cae
     # en el MONTAJE, y lo que se dice dentro. Los dos relojes otra vez, esta vez
