@@ -1,6 +1,9 @@
 # Secrets - NEVER commit keys
 .env
 .env.*
+# froede's local secret: the browser extension writes to source files with it.
+# Listed before the file exists, which is when a guard is worth anything.
+.froede-token
 *.key
 
 # Dependencies
