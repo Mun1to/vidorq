@@ -49,36 +49,48 @@ vidorq_render.py         → mp4 directo (GPU)
 |---|---|
 | `GET /health` | latido; la app muestra "motor conectado/apagado" |
 | `GET /progress` | paso, %, detalle, resultado o error |
-| `POST /config` | guarda la API key |
-| `POST /edit` | `{video, preset, captions, output, prompt}` → job en hilo |
+| `GET /resolve` | si Resolve está abierto, con qué proyecto y timeline |
+| `GET /clips` | los vídeos que ya hay en el proyecto abierto |
+| `GET /session` | la conversación de ese vídeo en ese proyecto, sus ajustes y si hay algo que deshacer |
+| `GET /words` | cada palabra con su segundo, para editar leyendo |
+| `GET /tramos` | el montaje partido en tramos, con lo que se dice en cada uno |
+| `GET /history` | todas las ediciones hechas, la última primero |
+| `GET /preview` | una foto de lo que hace una elección, sobre tu propio metraje |
+| `GET /captions/presets` | el catálogo: estilos, entradas, colores, formatos, transiciones y cuáles sabe hacer Resolve |
+| `GET /providers` · `/models` · `/voices` | quién puede pensar tu frase y quién puede ponerle voz |
+| `GET /workspaces` · `/profile` | el workspace activo y el perfil de marca |
+| `POST /edit` | `{video, preset, captions, output, prompt, ...}` → trabajo en un hilo |
+| `POST /stop` | corta el trabajo en marcha; lo ya hecho se queda |
+| `POST /seek` | mueve el cabezal de Resolve a un segundo del montaje |
+| `POST /config` · `/profile` · `/workspaces` | guardan ajustes, marca y workspaces |
+| `POST /history` | vacía la lista de ediciones (los vídeos no se tocan) |
+| `POST /shutdown` | apaga el motor |
 
-## Cómo se abre (2026-07-07: lanzador fácil, siempre actualizado)
+Todos contestan **solo a una ventana de esta máquina**: una petición con un `Origin` de fuera
+se lleva un 403 antes de hacer nada, porque detrás de `/history` y `/words` hay material del
+usuario y cualquier web abierta en su navegador puede llamar a un puerto local.
 
-**Acceso directo en el Escritorio: `Vidorq.lnk`** (icono real de la app). Doble clic y
-listo — no hace falta terminal ni comandos.
+## Cómo se abre (desde el 2026-08-17: una sola entrada en Resolve)
 
-Por debajo, el acceso directo apunta a `app/Abrir_Vidorq.vbs`, que:
-1. Comprueba si el motor local (puerto 9877) ya está encendido; si no, lo arranca oculto.
-2. Lanza la app con `pnpm tauri dev` (oculto, sin ventana de consola).
+**`Workspace > Scripts > Vidorq`**, dentro de DaVinci Resolve. Ese clic enciende el motor
+(oculto, sin consola), arranca el puente y abre la ventana. No hace falta terminal, ni acceso
+directo en el escritorio, ni tener Resolve y la app sincronizados a mano.
 
-**Por qué modo dev y no un instalador**: `tauri dev` compila siempre desde el código
-fuente actual. Así, cada vez que se edite el proyecto (yo o Munir), la próxima vez que
-se abra el acceso directo ya lleva los cambios — no hace falta reinstalar nada. Es el
-equivalente a "se actualiza sola". El primer arranque compila Rust desde cero (~2-4 min
-la primera vez); los siguientes son rápidos porque Cargo cachea el build.
+Lo que se instala en Resolve es un **cargador sin lógica** que lee un puntero y ejecuta el
+código de la carpeta de instalación, así que **actualizar la app actualiza la extensión** y no
+hay que volver a instalar nada en Resolve nunca más. Se pone una vez con
+`resolve/instalar.ps1`.
 
-Si algo falla y no se ve nada (el modo silencioso oculta la consola), usar
-`Abrir_Vidorq_debug.bat` (misma carpeta) en su lugar: mismo lanzador pero con consola
-visible para ver el error.
+**Trampa medida (2026-08-18)**: la ventana es un `vidorq.exe` compilado con Tauri, y un binario
+de release **lleva la interfaz incrustada dentro**. `pnpm build` solo regenera `app/dist`, que
+ese exe ni mira. Cualquier cambio de interfaz que tenga que ver una persona termina en
+`pnpm tauri build` (con `CARGO_TARGET_DIR=C:\ct`), cerrando antes la ventana porque si el exe
+está corriendo no se puede reemplazar. Sale en `C:\ct\release\vidorq.exe`, que es justo donde
+lo busca el cargador.
 
-Cuando el producto esté "consistente y funcione bien de verdad" (regla de Munir), se
-generará un instalador de verdad con `pnpm tauri build` → `bundle/nsis/Vidorq_x64-setup.exe`
-(ya se generó una vez como prueba antes del logo/workspaces — quedó desactualizado y
-hay que regenerarlo cuando toque congelar una versión).
-
-Nota técnica: el paquete Rust se renombró de `app` a `vidorq` (2026-07-07) para que el
-proceso/binario se llame `vidorq.exe` y no choque con Vidorq Core (`vidorq-core.exe`)
-en el Administrador de tareas.
+Nota técnica: el paquete Rust se llama `vidorq` (renombrado de `app` el 2026-07-07) para que el
+proceso sea `vidorq.exe` y no choque con Vidorq Core (`vidorq-core.exe`) en el Administrador de
+tareas.
 
 ## Pendiente v1.x
 
