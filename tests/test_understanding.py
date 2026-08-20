@@ -331,6 +331,32 @@ ARITMETICA = [
 ]
 
 
+# --- pedir musica, que Vidorq no sabe poner -----------------------------
+# La ventana llego a SUGERIR "Los mejores momentos, con música de fondo" como
+# una de sus tres frases de ejemplo, y con esa frase la edicion salia sin decir
+# ni una palabra de la musica: `cannot: []`, `unknown: []`. El ejemplo ya no lo
+# promete, y si alguien la pide con sus palabras, se le dice.
+#
+# Los tres ultimos son los falsos positivos de la primera version, y estan aqui
+# porque avisar de lo que no viene a cuento entrena a no leer los avisos: el
+# TEXTO de un rotulo es del usuario y no se interpreta, y cortar "cuando suena
+# el beat" no es pedir musica, es pedir el ritmo de la que ya hay.
+MUSICA = [
+    ("los mejores momentos, con musica de fondo", True),
+    ("ponle una cancion alegre", True),
+    ("add background music", True),
+    ("ponle música épica detrás", True),
+    ("un montaje musical", True),
+    ("quita silencios y muletillas", False),
+    ("un short vertical con subtitulos", False),
+    ("pon un rotulo que diga MUSICAL", False),
+    ("pon un cartel que diga LA MUSICA DE MI VIDA en el segundo 3", False),
+    ("corta cuando suena el beat", False),
+    ("hazlo mas dinamico", False),
+    ("", False),
+]
+
+
 def main():
     bad = []
 
@@ -416,6 +442,14 @@ def main():
             if got != want:
                 bad.append("pick_pairs(%r) esperaba %s y devolvio %s"
                            % (prompt, want, got))
+
+        # --- pedir musica -------------------------------------------------
+        for frase, quiere in MUSICA:
+            echo_n += 1
+            got = server.pide_musica(frase)
+            if got != quiere:
+                bad.append("pide_musica(%r) esperaba %s y devolvio %s"
+                           % (frase, quiere, got))
 
         # --- los botones saben en que salida estan -------------------------
         # Ofrecer una transicion que esta salida no sabe hacer, y negarla

@@ -2471,13 +2471,26 @@ def said_pick(prompt, lang="es"):
 # reconoce para poder DECIRLO, que es lo unico honesto mientras no exista, y
 # porque callarse es como se pierde a alguien en el primer minuto.
 MUSICA_RE = re.compile(
-    r"m[uú]sica|\bmusic\b|banda sonora|soundtrack|\bbso\b|cancion|canción|"
-    r"\bbeat\b|\bbgm\b", re.I)
+    r"m[uú]sic(?:a|as|al|ales|os)\b|\bmusic\b|banda sonora|soundtrack|"
+    r"\bbso\b|canci[oó]n\b|\bbgm\b", re.I)
+
+# Donde empieza el texto que escribe el usuario para que salga en pantalla. Lo
+# de despues es SUYO y no se interpreta: "un rotulo que diga MUSICAL" no pide
+# musica, pide un rotulo.
+SU_TEXTO_RE = re.compile(r"que\s+(?:diga|ponga|salga)|that\s+says", re.I)
 
 
 def pide_musica(prompt):
-    """True si la frase pide musica de alguna forma."""
-    return bool(MUSICA_RE.search(prompt or ""))
+    """True si la frase pide musica de verdad.
+
+    "beat" se quedo fuera a proposito: "corta cuando suena el beat" no pide
+    musica, pide cortar al ritmo de la que ya hay, que es otra cosa.
+    """
+    texto = str(prompt or "")
+    corte = SU_TEXTO_RE.search(texto)
+    if corte:
+        texto = texto[:corte.start()]
+    return bool(MUSICA_RE.search(texto))
 
 
 def shown(prompt, lang="es"):
