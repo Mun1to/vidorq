@@ -181,10 +181,72 @@ def catalogue(lang="es"):
                     "custom": pid == "custom",
                     "cli": p["protocol"] == "cli",
                     "note": p["note"].get(lang, p["note"]["es"]),
-                    # Una CLI que no esta instalada se ensena apagada en vez de
-                    # esconderse: saber que existe es la mitad del valor.
-                    "installed": cli_ready(pid)})
+                    # Lo que no se puede usar se ensena apagado en vez de
+                    # esconderse: saber que existe es la mitad del valor. Y con
+                    # el motivo, que un boton apagado y mudo no dice si le falta
+                    # algo a el o al ordenador.
+                    "installed": ready(pid),
+                    "why": why_not(pid, lang)})
     return out
+
+
+# La respuesta de Ollama, con su hora. Preguntarselo cuesta: cuando esta
+# encendido y vacio, `ollama_host()` no se queda con ningun host y vuelve a
+# probarlos todos en cada llamada, y el catalogo entero tardaba 4,15 s. La
+# pantalla de ajustes se abre a mano y no puede pararse cuatro segundos.
+_local = {"cuando": 0.0, "listo": False}
+LOCAL_TTL = 20.0
+
+
+def local_ready():
+    """True si Ollama esta escuchando Y tiene al menos un modelo.
+
+    Encendido y vacio no es lo mismo que listo, y esa diferencia se sufrio: la
+    pantalla de ajustes daba "Ollama local" por bueno mirando solo que no fuera
+    una CLI, y en una maquina con Ollama corriendo y cero modelos (medido el
+    19-ago-2026: `/api/tags` devolvia `{"models":[]}`) el proveedor de FABRICA
+    salia disponible y despues cada prompt se leia sin modelo, en silencio.
+    """
+    import time
+    if time.time() - _local["cuando"] < LOCAL_TTL:
+        return _local["listo"]
+    listo = False
+    try:
+        import vision
+        with urllib.request.urlopen(vision.ollama_host() + "/api/tags",
+                                    timeout=1.5) as r:
+            listo = bool(json.loads(r.read().decode()).get("models"))
+    except Exception:
+        listo = False
+    # Veinte segundos: quien acaba de arrancar Ollama lo ve aparecer sin tener
+    # que reiniciar nada, y quien solo abre los ajustes no espera.
+    _local.update(cuando=time.time(), listo=listo)
+    return listo
+
+
+def ready(provider):
+    """Si ese proveedor puede contestar ahora mismo, sin pedir nada mas."""
+    if provider == "local":
+        return local_ready()
+    return cli_ready(provider)
+
+
+def why_not(provider, lang="es"):
+    """Por que no se puede usar, o "" si se puede. Va al tooltip del boton.
+
+    Un boton apagado sin motivo es un boton roto: el que lo mira no sabe si le
+    falta algo a el o al programa.
+    """
+    if ready(provider):
+        return ""
+    if provider == "local":
+        return ("Ollama no responde, o esta encendido y sin ningun modelo "
+                "descargado." if lang == "es" else
+                "Ollama is not answering, or it is running with no model "
+                "downloaded.")
+    return ("Esa herramienta no esta instalada en este ordenador."
+            if lang == "es" else
+            "That tool is not installed on this computer.")
 
 
 def cli_ready(provider):

@@ -13,6 +13,9 @@ export interface Provider {
   custom: boolean;
   cli: boolean;
   installed: boolean;
+  /* Por que no se puede usar, cuando `installed` es false. Un boton apagado y
+     mudo no dice si le falta algo a el o al ordenador. */
+  why?: string;
   note: string;
 }
 
@@ -107,7 +110,7 @@ export default function Providers() {
               className={provider === p.id ? "sel" : ""}
               onClick={() => pick(p.id)}
               disabled={!p.installed}
-              title={p.installed ? p.note : t("prov.cli.missing")}
+              title={p.installed ? p.note : (p.why || t("prov.cli.missing"))}
             >
               {p.label}
               {data.hasKey.includes(p.id) && <span className="dot" />}
