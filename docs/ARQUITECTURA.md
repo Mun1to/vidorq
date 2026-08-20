@@ -26,7 +26,7 @@ Esto ya da 162 herramientas sobre Resolve Free: timeline, clips, marcadores, med
 | Limitación | Consecuencia | Solución de Vidorq |
 |---|---|---|
 | No se pueden animar keyframes **con una llamada** | No se puede pedir "anima esto" | RESUELTO en la práctica: el `.comp` se escribe con sus splines dentro y `ImportFusionComp` las conserva. Medido en 21.0.4.5 Free, ver `docs/SUBTITULOS.md` |
-| No se pueden añadir transiciones por API | Sin cortinillas automáticas | Plantillas Fusion (.drfx/.setting) instaladas + macros; o transiciones "cocinadas" en el overlay |
+| No se pueden añadir transiciones por API | Solo afecta a las que MEZCLAN los dos planos | RESUELTO para las que solo **tapan** el corte: fundido a negro, a blanco y destello se montan como una capa animada en su propia pista, y las tres están medidas (el fotograma de cada unión sale negro puro o blanco puro, y funde en vez de saltar). Disolvencia, barrido y deslizamiento siguen siendo solo MP4, y la ventana lo dice antes de que las pulses |
 | No se puede editar el interior de nodos Fusion por API | No se puede tocar un Text+ ya puesto | Se esquiva sin editarlo: el comp se genera ya con el texto y el estilo dentro, y se importa encima |
 | Un título insertado cae siempre en V1 y hace ripple | Insertar subtítulos destroza una edición montada | Los subtítulos van en su propio timeline, anidado en V2 con `recordFrame`. Bloquear o apagar V1 NO desvía la inserción (medido) |
 | Free no exporta >4K ni ciertas opciones de render | Techo de calidad de export | 4K H.264/H.265 cubre el 100% de redes sociales (ver RECURSOS.md) |
