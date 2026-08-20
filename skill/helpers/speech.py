@@ -95,8 +95,13 @@ def _root(engine, base_url=""):
     return e, (base_url or e["base"] or "").rstrip("/")
 
 
-def _post_bytes(url, body, headers, timeout=TIMEOUT):
-    """Like providers._post, except the answer is audio and not JSON."""
+def _post_bytes(url, body, headers, timeout=TIMEOUT, key=""):
+    """Like providers._post, except the answer is audio and not JSON.
+
+    Y con el mismo cuidado con la clave: el cuerpo de un 401 de un tercero
+    acaba en la pantalla y en el historial, y OpenAI contesta ahi con la clave
+    que le mandaste, enmascarada por ellos y no por nosotros.
+    """
     req = urllib.request.Request(
         url, data=json.dumps(body).encode(),
         headers=dict(headers, **{"Content-Type": "application/json"}), method="POST")
@@ -106,7 +111,8 @@ def _post_bytes(url, body, headers, timeout=TIMEOUT):
     except urllib.error.HTTPError as e:
         detail = ""
         try:
-            detail = e.read().decode()[:300]
+            from providers import sin_clave
+            detail = sin_clave(e.read().decode()[:300], key)
         except Exception:
             pass
         host = url.split("//", 1)[-1].split("/", 1)[0]
@@ -194,7 +200,7 @@ def _eleven_voices(root, key):
 def _eleven_say(root, key, text, dest, voice, model):
     audio = _post_bytes("%s/text-to-speech/%s" % (root, voice),
                         {"text": text, "model_id": model},
-                        {"xi-api-key": key, "Accept": "audio/mpeg"})
+                        {"xi-api-key": key, "Accept": "audio/mpeg"}, key=key)
     Path(dest).write_bytes(audio)
     return Path(dest)
 
@@ -203,7 +209,7 @@ def _openai_say(root, key, text, dest, voice, model):
     audio = _post_bytes(root + "/audio/speech",
                         {"model": model, "input": text, "voice": voice,
                          "response_format": "mp3"},
-                        {"Authorization": "Bearer " + key})
+                        {"Authorization": "Bearer " + key}, key=key)
     Path(dest).write_bytes(audio)
     return Path(dest)
 
