@@ -51,6 +51,7 @@ vidorq_render.py         → mp4 directo (GPU)
 | `GET /progress` | paso, %, detalle, resultado o error |
 | `GET /resolve` | si Resolve está abierto, con qué proyecto y timeline |
 | `GET /clips` | los vídeos que ya hay en el proyecto abierto |
+| `GET /probe` | si la ruta que has escrito lleva de verdad a un vídeo, antes de aceptarla |
 | `GET /session` | la conversación de ese vídeo en ese proyecto, sus ajustes y si hay algo que deshacer |
 | `GET /words` | cada palabra con su segundo, para editar leyendo |
 | `GET /tramos` | el montaje partido en tramos, con lo que se dice en cada uno |

@@ -51,6 +51,8 @@ interface PoolClip {
 function App() {
   const { t, lang, setLang } = useLang();
   const [video, setVideo] = useState<string>("");
+  // Por que no vale la ruta que se acaba de escribir. "" = no hay nada que decir.
+  const [pathWhy, setPathWhy] = useState("");
   const [preset, setPreset] = useState<Preset>("clean");
   const [captions, setCaptions] = useState(true);
   // Los estilos de caption los sirve el motor, que es donde estan definidos:
@@ -429,6 +431,24 @@ function App() {
   }, [wsOpen]);
 
   const fileName = useMemo(() => video.split(/[\\/]/).pop() ?? "", [video]);
+  /* Una ruta escrita a mano no se comprobaba. Con una letra de mas el nombre
+     aparecia igual en su sitio, el boton de editar se encendia y el fallo no
+     salia hasta la mitad de la edicion. Ahora se le pregunta al motor antes de
+     aceptarla. Un video arrastrado o sacado del proyecto de Resolve ya existe,
+     asi que ese camino no paga la vuelta; el del historial si, porque el
+     archivo pudo borrarse despues. */
+  async function pickVideo(raw: string) {
+    const path = raw.trim().replace(/^"|"$/g, "");
+    if (!path) { setPathWhy(""); setVideo(""); return; }
+    try {
+      const r = await apiGet<{ ok: boolean; why: string }>(
+        `/probe?lang=${lang}&video=${encodeURIComponent(path)}`);
+      if (!r.ok) { setPathWhy(r.why); return; }
+    } catch { /* el motor caido ya tiene su aviso arriba */ }
+    setPathWhy("");
+    setVideo(path);
+  }
+
   const canEdit = video !== "" && engineUp === true && phase !== "running";
   // El chat manda en cuanto este video tiene conversacion, aunque la ventana se
   // haya cerrado por el medio: para eso se guarda. La pantalla de "Listo" con su
@@ -541,7 +561,7 @@ function App() {
         // Pulsar una edicion vuelve a su video, que es lo unico que se puede
         // querer hacer con una fila del historial: seguir con aquello.
         <History
-          onOpen={(v) => { setVideo(v); setView("edit"); }}
+          onOpen={(v) => { pickVideo(v); setView("edit"); }}
           // El historial guardaba donde quedo cada video y no dejaba abrirlo:
           // para eso es un historial, para encontrar aquello de la semana
           // pasada sin acordarse de la carpeta.
@@ -697,12 +717,18 @@ function App() {
                 <b>{t("drop.title")}</b>
                 <small>{t("drop.sub")}</small>
                 <input
-                  className="path-input"
+                  className={`path-input ${pathWhy ? "bad" : ""}`}
+                  onChange={() => pathWhy && setPathWhy("")}
                   placeholder="C:\...\video.mp4"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") setVideo((e.target as HTMLInputElement).value.replace(/^"|"$/g, ""));
+                    if (e.key === "Enter") pickVideo((e.target as HTMLInputElement).value);
                   }}
                 />
+                {pathWhy && (
+                  <small className="path-bad">
+                    <IconAlert size={13} className="icon" />{pathWhy}
+                  </small>
+                )}
                 {poolClips.length > 0 && (
                   <div className="pool">
                     <span className="pool-head">{t("drop.inproject")}</span>

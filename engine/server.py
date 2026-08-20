@@ -1846,6 +1846,13 @@ def session_dir(video, scope=None):
 # esa pregunta no se puede contestar desde una carpeta que hay que encontrar
 # antes. La sesion de al lado (`sesion.json`) sigue siendo lo otro: la
 # conversacion de ESE video en ESE proyecto, para poder retocarlo.
+# Lo que se deja escribir en el campo de la ruta. No es la lista de lo que
+# ffmpeg sabe abrir, que es enorme: es la de lo que alguien arrastra a un
+# editor. Vale para decir "esto no es un video" antes de empezar, no para
+# prometer que ese archivo esta sano.
+VIDEO_EXT = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".mpg",
+             ".mpeg", ".wmv", ".flv", ".mts", ".m2ts", ".braw", ".r3d"}
+
 LEDGER = CONFIG_DIR / "ediciones.json"
 LEDGER_MAX = 200
 
@@ -3207,6 +3214,31 @@ class Handler(BaseHTTPRequestHandler):
                             # Si hay un paso atras al que volver. La ventana no
                             # puede saberlo sola: el montaje de antes vive aqui.
                             "canUndo": bool(st.get("edl_prev"))})
+        elif self.path.startswith("/probe"):
+            # Existe ese archivo? La ventana lo pregunta antes de aceptar una
+            # ruta escrita a mano. Sin esto, una letra mal puesta se tragaba en
+            # silencio: el nombre aparecia en su sitio, el boton de editar se
+            # encendia, y el fallo no salia hasta la mitad de la edicion.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            video = ((q.get("video") or [""])[0] or "").strip().strip('"')
+            lang = (q.get("lang") or ["es"])[0]
+            if not video:
+                self._send({"ok": False, "why": ""})
+            elif os.path.isdir(video):
+                self._send({"ok": False, "why": (
+                    "Eso es una carpeta, no un vídeo." if lang == "es"
+                    else "That is a folder, not a video.")})
+            elif not os.path.isfile(video):
+                self._send({"ok": False, "why": (
+                    "En esa ruta no hay ningún archivo. Míralo bien." if lang == "es"
+                    else "There is no file at that path. Check it again.")})
+            elif os.path.splitext(video)[1].lower() not in VIDEO_EXT:
+                self._send({"ok": False, "why": (
+                    "Ese archivo no es un vídeo de los que Vidorq abre." if lang == "es"
+                    else "That file is not a video Vidorq can open.")})
+            else:
+                self._send({"ok": True, "why": "", "name": os.path.basename(video)})
         elif self.path.startswith("/tramos"):
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)

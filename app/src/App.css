@@ -1029,3 +1029,13 @@ select:focus-visible,
   cursor: pointer;
 }
 .hist-open button:hover { border-color: var(--accent); color: var(--text); }
+
+/* La ruta escrita a mano que no lleva a ningun archivo. El campo se marca y el
+   motivo va debajo: un borde rojo solo dice "algo pasa", no dice el que. */
+.path-input.bad { border-color: #c0453f; }
+.path-bad {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin-top: -4px; font-size: 12px; color: #e08a86; max-width: 420px;
+  text-align: left;
+}
+.path-bad .icon { color: #c0453f; flex: none; margin-top: 1px; }
