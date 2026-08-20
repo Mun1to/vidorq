@@ -1025,6 +1025,14 @@ def bridge_get(path, timeout=2):
     return None if isinstance(data, dict) and data.get("error") else data
 
 
+# Lo ultimo que se vio al mirar los procesos, con su hora. Preguntarlo cuesta
+# 0,35 s y el panel lo pregunta cada cinco segundos mientras la salida sea el
+# timeline, asi que sin esto es un proceso por vuelta. Cuatro segundos de
+# memoria: abrir Resolve y verlo aparecer sigue siendo inmediato para quien mira.
+_resolve_visto = {"cuando": 0.0, "abierto": None}
+RESOLVE_TTL = 4.0
+
+
 def resolve_corriendo():
     """Si Resolve esta abierto, mirando los procesos y no el puente.
 
@@ -1034,13 +1042,17 @@ def resolve_corriendo():
     """
     if os.name != "nt":
         return None
+    if time.time() - _resolve_visto["cuando"] < RESOLVE_TTL:
+        return _resolve_visto["abierto"]
     try:
         out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Resolve.exe", "/NH"],
                              capture_output=True, text=True, timeout=5,
                              creationflags=NO_WINDOW)
-        return "Resolve.exe" in (out.stdout or "")
+        abierto = "Resolve.exe" in (out.stdout or "")
     except Exception:
-        return None      # ni si ni no: no se ha podido mirar
+        abierto = None   # ni si ni no: no se ha podido mirar
+    _resolve_visto.update(cuando=time.time(), abierto=abierto)
+    return abierto
 
 
 def bridge_status():
