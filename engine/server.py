@@ -482,9 +482,15 @@ def profile_load():
         return {}
 
 
+# Atomico como la sesion y el historial, y por el mismo motivo: `write_text`
+# abre en modo "w", que TRUNCA antes de escribir nada. Medido el 20-ago-2026:
+# un config.json de 66 bytes con dos claves dentro se queda en 0 bytes si el
+# proceso se muere entre las dos cosas. Perder una sesion molesta; perder las
+# claves manda a alguien a cinco paneles de proveedor a sacarlas otra vez, y
+# perder el perfil de marca borra un rato de alguien rellenandolo.
 def profile_save(p):
-    (ws_dir() / "brand.json").write_text(
-        json.dumps(p, ensure_ascii=False, indent=1), encoding="utf-8")
+    _atomic_write(ws_dir() / "brand.json",
+                  json.dumps(p, ensure_ascii=False, indent=1))
 
 
 # --------------------------------------------------------------------------- #
@@ -3596,7 +3602,7 @@ class Handler(BaseHTTPRequestHandler):
                 if field in incoming:
                     cfg[field] = incoming.pop(field)
             cfg.update({k: v for k, v in incoming.items() if v != ""})
-            CONFIG.write_text(json.dumps(cfg), encoding="utf-8")
+            _atomic_write(CONFIG, json.dumps(cfg))
             self._send({"ok": True})
         elif self.path == "/workspaces":
             created = None
@@ -3613,7 +3619,7 @@ class Handler(BaseHTTPRequestHandler):
                 cfg["activeWorkspace"] = (created if body["activate"] == body.get("create")
                                           else _safe_name(body["activate"]))
                 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-                CONFIG.write_text(json.dumps(cfg), encoding="utf-8")
+                _atomic_write(CONFIG, json.dumps(cfg))
             self._send(ws_list())
         elif self.path == "/profile":
             profile_save(body)
