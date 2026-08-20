@@ -185,6 +185,8 @@ TEXT = {
         "framing_help": "Detector local, milisegundos por fotograma",
         "framed": "Encuadre sobre la cara en %d de %d tramos",
         "framed_none": "Sin caras: recorte centrado",
+        "no_face": ("Recorte centrado: no encuentro el modelo del detector de "
+                    "caras, así que no he podido buscar a nadie en el cuadro."),
         "no_gpu": "Sin GPU para transcribir, va por CPU y tarda más",
         "moments": "Leyendo lo que pides en momentos concretos...",
         "moments_done": "En momentos concretos: %s",
@@ -281,6 +283,8 @@ TEXT = {
         "framing_help": "Local detector, milliseconds per frame",
         "framed": "Framed on the face in %d of %d cuts",
         "framed_none": "No faces found: centred crop",
+        "no_face": ("Centred crop: the face detector model is missing, so there "
+                    "was no way to look for anyone in the frame."),
         "no_gpu": "No GPU for transcription, running on CPU and slower",
         "moments": "Reading what you asked for at specific moments...",
         "moments_done": "At specific moments: %s",
@@ -328,7 +332,13 @@ TEXT = {
 # run under this same interpreter. Started with the wrong Python it answers
 # /health perfectly and then dies half way through the first job with "No module
 # named av", which reads like a broken video file. So it says so up front.
-NEEDS = ("av", "faster_whisper", "numpy", "PIL")
+# onnxruntime entra aqui aunque `faces.available()` sepa vivir sin el: no es
+# solo del detector de caras, es de faster_whisper, que lo pide para el filtro
+# VAD y sin el no transcribe nada. Medido el 20-ago-2026 escondiendolo: el
+# arranque decia "missing": [] tan tranquilo, y la edicion moria al 10% con
+# "RuntimeError: Applying the VAD filter requires the onnxruntime package".
+# Aqui se ve antes de empezar y con una frase que dice que hacer.
+NEEDS = ("av", "faster_whisper", "numpy", "PIL", "onnxruntime")
 
 
 def missing_modules():
@@ -3061,6 +3071,10 @@ def run_job(req):
             did.append(tr("framed", hits, len(edl)))
         elif ratio and ratio != "source" and not hand_framed and faces.available():
             not_understood = list(not_understood) + [tr("framed_none")]
+        elif ratio and ratio != "source" and not hand_framed:
+            # Y el tercer caso, que es el que faltaba: no es que no haya caras,
+            # es que no hay con que buscarlas.
+            not_understood = list(not_understood) + [tr("no_face")]
         did += said_deeds(deeds, _lang)
         # Pediste algo en un momento y no salio nada: se dice. Un turno que se
         # calla es indistinguible de uno que lo ha hecho, que es de donde sale el
