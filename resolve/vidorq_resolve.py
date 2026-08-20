@@ -81,6 +81,8 @@ T = {
     "ready": ("Todo listo. Deja Resolve abierto y edita desde la ventana de Vidorq.",
               "All set. Leave Resolve open and edit from the Vidorq window."),
     "box_title": ("Vidorq listo", "Vidorq is ready"),
+    "box_title_bad": ("Vidorq ha arrancado a medias",
+                      "Vidorq only started halfway"),
 }
 
 
@@ -95,11 +97,21 @@ except Exception:
     pass
 
 
+# Las lineas que significan "esto no ha salido". El cartel del final se titulaba
+# siempre "Vidorq listo", tambien cuando dentro ponia que el motor no arranca:
+# un titulo verde encima de una lista de fallos es peor que no poner nada.
+MALAS = ("engine_fail", "engine_missing", "bridge_busy", "bridge_missing",
+         "not_in_resolve")
+_malo = []
+
+
 def say(key, *args):
     text = T[key][0] if ES else T[key][1]
     line = "[Vidorq] " + (text % args if args else text)
     print(line)
     _lines.append(line)
+    if key in MALAS:
+        _malo.append(key)
     try:
         with open(LOG, "a", encoding="utf-8") as f:
             f.write(line + "\n")
@@ -107,25 +119,48 @@ def say(key, *args):
         pass
 
 
-def notify(title, body):
+def notify(title, body, wait=False, bad=False):
     """Say something the user can actually see.
 
     A click that starts things silently reads as a click that did nothing, and
     Resolve's console is behind F6 where nobody looks. UIManager is out of reach
-    on the Free edition, so this uses the plain Windows box, on its own thread so
-    it never holds up the bridge behind it.
+    on the Free edition, so this uses the plain Windows box.
+
+    `wait` decides which thread paints it, and it is not a detail. On the normal
+    path the bridge's serve_forever() comes right after, so a modal box on this
+    thread would freeze it: the box goes on its own thread and the bridge carries
+    on. On the paths that END here there is nothing left to freeze, and a daemon
+    thread dies with the process before Windows draws anything - measured, and
+    the result was no box at all where a box was the whole point.
     """
     if os.name != "nt":
         return
+    # 0x40 information, 0x10 error, 0x10000 bring to front
+    flags = (0x10 if bad else 0x40) | 0x10000
 
     def show():
         try:
-            # 0x40 information icon, 0x10000 bring to front
-            ctypes.windll.user32.MessageBoxW(0, body, title, 0x40 | 0x10000)
+            ctypes.windll.user32.MessageBoxW(0, body, title, flags)
         except Exception:
             pass
 
-    threading.Thread(target=show, daemon=True).start()
+    if wait:
+        show()
+    else:
+        threading.Thread(target=show, daemon=True).start()
+
+
+def resumen(wait=False):
+    """El cartel del final, con el titulo que corresponda a lo que paso.
+
+    Sale tambien por los caminos que antes acababan mudos: sin puente y fuera de
+    Resolve. Los dos dejan la integracion muerta, y los dos terminaban el script
+    sin nada en pantalla, o sea igual que un menu que no hace nada. Esos dos
+    piden `wait`, porque despues de ellos no queda script.
+    """
+    malo = bool(_malo)
+    titulo = T["box_title_bad" if malo else "box_title"][0 if ES else 1]
+    notify(titulo, "\n".join(_lines), wait=wait, bad=malo)
 
 
 def alive(url, timeout=1.5):
@@ -236,8 +271,10 @@ if "bmd" not in globals():
     # Outside Resolve the bridge is useless, and worse: it would take port 9876
     # from the real one running inside Resolve and shut it down on the way in.
     say("not_in_resolve")
+    resumen(wait=True)
 elif not os.path.isfile(BRIDGE_SRC):
     say("bridge_missing", BRIDGE_SRC)
+    resumen(wait=True)
 else:
     if alive(BRIDGE + "/status"):
         # Saying "I will replace it" was not the same as replacing it: the old
@@ -262,8 +299,10 @@ else:
     say("ready")
     # The window appearing is feedback enough. Without one, a click that does
     # everything invisibly is indistinguishable from a click that failed.
-    if not window_opened:
-        notify(T["box_title"][0] if ES else T["box_title"][1], "\n".join(_lines))
+    if not window_opened or _malo:
+        # Con la ventana abierta el cartel sobra... salvo que algo haya fallado,
+        # porque entonces la ventana esta ahi pero a medias y nadie lo ha dicho.
+        resumen()
     with open(BRIDGE_SRC, "r", encoding="utf-8") as f:
         src = f.read()
     # The bridge needs the objects Resolve injected into the stub, and it ends in
