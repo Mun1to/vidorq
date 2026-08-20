@@ -191,6 +191,7 @@ TEXT = {
         "framing_help": "Detector local, milisegundos por fotograma",
         "framed": "Encuadre sobre la cara en %d de %d tramos",
         "framed_none": "Sin caras: recorte centrado",
+        "note_question": "pregunta",
         "no_music": ("Vidorq todavía no pone música: no sabe mezclar una pista "
                      "de audio. Lo demás de la frase sí está hecho."),
         "no_face": ("Recorte centrado: no encuentro el modelo del detector de "
@@ -315,6 +316,7 @@ TEXT = {
         "framing_help": "Local detector, milliseconds per frame",
         "framed": "Framed on the face in %d of %d cuts",
         "framed_none": "No faces found: centred crop",
+        "note_question": "question",
         "no_music": ("Vidorq cannot add music yet: it does not know how to mix an "
                      "audio track. The rest of what you asked for is done."),
         "no_face": ("Centred crop: the face detector model is missing, so there "
@@ -829,7 +831,9 @@ def mark_questions(transcript, edl):
         for t in q_times:
             if seg["start"] <= t < seg["end"]:
                 seg["zoom"] = 1.05
-                seg["note"] = "pregunta / cambio de tema"
+                # Solo dice lo que de verdad se ha buscado. Antes decia
+                # "pregunta / cambio de tema" sin que nada mire los temas.
+                seg["note"] = tr("note_question")
                 break
     return edl
 
