@@ -190,6 +190,7 @@ TEXT = {
         "not_understood": "No he entendido qué cambiar, así que no he tocado nada.",
         "did_cuts": "%d tramos",
         "did_cut": "%d tramo",
+        "did_beats": "%d cortes sobre el movimiento, con su golpe de cámara",
         "did_caps": "%d subtítulos",
         "literal": "Lo has dicho con los segundos puestos: no hace falta pensarlo.",
         "carded": "%d %s en su sitio.",
@@ -274,6 +275,7 @@ TEXT = {
         "not_understood": "I did not understand what to change, so I left everything alone.",
         "did_cuts": "%d pieces",
         "did_cut": "%d piece",
+        "did_beats": "%d cuts placed on the action, with a camera shake",
         "did_caps": "%d captions",
         "literal": "You gave the seconds, so there is nothing to work out.",
         "carded": "%d %s placed.",
@@ -2937,6 +2939,12 @@ def run_job(req):
         elif moved:
             did.append(tr("did_order", len(edl)))
         did += [tr("did_cut" if len(edl) == 1 else "did_cuts", len(edl))]
+        # `report["beats"]` ya se contaba en la linea de progreso, que pasa de
+        # largo en cuanto el render termina: el turno final se quedaba sin
+        # decir que hubo cortes puestos sobre el movimiento con su golpe de
+        # camara. Mismo patron que la vision o la traduccion antes de esto.
+        if report.get("beats"):
+            did.append(tr("did_beats", report["beats"]))
         # Solo cuando se sabe el numero aqui. Cuando los subtitulos los arma el
         # backend, el que los ha contado es el, y lo dice en `result`: repetirlo
         # aqui con un cero seria peor que no decirlo.
