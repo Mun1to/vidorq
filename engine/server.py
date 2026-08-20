@@ -191,6 +191,11 @@ TEXT = {
         "did_cuts": "%d tramos",
         "did_cut": "%d tramo",
         "did_beats": "%d cortes sobre el movimiento, con su golpe de cámara",
+        "did_beats_one": "%d corte sobre el movimiento, con su golpe de cámara",
+        "did_snapped": "%d cortes movidos a un momento quieto de la imagen",
+        "did_snapped_one": "%d corte movido a un momento quieto de la imagen",
+        "did_jumps": "%d saltos tapados cambiando el encuadre",
+        "did_jumps_one": "%d salto tapado cambiando el encuadre",
         "did_caps": "%d subtítulos",
         "literal": "Lo has dicho con los segundos puestos: no hace falta pensarlo.",
         "carded": "%d %s en su sitio.",
@@ -276,6 +281,11 @@ TEXT = {
         "did_cuts": "%d pieces",
         "did_cut": "%d piece",
         "did_beats": "%d cuts placed on the action, with a camera shake",
+        "did_beats_one": "%d cut placed on the action, with a camera shake",
+        "did_snapped": "%d cuts moved to a still moment in the picture",
+        "did_snapped_one": "%d cut moved to a still moment in the picture",
+        "did_jumps": "%d jump cuts hidden by changing the framing",
+        "did_jumps_one": "%d jump cut hidden by changing the framing",
         "did_caps": "%d captions",
         "literal": "You gave the seconds, so there is nothing to work out.",
         "carded": "%d %s placed.",
@@ -2574,6 +2584,7 @@ def run_job(req):
         #     the crop slider gets what they moved it to: a person who framed it
         #     by hand has already answered the question.
         hand_framed = abs(float(req.get("cropX", 0.5)) - 0.5) > 0.01
+        hits = 0
         if ratio and ratio != "source" and not hand_framed and faces.available():
             set_progress(tr("framing"), 60, tr("framing_help"))
             try:
@@ -2927,6 +2938,14 @@ def run_job(req):
                 did.append(tr("did_shots", n_planos))
                 if not look.get("model"):
                     not_understood = list(not_understood) + [tr("no_eye")]
+        # `hits` (encuadre por cara) tenia el mismo problema que `beats` mas
+        # abajo: solo se contaba en una linea de progreso que el turno final
+        # nunca repetia. Si no habia caras, tambien se dice, porque explica
+        # por que el recorte salio centrado en vez de sobre alguien.
+        if hits:
+            did.append(tr("framed", hits, len(edl)))
+        elif ratio and ratio != "source" and not hand_framed and faces.available():
+            not_understood = list(not_understood) + [tr("framed_none")]
         did += said_deeds(deeds, _lang)
         # Pediste algo en un momento y no salio nada: se dice. Un turno que se
         # calla es indistinguible de uno que lo ha hecho, que es de donde sale el
@@ -2939,12 +2958,19 @@ def run_job(req):
         elif moved:
             did.append(tr("did_order", len(edl)))
         did += [tr("did_cut" if len(edl) == 1 else "did_cuts", len(edl))]
-        # `report["beats"]` ya se contaba en la linea de progreso, que pasa de
-        # largo en cuanto el render termina: el turno final se quedaba sin
-        # decir que hubo cortes puestos sobre el movimiento con su golpe de
-        # camara. Mismo patron que la vision o la traduccion antes de esto.
+        # `report["beats"]`, `report["snapped"]` y `report["jumps"]` tenian el
+        # mismo problema: se contaban en la linea de progreso, que pasa de largo
+        # en cuanto el render termina, y el turno final se quedaba callado.
+        # Mismo patron que la vision o la traduccion antes de esto.
         if report.get("beats"):
-            did.append(tr("did_beats", report["beats"]))
+            n = report["beats"]
+            did.append(tr("did_beats_one" if n == 1 else "did_beats", n))
+        if report.get("snapped"):
+            n = report["snapped"]
+            did.append(tr("did_snapped_one" if n == 1 else "did_snapped", n))
+        if report.get("jumps"):
+            n = report["jumps"]
+            did.append(tr("did_jumps_one" if n == 1 else "did_jumps", n))
         # Solo cuando se sabe el numero aqui. Cuando los subtitulos los arma el
         # backend, el que los ha contado es el, y lo dice en `result`: repetirlo
         # aqui con un cero seria peor que no decirlo.
