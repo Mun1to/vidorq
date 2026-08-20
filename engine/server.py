@@ -218,6 +218,26 @@ TEXT = {
         "refine_kept": "Sigo sobre el montaje que ya hay (%d tramos). Cambias: %s",
         "refine_nothing_said": "solo lo de momentos concretos",
         "history_first": "primera edición",
+        "first_model": "La primera vez descarga el modelo; puede tardar unos minutos",
+        "loading_model": "Cargando el modelo de transcripción...",
+        "shots_math": "Los planos son aritmética; describirlos usa un modelo local",
+        "no_look": "sin vista: %s",
+        "engine_cuts": "uso los cortes del motor",
+        "no_frame": "sin encuadrar: %s",
+        "no_moments_err": "sin momentos: %s",
+        "no_autocolour": "sin color automático: %s",
+        "cuts_zooms": "Cortes + zooms",
+        "and_captions": " + subtítulos",
+        "no_voice_at": "sin voz en %.1fs: %s",
+        "secs_done": "%s%d de %d segundos",
+        "frame_of": "fotograma %d de %d",
+        "with_caps": "con subtítulos",
+        "without_caps": "sin subtítulos",
+        "own_anim": "propia",
+        "the_text": "el texto",
+        "said_by_you": "dicho por ti: ",
+        "no_translation": "sin traducir: %s",
+        "needs_bridge": "Necesita Resolve abierto con CursorBridge activo",
         "did_order": "%d tramos puestos en otro orden",
         "said_order": "cambiar de sitio un tramo",
         "only_mp4": "en el MP4",
@@ -316,6 +336,26 @@ TEXT = {
         "refine_kept": "Carrying on from the edit you have (%d pieces). Changing: %s",
         "refine_nothing_said": "only the specific moments",
         "history_first": "first edit",
+        "first_model": "The first run downloads the model; it can take a few minutes",
+        "loading_model": "Loading the transcription model...",
+        "shots_math": "Shots are arithmetic; describing them uses a local model",
+        "no_look": "no eyes: %s",
+        "engine_cuts": "using the engine's own cuts",
+        "no_frame": "not framed: %s",
+        "no_moments_err": "no moments: %s",
+        "no_autocolour": "no auto colour: %s",
+        "cuts_zooms": "Cuts + zooms",
+        "and_captions": " + captions",
+        "no_voice_at": "no voice at %.1fs: %s",
+        "secs_done": "%s%d of %d seconds",
+        "frame_of": "frame %d of %d",
+        "with_caps": "with captions",
+        "without_caps": "no captions",
+        "own_anim": "its own",
+        "the_text": "the text",
+        "said_by_you": "you said: ",
+        "no_translation": "not translated: %s",
+        "needs_bridge": "Needs Resolve open with CursorBridge running",
         "did_order": "%d segments put in another order",
         "said_order": "move a segment",
         "only_mp4": "in the MP4",
@@ -1706,6 +1746,24 @@ def _crash_summary(tail):
     return next((x for x in reversed(limpio) if x.strip()), "").strip()[:300]
 
 
+def modelo_en_cache():
+    """Si el modelo de Whisper ya esta descargado en este ordenador.
+
+    Sirve para no decir "la primera vez descarga el modelo" cuando no hay nada
+    que descargar: eso pasa en TODOS los videos nuevos, no solo en el primero,
+    y anunciar minutos de espera que no van a ocurrir tambien es mentir.
+    """
+    from pathlib import Path as _P
+    base = os.environ.get("HF_HOME") or ""
+    raiz = _P(base) if base else _P.home() / ".cache" / "huggingface"
+    hub = raiz / "hub" if (raiz / "hub").is_dir() else raiz
+    try:
+        return any(p.name.startswith("models--") and "whisper" in p.name.lower()
+                   for p in hub.iterdir())
+    except Exception:
+        return False
+
+
 def run_transcribe(cmd, out_file, timeout=7200):
     """Run the transcriber and relay its progress instead of swallowing it.
 
@@ -1730,7 +1788,7 @@ def run_transcribe(cmd, out_file, timeout=7200):
                 done, total = int(m.group(1)), max(1, int(m.group(2)))
                 set_progress(tr("transcribing"),
                              min(32, 10 + int(22 * done / total)),
-                             "%s%d de %d segundos" % (how, done, total))
+                             tr("secs_done", how, done, total))
             elif line.startswith("CARGANDO_MODELO:"):
                 how = line.split(":", 1)[1].strip() + " | "
                 set_progress(tr("transcribing"), 10, how.rstrip(" |"))
@@ -1768,7 +1826,7 @@ def run_render(cmd, out_file, timeout=7200):
                 done, total = int(m.group(1)), max(1, int(m.group(2)))
                 set_progress(tr("rendering"),
                              min(98, 65 + int(33 * done / total)),
-                             f"frame {done} de {total}")
+                             tr("frame_of", done, total))
             elif line.strip():
                 tail.append(line.strip())
         proc.wait(timeout=60)
@@ -2649,11 +2707,12 @@ def run_job(req):
             caption_preset = plan["captionPreset"]
             caption_anim = plan["captionAnim"]
             preset = plan["cuts"]
-            said = ("dicho por ti: " + ", ".join(plan["said"])) if plan["said"] else ""
-            set_progress(tr("directed", plan["by"] or "el texto",
-                            "%s, %s, %s/%s" % (ratio, "con subtitulos" if captions
-                                               else "sin subtitulos",
-                                               caption_preset, caption_anim or "propia")),
+            said = (tr("said_by_you") + ", ".join(plan["said"])) if plan["said"] else ""
+            set_progress(tr("directed", plan["by"] or tr("the_text"),
+                            "%s, %s, %s/%s" % (
+                                ratio,
+                                tr("with_caps") if captions else tr("without_caps"),
+                                caption_preset, caption_anim or tr("own_anim"))),
                          9, plan.get("why") or said)
             # Si nadie contesto, se DICE, y en el turno, no en una linea de
             # progreso que pasa de largo. Sin modelo local y sin clave, una
@@ -2670,8 +2729,10 @@ def run_job(req):
 
         # 1) Transcribe (reuse cached transcript if present)
         if not tr_path.exists():
+            # Solo se promete una descarga si de verdad falta por descargar.
             set_progress(tr("transcribing"), 10,
-                         "La primera vez descarga el modelo; puede tardar unos minutos")
+                         tr("loading_model") if modelo_en_cache()
+                         else tr("first_model"))
             run_transcribe([PYTHON, str(HELPERS / "transcribe.py"), video,
                             str(workdir)], tr_path)
         transcript = json.loads(tr_path.read_text(encoding="utf-8"))
@@ -2680,8 +2741,7 @@ def run_job(req):
         #    video, and the cuts still work without it - just deafer.
         look = {}
         if req.get("vision"):
-            set_progress(tr("watching"), 35, "Los planos son aritmetica; describirlos "
-                                             "usa un modelo local")
+            set_progress(tr("watching"), 35, tr("shots_math"))
             try:
                 look = vision.analyse(video, workdir,
                                       model=req.get("visionModel") or None,
@@ -2692,7 +2752,7 @@ def run_job(req):
             except Exception as e:
                 # A missing model must not lose an edit that is already transcribed.
                 traceback.print_exc()
-                set_progress(tr("watching"), 48, "sin vista: %s" % str(e)[:120])
+                set_progress(tr("watching"), 48, tr("no_look", str(e)[:120]))
 
         # 3) Build the EDL
         set_progress(tr("deciding"), 50)
@@ -2750,7 +2810,7 @@ def run_job(req):
                 # A model that could not produce a usable timeline must not cost
                 # the edit: the deterministic engine is good, and the look the
                 # prompt asked for still applies.
-                set_progress(tr("deciding"), 54, "uso los cortes del motor")
+                set_progress(tr("deciding"), 54, tr("engine_cuts"))
                 edl, report = edl_from_speech(transcript,
                                               transcript.get("language", _lang),
                                               max_gap=hueco, pad=aire,
@@ -2793,7 +2853,7 @@ def run_job(req):
             except Exception as e:
                 # A crop that centres is a worse crop, not a failed edit.
                 traceback.print_exc()
-                set_progress(tr("framing"), 61, "sin encuadrar: %s" % str(e)[:120])
+                set_progress(tr("framing"), 61, tr("no_frame", str(e)[:120]))
 
         # 3b-bis) Un retoque que no cambio ningun ajuste y no pidio nada en
         #     ningun momento concreto NO se hace. Rehacer la misma edicion para
@@ -2900,7 +2960,7 @@ def run_job(req):
                 # An instruction that could not be carried out must not cost the
                 # edit: the rest of it is still exactly what was asked for.
                 traceback.print_exc()
-                set_progress(tr("moments"), 59, "sin momentos: %s" % str(e)[:120])
+                set_progress(tr("moments"), 59, tr("no_moments_err", str(e)[:120]))
                 not_understood = list(not_understood) + [
                     tr("failed_moments", str(e)[:100])]
 
@@ -2919,7 +2979,7 @@ def run_job(req):
                     set_progress(tr("colouring"), 63, tr("colour_ok"))
             except Exception as e:
                 traceback.print_exc()
-                set_progress(tr("colouring"), 63, "sin color automatico: %s" % str(e)[:90])
+                set_progress(tr("colouring"), 63, tr("no_autocolour", str(e)[:90]))
                 not_understood = list(not_understood) + [
                     tr("failed_colour", str(e)[:100])]
                 colour = ""
@@ -2977,7 +3037,7 @@ def run_job(req):
                     except Exception as e:
                         traceback.print_exc()
                         set_progress(tr("translating", target), 62,
-                                     "sin traducir: %s" % str(e)[:120])
+                                     tr("no_translation", str(e)[:120]))
                         not_understood = list(not_understood) + [
                             tr("failed_translate", str(e)[:100])]
 
@@ -3041,14 +3101,13 @@ def run_job(req):
                     # One line that could not be spoken must not cost the edit.
                     traceback.print_exc()
                     set_progress(tr("rendering"), 63,
-                                 "sin voz en %.1fs: %s" % (at, str(ex)[:120]))
+                                 tr("no_voice_at", at, str(ex)[:120]))
                     not_understood = list(not_understood) + [
                         tr("failed_voice", at, str(ex)[:100])]
 
         # 5) Execute on the chosen backend
         if output == "resolve":
-            set_progress(tr("building"), 65,
-                         "Necesita Resolve abierto con CursorBridge activo")
+            set_progress(tr("building"), 65, tr("needs_bridge"))
             if not bridge_status()["bridge"]:
                 raise RuntimeError("No pude hablar con Resolve. Abre Resolve, un proyecto, "
                                    "y Workspace > Scripts > Vidorq")
@@ -3071,7 +3130,8 @@ def run_job(req):
                 # the worst way to find out.
                 result += "  |  " + tr("voice_only_mp4", len(voice_files))
         else:
-            set_progress(tr("rendering"), 65, "Cortes + zooms" + (" + captions" if captions else ""))
+            set_progress(tr("rendering"), 65,
+                         tr("cuts_zooms") + (tr("and_captions") if captions else ""))
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
             cmd = [PYTHON, str(HELPERS / "vidorq_render.py"), video, str(edl_path),
                    str(tr_path), str(out_file), "--preset", caption_preset]

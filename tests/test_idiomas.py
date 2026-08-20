@@ -54,6 +54,87 @@ def bloques_de_la_ventana():
     return uno("es"), uno("en")
 
 
+# Lo que se le enseña a una persona sale de una tabla con sus dos idiomas. Estas
+# son las llamadas que se saltan la tabla y llevan la frase escrita dentro.
+#
+# Se lee la llamada ENTERA, con los parentesis contados, y no partiendola por
+# comas: el segundo argumento suele ser algo como `min(32, 10 + int(...))`, que
+# lleva comas dentro, y ahi es donde se escondia la ultima que quedaba.
+CADENA = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
+# Plantillas puras (solo huecos y puntuacion) y palabras que se escriben igual
+# en los dos idiomas: esas no son frases y no hay nada que traducir.
+NO_ES_FRASE = re.compile(r"^[\s%sdfgx.,:;/|()\[\]0-9+-]*$")
+
+
+def llamadas(texto, nombre="set_progress("):
+    """Cada llamada a esa funcion, del parentesis que abre al que cierra."""
+    i = 0
+    while True:
+        i = texto.find(nombre, i)
+        if i < 0:
+            return
+        j = i + len(nombre) - 1
+        hondo, fin = 0, None
+        for k in range(j, min(len(texto), j + 4000)):
+            if texto[k] == "(":
+                hondo += 1
+            elif texto[k] == ")":
+                hondo -= 1
+                if hondo == 0:
+                    fin = k
+                    break
+        yield texto[i:(fin + 1) if fin else j + 200]
+        i = j + 1
+
+
+def sin_las_claves(llamada):
+    """La llamada sin sus `tr(...)`, que solo llevan claves de la tabla.
+
+    Se quitan enteras y no con un patron: dentro de un `tr()` puede haber otra
+    llamada (`tr("no_look", str(e)[:120])`), y contar parentesis es lo unico
+    que acierta con eso.
+    """
+    for nombre in ("tr(", "tr_in("):
+        while True:
+            i = llamada.find(nombre)
+            # Solo si es la funcion y no el final de otra palabra ("_tr(").
+            if i < 0 or (i and (llamada[i - 1].isalnum() or llamada[i - 1] == "_")):
+                if i < 0:
+                    break
+                # Salta esta aparicion y sigue buscando mas adelante.
+                resto = sin_las_claves(llamada[i + len(nombre):])
+                return llamada[:i + len(nombre)] + resto
+            hondo, fin = 0, None
+            for k in range(i + len(nombre) - 1, len(llamada)):
+                if llamada[k] == "(":
+                    hondo += 1
+                elif llamada[k] == ")":
+                    hondo -= 1
+                    if hondo == 0:
+                        fin = k
+                        break
+            if fin is None:
+                break
+            llamada = llamada[:i] + llamada[fin + 1:]
+    return llamada
+
+
+def frases_a_mano():
+    """Las frases que van a la pantalla sin pasar por TEXT."""
+    ruta = RAIZ / "engine" / "server.py"
+    if not ruta.exists():
+        return []
+    texto = io.open(ruta, encoding="utf-8").read()
+    fuera = []
+    for llamada in llamadas(texto):
+        for m in CADENA.finditer(sin_las_claves(llamada)):
+            frase = m.group(1)
+            if len(frase) >= 10 and not NO_ES_FRASE.match(frase):
+                fuera.append('"%s"' % frase)
+    return sorted(set(fuera))
+
+
 def casos():
     """Cada caso devuelve (nombre, lo que salio, lo que tenia que salir)."""
     argv, sys.argv = sys.argv, ["test"]
@@ -81,6 +162,8 @@ def casos():
                       if k in en and es[k] == en[k] and len(es[k]) > 12
                       and es[k] not in IGUALES_A_POSTA)
     yield ("ventana: frases sin traducir", copiadas, [])
+
+    yield ("ninguna frase de pantalla escrita a mano", frases_a_mano(), [])
 
     # Y que de verdad haya mirado algo, para que un cambio de formato no deje
     # la prueba en verde sin comprobar nada.
