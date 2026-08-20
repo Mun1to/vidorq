@@ -230,12 +230,16 @@ export default function Chat({
                       <IconAlert size={13} className="icon" />{c.why}
                     </p>
                   ))}
-                  {turn.unknown && turn.unknown.length > 0 && (
-                    <p className="warn-line">
-                      <IconAlert size={13} className="icon" />
-                      {t("chat.unknown")} {turn.unknown.join("; ")}
+                  {/* Una linea por aviso. Iban todos pegados con "; " detras
+                      de un mismo encabezado, y desde que aqui caen tambien las
+                      cosas que fallaron (una traduccion, una voz, el color) eso
+                      era un muro de texto con un titulo que no valia para la
+                      mitad. Cada uno viene ya siendo una frase entera. */}
+                  {turn.unknown?.map((u, k) => (
+                    <p className="warn-line" key={`u${k}`}>
+                      <IconAlert size={13} className="icon" />{u}
                     </p>
-                  )}
+                  ))}
                   {turn.ask?.map((a, k) => (
                     <div className="ask" key={k}>
                       <span className="ask-q">{a.question}</span>

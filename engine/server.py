@@ -130,6 +130,7 @@ TEXT = {
         "busy": "Ya hay una edición en marcha",
         "no_video": "No encuentro el vídeo: %s",
         "did_shots": "%d planos vistos",
+        "cannot_do": "esto no sé hacerlo: %s",
         "failed_moments": "no he podido aplicar lo que pedías en momentos concretos: %s",
         "failed_colour": "no he podido calcular el color automático: %s",
         "failed_translate": "no he podido traducir los subtítulos: %s",
@@ -214,6 +215,7 @@ TEXT = {
         "busy": "There is already an edit running",
         "no_video": "Cannot find the video: %s",
         "did_shots": "%d shots seen",
+        "cannot_do": "I do not know how to do this: %s",
         "failed_moments": "I could not carry out what you asked for at particular moments: %s",
         "failed_colour": "I could not work out the automatic colour: %s",
         "failed_translate": "I could not translate the captions: %s",
@@ -2282,7 +2284,11 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
     tocado = set(changed) | set(director.vague(prompt, director.decided(prompt)))
     if tocado:
         cannot = [c for c in cannot if not _echoes(c, tocado)]
-    return out, changed, cannot
+    # Cada aviso sale de aqui siendo una frase entera. Antes eran trozos sueltos
+    # ("musica de fondo") y la ventana les pegaba delante un "Esto no se
+    # hacerlo:" para todos a la vez; desde que aqui tambien se cuentan cosas que
+    # FALLARON, ese encabezado era mentira para la mitad de la lista.
+    return out, changed, [tr("cannot_do", c) for c in cannot]
 
 
 # Como se llama cada ajuste en la frase de alguien, para reconocer cuando un
