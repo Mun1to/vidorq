@@ -415,6 +415,26 @@ def _safe_name(name):
     return re.sub(r"[^\w\- ]", "", (name or "").strip())[:40] or "Principal"
 
 
+def _new_ws_name(raw):
+    """Nombre para un workspace RECIEN CREADO, sin caer en "Principal".
+
+    `_safe_name` cae en "Principal" cuando no queda nada aprovechable (solo
+    espacios, solo emoji, solo signos), que esta bien como valor por defecto
+    para saber en que proyecto estamos, pero es un desastre para crear uno
+    nuevo: el cuadro de "Nuevo workspace" es un `window.prompt` sin validar
+    nada, asi que un fallo de teclado fusionaba en silencio el workspace
+    nuevo con el que ya hubiera en "Principal" y sus datos, sin avisar.
+    """
+    name = re.sub(r"[^\w\- ]", "", (raw or "").strip())[:40]
+    if name:
+        return name
+    existing = set(ws_list()["list"])
+    i = 2
+    while ("Workspace %d" % i) in existing:
+        i += 1
+    return "Workspace %d" % i
+
+
 def ws_list():
     WORKSPACES.mkdir(parents=True, exist_ok=True)
     names = sorted(p.name for p in WORKSPACES.iterdir() if p.is_dir())
@@ -3428,11 +3448,19 @@ class Handler(BaseHTTPRequestHandler):
             CONFIG.write_text(json.dumps(cfg), encoding="utf-8")
             self._send({"ok": True})
         elif self.path == "/workspaces":
+            created = None
             if body.get("create"):
-                (WORKSPACES / _safe_name(body["create"])).mkdir(parents=True, exist_ok=True)
+                created = _new_ws_name(body["create"])
+                (WORKSPACES / created).mkdir(parents=True, exist_ok=True)
             if body.get("activate"):
+                # El flujo de "Nuevo workspace" manda `create` y `activate` con
+                # el MISMO texto crudo: si `create` lo saneo a otro nombre para
+                # no chocar con uno que ya existe, activar tiene que apuntar a
+                # ese nombre ya resuelto, no volver a sanear el mismo texto por
+                # su cuenta y acabar en un "Principal" distinto del que se creo.
                 cfg = load_config()
-                cfg["activeWorkspace"] = _safe_name(body["activate"])
+                cfg["activeWorkspace"] = (created if body["activate"] == body.get("create")
+                                          else _safe_name(body["activate"]))
                 CONFIG_DIR.mkdir(parents=True, exist_ok=True)
                 CONFIG.write_text(json.dumps(cfg), encoding="utf-8")
             self._send(ws_list())
