@@ -42,6 +42,7 @@ const es = {
   "drop.inproject": "O elige uno de este proyecto de Resolve",
   "preview.head": "Así va a quedar",
   "preview.note": "Hecho con el mismo motor que el vídeo final, sobre tu propio metraje.",
+  "preview.sample": "Un ejemplo. En cuanto elijas un vídeo, esta foto se hace sobre el tuyo.",
   "preview.gallery": "Ver la galería",
   "gal.title": "Galería de estilos",
   "gal.looks": "Estilo",
@@ -123,6 +124,7 @@ const es = {
   "transition.noneNote": "Corte seco. Sobre voz es lo que mejor funciona.",
   "workspace": "Workspace:",
   "cta.edit": "EDITAR VÍDEO",
+  "cta.needVideo": "ELIGE UN VÍDEO PRIMERO",
 
   "history.title": "Historial",
   "history.loading": "Leyendo tus ediciones...",
@@ -283,6 +285,7 @@ const en: Record<keyof typeof es, string> = {
   "drop.inproject": "Or pick one from this Resolve project",
   "preview.head": "How it will look",
   "preview.note": "Made by the same engine as the final video, on your own footage.",
+  "preview.sample": "An example. As soon as you pick a video, this shot is made from yours.",
   "preview.gallery": "See the gallery",
   "gal.title": "Style gallery",
   "gal.looks": "Look",
@@ -364,6 +367,7 @@ const en: Record<keyof typeof es, string> = {
   "transition.noneNote": "Hard cut. On speech it is what works best.",
   "workspace": "Workspace:",
   "cta.edit": "EDIT VIDEO",
+  "cta.needVideo": "CHOOSE A VIDEO FIRST",
 
   "history.title": "History",
   "history.loading": "Reading your edits...",

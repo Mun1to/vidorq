@@ -168,9 +168,12 @@ export default function Gallery({
           <p className="hint">
             {tab === "card" ? t("gal.card.hint")
               : tab === "look" ? t("gal.colour.sub")
-              : tab === "ratio" ? t("gal.ratio.hint")
+              /* Las dos que dicen "sobre tu video" solo son verdad si hay
+                 video; sin el, las baldosas son las de muestra. */
+              : tab === "ratio" ? (video ? t("gal.ratio.hint") : t("preview.sample"))
               : tab === "transition" ? t("gal.tr.hint")
-              : tab === "style" ? t("gal.looks.sub") : t("gal.moves.sub")}
+              : tab === "style" ? (video ? t("gal.looks.sub") : t("preview.sample"))
+              : t("gal.moves.sub")}
           </p>
           <div className={gridClass}>
             {items.map((it, i) => {

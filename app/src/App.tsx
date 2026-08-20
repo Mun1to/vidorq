@@ -807,7 +807,12 @@ function App() {
                   onError={() => { setPreviewReady(true); setPreviewOk(false); }}
                 />
               </div>
-              <small className="under">{t("preview.note")}</small>
+              {/* Sin video elegido esta foto es la de muestra, y la frase
+                  decia "sobre tu propio metraje" igual: lo primero que ve
+                  alguien al abrir el programa era una promesa falsa. */}
+              <small className="under">
+                {video ? t("preview.note") : t("preview.sample")}
+              </small>
             </section>
           )}
 
@@ -944,8 +949,15 @@ function App() {
           </div>
 
 
+          {/* Apagado y mudo no vale: el boton principal esta gris hasta que
+              hay video, y quien abre el programa por primera vez lo pulsa y no
+              pasa nada. Cuando falta el video lo dice el propio boton, que es
+              el sitio donde ya esta mirando. El motor caido tiene su aviso
+              arriba, asi que ese caso no se repite aqui. */}
           <button className="cta" disabled={!canEdit} onClick={() => startEdit()}>
-            <IconPlay size={15} className="icon" />{t("cta.edit")}
+            {video ? <IconPlay size={15} className="icon" />
+                   : <IconVideo size={15} className="icon" />}
+            {video ? t("cta.edit") : t("cta.needVideo")}
           </button>
         </section>
       )}
