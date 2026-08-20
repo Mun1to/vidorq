@@ -202,6 +202,8 @@ TEXT = {
         "did_voice": "%d voz en off",
         "did_voice_none": "la voz pedida no se ha puesto: su segundo cae en un trozo ya cortado",
         "did_voice_none_many": "las %d voces pedidas no se han puesto: sus segundos caen en un trozo ya cortado",
+        "did_card_gap": "el rótulo pedido no se ha puesto: su segundo cae en un trozo ya cortado",
+        "did_card_gap_many": "los %d rótulos pedidos no se han puesto: sus segundos caen en un trozo ya cortado",
         "painting": "Coloreando en Resolve...",
         "painting_help": "Una corrección primaria por clip, que puedes seguir tocando a mano",
         "painted": "%d clips con el filtro '%s'",
@@ -294,6 +296,8 @@ TEXT = {
         "did_voice": "%d voice line(s)",
         "did_voice_none": "the voice line was not added: its second falls in a piece that was cut",
         "did_voice_none_many": "the %d voice lines were not added: their seconds fall in a piece that was cut",
+        "did_card_gap": "the title card was not added: its second falls in a piece that was cut",
+        "did_card_gap_many": "the %d title cards were not added: their seconds fall in a piece that was cut",
         "painting": "Grading in Resolve...",
         "painting_help": "One primary correction per clip, still yours to adjust by hand",
         "painted": "%d clips with the '%s' look",
@@ -2839,6 +2843,14 @@ def run_job(req):
         # aparece en ningun sitio. Alli sigue saliendo como un cartel, que es
         # peor que la barra pero infinitamente mejor que nada.
         card_style = director.title_style(prompt) if want_titles else ""
+        # Cuantos de los rotulos pedidos caen en un trozo que ya se ha cortado.
+        # Igual que pasaba con la voz: `to_edited()` los descarta con un
+        # `continue` mudo, en las dos formas de ponerlos (la chapa de Resolve y
+        # el camino de subtitulos del MP4), y el turno seguia diciendo "1
+        # cartel" como si estuviera puesto. Medido el 20-ago-2026 llamando a
+        # `apply_actions` + `to_edited` con un EDL con un hueco a proposito.
+        title_gaps = sum(1 for t in want_titles
+                         if to_edited(float(t["at"]), edl) is None)
         cards = []
         if want_titles and card_style:
             for t in want_titles:
@@ -3038,6 +3050,11 @@ def run_job(req):
                 did.append(tr("did_voice_none"))
             else:
                 did.append(tr("did_voice_none_many", len(want_voice)))
+        # Mismo hueco que la voz, pero para los rotulos: `title_gaps` se
+        # calculo mas arriba, antes de que `cards`/`titles_into` los filtraran.
+        if title_gaps:
+            did.append(tr("did_card_gap") if title_gaps == 1
+                       else tr("did_card_gap_many", title_gaps))
         blocked = blocked_by_output(output, settings_now, set(changed),
                                     want_voice=bool(want_voice),
                                     want_shake=bool(req.get("shake")))
