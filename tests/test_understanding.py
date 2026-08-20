@@ -47,6 +47,24 @@ PAIRS = [
     ("pick:", {}),
 ]
 
+# (nombre, lo del panel, lo del modelo, lo que dice la frase, lo que tiene que salir)
+CAPAS = [
+    ("lo que tocaste en el panel se queda",
+     {"ratio": "vertical", "captionPreset": "punch"},
+     {"ratio": "source", "captionPreset": "minimal"}, {},
+     {"ratio": "vertical", "captionPreset": "punch"}),
+    ("lo que no tocaste lo puede decidir el modelo",
+     {"ratio": "source"}, {"ratio": "square"}, {}, {"ratio": "square"}),
+    ("lo que escribes gana a los dos",
+     {"ratio": "vertical"}, {"ratio": "source"}, {"ratio": "wide"}, {"ratio": "wide"}),
+    ("sin panel, como antes",
+     None, {"cuts": "montage"}, {}, {"cuts": "montage"}),
+    ("el modelo no puede colar una clave que no existe",
+     {"ratio": "vertical"}, {"loquesea": "x"}, {}, {"ratio": "vertical"}),
+    ("apagar los subtitulos en el panel se respeta",
+     {"captions": False}, {"captions": True}, {}, {"captions": False}),
+]
+
 # (salida, transicion, si tiene que avisar de que sale en el MP4)
 OFFERS = [
     ("resolve", "dip", False),
@@ -296,6 +314,17 @@ def main():
                            % (salida, ident))
     except Exception as e:
         print("(no pude probar _echoes: %s)" % str(e)[:70])
+
+    # --- las tres capas de una edicion nueva -------------------------------
+    # Elegir "Vertical" en el panel y escribir ademas una frase que no habla del
+    # formato devolvia un timeline horizontal: `look()` arrancaba desde sus
+    # propios valores de fabrica en vez de desde lo que tenias puesto.
+    for nombre, base, got, dicho, quiere in CAPAS:
+        echo_n += 1
+        out, _tocado = director._capas(base, got, dicho)
+        tiene = {k: out[k] for k in quiere}
+        if tiene != quiere:
+            bad.append("capas %s: esperaba %s y devolvio %s" % (nombre, quiere, tiene))
 
     for frase, want in LITERAL:
         got = director.literal_actions(frase, 60.0)

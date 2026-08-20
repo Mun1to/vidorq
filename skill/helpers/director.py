@@ -477,7 +477,48 @@ def from_words(prompt):
     return got
 
 
-def look(prompt, ai=None, model=None, lang="es", log=None):
+# Con lo que sale un video cuando nadie ha dicho nada. Es la capa de abajo del
+# todo, y estaba escrita suelta dentro de look(): por eso una frase se llevaba
+# por delante lo que habias elegido en el panel.
+LOOK_DEFAULTS = {"ratio": "source", "captions": True,
+                 "captionPreset": cap.DEFAULT_PRESET, "captionAnim": "",
+                 "transition": "none", "cuts": "clean"}
+
+
+def _capas(base, got, said):
+    """Las tres capas de una edicion nueva, por orden de quien manda.
+
+      lo que tienes puesto   el panel. Si lo has TOCADO (no es el valor de
+                             fabrica), es una eleccion tuya y nadie la pisa.
+      lo que juzga el modelo solo rellena lo que no has tocado. Su sitio es la
+                             frase rara que las reglas literales no cazan.
+      lo que dice la frase   gana siempre. Lo has escrito tu.
+
+    El fallo que arregla, medido el 19-ago-2026: eligiendo "Vertical 9:16" y
+    estilo "Punch" en el panel y escribiendo ademas "haz un zoom del segundo 2
+    al 6", el timeline salia 1920x1080 con el estilo "pop". La frase no decia
+    nada del formato ni del estilo, pero look() empezaba desde sus propios
+    valores de fabrica en vez de desde los tuyos, asi que los dos se perdian.
+
+    Devuelve (ajustes, claves que ya venian tocadas).
+    """
+    out = dict(LOOK_DEFAULTS)
+    tocado = set()
+    for key in LOOK_DEFAULTS:
+        if not base or key not in base or base[key] is None:
+            continue
+        out[key] = base[key]
+        if base[key] != LOOK_DEFAULTS[key]:
+            tocado.add(key)
+    for key, value in (got or {}).items():
+        if key in LOOK_DEFAULTS and key not in tocado:
+            out[key] = value
+    for key, value in (said or {}).items():
+        out[key] = value
+    return out, tocado
+
+
+def look(prompt, ai=None, model=None, lang="es", log=None, base=None):
     """The settings a prompt asks for, validated against the real catalogues.
 
     Three layers, each overriding the one before: sane defaults, then whatever a
@@ -485,48 +526,45 @@ def look(prompt, ai=None, model=None, lang="es", log=None):
     invents or leaves out simply does not survive the validation, so the worst
     case is an ordinary edit rather than a crash.
     """
-    out = {"ratio": "source", "captions": True,
-           "captionPreset": cap.DEFAULT_PRESET, "captionAnim": "",
-           "transition": "none", "cuts": "clean", "why": "", "by": ""}
     said = from_words(prompt)
     system = _look_system(lang)
-    raw = ""
+    raw, por = "", ""
     try:
         if _is_hosted(ai):
-            raw, out["by"] = _hosted(ai, system, prompt, 1600)
+            raw, por = _hosted(ai, system, prompt, 1600)
         else:
             # 1600 and not 700: a reasoning model spends its first several
             # hundred tokens thinking and then has to have room left to answer.
             # Measured on qwen3.5:9b, which reasoned its way to the right answer
             # and ran out of budget before writing a single character of JSON.
-            raw, out["by"] = _try_local(system, prompt, 1600, log, model)
+            raw, por = _try_local(system, prompt, 1600, log, model)
     except Exception as e:
         if log:
             log("el director no contesto (%s), me guio por el texto" % str(e)[:60])
-        out["by"] = ""
+        por = ""
 
-    got = _json_in(raw) or {}
-    if got.get("ratio") in RATIOS:
-        out["ratio"] = got["ratio"]
-    if isinstance(got.get("captions"), bool):
-        out["captions"] = got["captions"]
-    if got.get("captionPreset") in cap.PRESETS:
-        out["captionPreset"] = got["captionPreset"]
-    if got.get("captionAnim") in cap.ANIMS:
-        out["captionAnim"] = got["captionAnim"]
-    if got.get("transition") in TRANSITIONS:
-        out["transition"] = got["transition"]
-    if got.get("cuts") in CUTS:
-        out["cuts"] = got["cuts"]
-    if isinstance(got.get("why"), str):
-        out["why"] = got["why"][:160]
+    crudo = _json_in(raw) or {}
+    # Lo del modelo, ya validado contra los catalogos de verdad: lo que se
+    # inventa no sobrevive a esta criba.
+    got = {}
+    if crudo.get("ratio") in RATIOS:
+        got["ratio"] = crudo["ratio"]
+    if isinstance(crudo.get("captions"), bool):
+        got["captions"] = crudo["captions"]
+    if crudo.get("captionPreset") in cap.PRESETS:
+        got["captionPreset"] = crudo["captionPreset"]
+    if crudo.get("captionAnim") in cap.ANIMS:
+        got["captionAnim"] = crudo["captionAnim"]
+    if crudo.get("transition") in TRANSITIONS:
+        got["transition"] = crudo["transition"]
+    if crudo.get("cuts") in CUTS:
+        got["cuts"] = crudo["cuts"]
 
-    # Last word to the prompt itself. A model that ignored "vertical" does not
-    # get to overrule the person who typed it.
-    for key, value in said.items():
-        if key == "captionAnim" and value == "__any__":
-            continue
-        out[key] = value
+    dicho = {k: v for k, v in said.items()
+             if not (k == "captionAnim" and v == "__any__")}
+    out, tocado = _capas(base, got, dicho)
+    out["by"] = por
+    out["why"] = crudo["why"][:160] if isinstance(crudo.get("why"), str) else ""
     # "Animated" without naming one means any of them, so the look's own applies -
     # never "none", which would contradict what was asked.
     if said.get("captionAnim") == "__any__" and out["captionAnim"] in ("", "none"):
@@ -538,6 +576,7 @@ def look(prompt, ai=None, model=None, lang="es", log=None):
     # style was not asked for by name.
     if (out["ratio"] in ("vertical", "portrait")
             and "captionPreset" not in said
+            and "captionPreset" not in tocado
             and cap.PRESETS[out["captionPreset"]]["size"] < 0.09):
         out["captionPreset"] = "pop"
     out["said"] = sorted(k for k in said if k != "captionAnim" or

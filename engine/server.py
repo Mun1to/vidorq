@@ -2368,9 +2368,17 @@ def run_job(req):
         plan = None
         if prompt and not again:
             set_progress(tr("directing"), 6)
+            # Lo que hay puesto en el panel entra como capa de abajo. Sin esto
+            # `look` arrancaba desde sus propios valores de fabrica, asi que
+            # elegir "Vertical" y escribir ademas una frase que no hablaba del
+            # formato te devolvia un timeline horizontal.
             plan = director.look(prompt, ai_choice(req),
                                  req.get("directorModel") or None, _lang,
-                                 log=lambda m: set_progress(tr("directing"), 7, m))
+                                 log=lambda m: set_progress(tr("directing"), 7, m),
+                                 base={"ratio": ratio, "captions": captions,
+                                       "captionPreset": caption_preset,
+                                       "captionAnim": caption_anim,
+                                       "transition": transition, "cuts": preset})
             ratio = plan["ratio"]
             transition = plan["transition"]
             colour = plan.get("look") or colour
