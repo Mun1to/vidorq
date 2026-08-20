@@ -164,7 +164,9 @@ TEXT = {
         "colour_ok": "el color ya estaba bien, no toco nada",
         "no_moment": "no he encontrado el momento exacto; dime el segundo o el minuto y lo hago",
         "stopped_help": "Lo que ya estaba puesto se queda en el timeline",
+        "stopped_help_mp4": "No se ha guardado ningún vídeo: para tenerlo hay que dejarlo terminar",
         "stopped_by_you": "Lo paraste tú a mitad. Lo que ya estaba hecho se queda.",
+        "stopped_by_you_mp4": "Lo paraste tú a mitad. No se ha guardado ningún vídeo.",
         "timeline_made": "Timeline '%s' creado en Resolve",
         "captioning": "Poniendo los subtítulos en Resolve...",
         "captioning_n": "%d subtítulos, uno a uno",
@@ -258,7 +260,9 @@ TEXT = {
         "colour_ok": "the colour was already fine, nothing to change",
         "no_moment": "I could not find the exact moment; tell me the second or minute and I will do it",
         "stopped_help": "Whatever was already placed stays on the timeline",
+        "stopped_help_mp4": "No video was saved: let it finish to get one",
         "stopped_by_you": "You stopped this halfway. What was already done stays.",
+        "stopped_by_you_mp4": "You stopped this halfway. No video was saved.",
         "timeline_made": "Timeline '%s' created in Resolve",
         "captioning": "Putting the captions into Resolve...",
         "captioning_n": "%d captions, one by one",
@@ -2376,19 +2380,26 @@ def _echoes(text, keys):
     return False
 
 
-def note_stopped(video, prompt):
+def note_stopped(video, prompt, output=""):
     """Dejar el turno parado en la conversacion.
 
     Sin esto la ventana recarga el historial del motor, no encuentra tu frase y
     la hace desaparecer: parece que no la escribiste nunca.
+
+    El mensaje decia SIEMPRE "lo que ya estaba hecho se queda", que solo es
+    cierto en Resolve (los clips ya insertados no se deshacen). Parar un
+    render de MP4 a mitad no deja ningun archivo usable, solo los trozos
+    intermedios: decir que "se queda" algo es prometer un video que no existe.
+    Medido el 20-ago-2026 parando un render real: cero *_vidorq.mp4 en disco.
     """
     if not video:
         return
     past, work = session_for(video)
     if not past.get("edl"):
         return  # No hay conversacion todavia: no habia nada que continuar.
+    why = tr("stopped_by_you") if output == "resolve" else tr("stopped_by_you_mp4")
     past["history"] = (past.get("history") or []) + [
-        {"you": prompt, "cannot": [{"what": "stop", "why": tr("stopped_by_you")}],
+        {"you": prompt, "cannot": [{"what": "stop", "why": why}],
          "ok": False}]
     session_save(work, past)
 
@@ -3118,13 +3129,16 @@ def run_job(req):
             result += "  |  " + tr("srt_made", ", ".join(Path(p).name for p in srt_paths))
         set_progress(tr("done"), 100, result=result)
     except Stopped:
-        # Lo que se hizo antes de parar se queda: los subtitulos ya colocados
-        # estan en el timeline y borrarlos seria una sorpresa peor. Se dice lo
-        # que quedo a medias y ya.
-        note_stopped(stop_video, stop_prompt)
-        ledger_add(ledger_entry(stop_video, stop_prompt, req.get("output") or "",
+        # En Resolve lo que se hizo antes de parar se queda: los subtitulos ya
+        # colocados estan en el timeline y borrarlos seria una sorpresa peor.
+        # En MP4 no hay nada parcial que conservar (el render solo produce el
+        # archivo final si termina), asi que decir "se queda" ahi seria mentir.
+        stop_output = req.get("output") or ""
+        note_stopped(stop_video, stop_prompt, stop_output)
+        ledger_add(ledger_entry(stop_video, stop_prompt, stop_output,
                                 job_scope, started, ok=False, stopped=True))
-        set_stopped(tr("stopped"), tr("stopped_help"))
+        help_key = "stopped_help" if stop_output == "resolve" else "stopped_help_mp4"
+        set_stopped(tr("stopped"), tr(help_key))
     except Exception as e:
         traceback.print_exc()
         ledger_add(ledger_entry(stop_video, stop_prompt, req.get("output") or "",
