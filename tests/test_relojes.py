@@ -309,6 +309,50 @@ def casos():
     yield "el punch se come la mitad del zoom antes del fotograma 18", mitad < 18, True
 
 
+    # --- esconder los saltos ------------------------------------------------
+    # Lo que separa un video cortado de uno editado, y el README lo promete.
+    # La huella de un track es una lista de numeros por segundo; iguales a los
+    # dos lados = plano fijo = el corte salta.
+    FIJO = [{"t": float(i), "sig": [10, 10, 10, 10]} for i in range(0, 60)]
+
+    def tramos(*pares):
+        return [{"start": a, "end": b, "zoom": 1.0, "note": ""} for a, b in pares]
+
+    # Tres uniones seguidas sobre un plano fijo: las tres saltan.
+    tres = tramos((0.0, 5.0), (8.0, 12.0), (15.0, 19.0), (22.0, 26.0))
+    salida, tocadas = server.hide_jump_cuts(tres, FIJO)
+    # Dos y no tres: el contador cuenta donde se PONE zoom, y como alterna, la
+    # union del medio se arregla volviendo a 1.0, que tambien cambia el
+    # encuadre. Lo que importa es la regla de abajo, no este numero.
+    yield ("saltos: se pone zoom en dos de las tres uniones", tocadas, 2)
+    # Y alternan: sin esto las tres acaban con el mismo encuadre y no sirve.
+    zooms = [round(float(p.get("zoom", 1.0)), 3) for p in salida]
+    yield ("saltos: el encuadre alterna en cada union",
+           [i for i in range(1, len(zooms)) if zooms[i] == zooms[i - 1]], [])
+
+    # Sin hueco entre dos tramos no se ha quitado nada, asi que no hay salto.
+    pegados = tramos((0.0, 5.0), (5.0, 9.0))
+    _, n = server.hide_jump_cuts(pegados, FIJO)
+    yield ("saltos: sin hueco no hay salto que esconder", n, 0)
+
+    # Un cambio de plano de verdad se deja en paz: ahi la imagen ya cambia.
+    CAMBIA = ([{"t": float(i), "sig": [10, 10, 10, 10]} for i in range(0, 8)]
+              + [{"t": float(i), "sig": [90, 90, 90, 90]} for i in range(8, 60)])
+    otro = tramos((0.0, 5.0), (8.0, 12.0))
+    _, n2 = server.hide_jump_cuts(otro, CAMBIA)
+    yield ("saltos: un cambio de plano no se toca", n2, 0)
+
+    # Y un zoom que ya estaba puesto por otra razon no se pisa.
+    con_zoom = tramos((0.0, 5.0), (8.0, 12.0))
+    con_zoom[1]["zoom"] = 1.06
+    server.hide_jump_cuts(con_zoom, FIJO)
+    yield ("saltos: no pisa un zoom que ya estaba", con_zoom[1]["zoom"], 1.06)
+
+    # Sin track no se toca nada: sin mirar el video no se puede saber si salta.
+    sin = tramos((0.0, 5.0), (8.0, 12.0))
+    _, n3 = server.hide_jump_cuts(sin, None)
+    yield ("saltos: sin mirar el video no se inventa nada", n3, 0)
+
     # --- las tomas repetidas ------------------------------------------------
     # Sale en el informe de cada edicion ("2 tomas repetidas") y no tenia
     # prueba. Decide cual de dos intentos se queda, asi que equivocarse aqui
