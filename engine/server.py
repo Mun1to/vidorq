@@ -200,6 +200,8 @@ TEXT = {
         "literal": "Lo has dicho con los segundos puestos: no hace falta pensarlo.",
         "carded": "%d %s en su sitio.",
         "did_voice": "%d voz en off",
+        "did_voice_none": "la voz pedida no se ha puesto: su segundo cae en un trozo ya cortado",
+        "did_voice_none_many": "las %d voces pedidas no se han puesto: sus segundos caen en un trozo ya cortado",
         "painting": "Coloreando en Resolve...",
         "painting_help": "Una corrección primaria por clip, que puedes seguir tocando a mano",
         "painted": "%d clips con el filtro '%s'",
@@ -290,6 +292,8 @@ TEXT = {
         "literal": "You gave the seconds, so there is nothing to work out.",
         "carded": "%d %s placed.",
         "did_voice": "%d voice line(s)",
+        "did_voice_none": "the voice line was not added: its second falls in a piece that was cut",
+        "did_voice_none_many": "the %d voice lines were not added: their seconds fall in a piece that was cut",
         "painting": "Grading in Resolve...",
         "painting_help": "One primary correction per clip, still yours to adjust by hand",
         "painted": "%d clips with the '%s' look",
@@ -3023,9 +3027,17 @@ def run_job(req):
         # Las voces ya las conto `said_deeds` unas lineas mas arriba, igual que
         # pasaba con los carteles: "1 voz - 1 voz en off" es lo mismo dicho dos
         # veces. Lo que si aporta es cuando alguna se cayo por el camino porque
-        # su segundo estaba en un trozo cortado.
-        if voice_files and len(voice_files) < len(want_voice):
-            did.append(tr("did_voice", len(voice_files)))
+        # su segundo estaba en un trozo cortado. El `if voice_files` de antes
+        # dejaba fuera el caso en que TODAS se caen: pedias una voz fuera del
+        # tramo que quedo, el turno decia "1 voz" como si hubiera funcionado, y
+        # `voces.json`/el WAV no se escribian nunca. Medido el 20-ago-2026.
+        if want_voice and len(voice_files) < len(want_voice):
+            if voice_files:
+                did.append(tr("did_voice", len(voice_files)))
+            elif len(want_voice) == 1:
+                did.append(tr("did_voice_none"))
+            else:
+                did.append(tr("did_voice_none_many", len(want_voice)))
         blocked = blocked_by_output(output, settings_now, set(changed),
                                     want_voice=bool(want_voice),
                                     want_shake=bool(req.get("shake")))
