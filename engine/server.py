@@ -499,6 +499,27 @@ def snap_to_picture(edl, track, window=0.30):
     return edl, moved
 
 
+def pace_gap(pace):
+    """El ritmo de tu marca, traducido a los dos numeros que cortan de verdad.
+
+    El deslizador de "Tu marca" decia "corta cuando sobra, respira cuando toca"
+    y no cortaba ni respiraba: viajaba dentro del JSON de la marca hasta el
+    prompt del modelo y ahi se quedaba, asi que moverlo de 1 a 10 no cambiaba
+    una sola edicion salvo que ademas escribieras una frase Y el modelo se
+    acordara de el.
+
+    Los dos numeros que sí deciden son cuanto silencio se aguanta dentro de un
+    tramo (`max_gap`) y cuanto aire se deja a cada lado (`pad`).
+
+    El 6 devuelve exactamente lo de siempre (0.60 y 0.15) a proposito: quien no
+    toque el deslizador no debe notar que existe.
+
+    Devuelve (max_gap, pad).
+    """
+    p = max(1, min(10, int(pace or 6)))
+    return round(1.10 - (p - 1) * 0.10, 2), round(0.25 - (p - 1) * 0.02, 3)
+
+
 def edl_from_speech(transcript, lang="es", max_gap=0.6, pad=0.15, drop_takes=True,
                     shake=False,
                     track=None):
@@ -677,7 +698,8 @@ def audio_energy(video):
     return {t: float(np.sqrt(np.mean(v))) for t, v in out.items()}
 
 
-def edl_montage(video, transcript, keep_ratio=0.45, track=None, lang="es"):
+def edl_montage(video, transcript, keep_ratio=0.45, track=None, lang="es",
+                max_gap=0.6, pad=0.15):
     """Keep the best moments, chosen on what is said, how loud it is and how
     much the picture is doing.
 
@@ -687,7 +709,8 @@ def edl_montage(video, transcript, keep_ratio=0.45, track=None, lang="es"):
     complete thought, and it only ever picks from what survived the cleanup, so
     the fillers and the retries are already gone.
     """
-    base, report = edl_from_speech(transcript, lang, track=track)
+    base, report = edl_from_speech(transcript, lang, max_gap=max_gap, pad=pad,
+                                   track=track)
     if len(base) < 3:
         return base, report
 
@@ -2375,6 +2398,11 @@ def run_job(req):
                             ", ".join(changed) if changed
                             else tr("refine_nothing_said")))
 
+        # El ritmo de tu marca, en los dos numeros que cortan. Se lee aqui y no
+        # dentro de edl_from_speech porque el perfil es del workspace y esto es
+        # una decision del turno.
+        hueco, aire = pace_gap(profile_load().get("pace"))
+
         # A prompt decides the whole edit, not just the cuts: the shape of the
         # frame, the caption look, its entrance, the joins. Before this the
         # prompt could ask for a vertical short and be handed a wide one.
@@ -2479,12 +2507,15 @@ def run_job(req):
                 set_progress(tr("deciding"), 54, "uso los cortes del motor")
                 edl, report = edl_from_speech(transcript,
                                               transcript.get("language", _lang),
+                                              max_gap=hueco, pad=aire,
                                               track=look.get("track"), shake=shake)
         elif preset == "montage":
             edl, report = edl_montage(video, transcript, track=look.get("track"),
-                                      lang=transcript.get("language", _lang))
+                                      lang=transcript.get("language", _lang),
+                                      max_gap=hueco, pad=aire)
         else:
             edl, report = edl_from_speech(transcript, transcript.get("language", _lang),
+                                          max_gap=hueco, pad=aire,
                                           track=look.get("track"), shake=shake)
             if preset == "podcast":
                 edl = mark_questions(transcript, edl)
