@@ -36,6 +36,18 @@ NUMEROS = {
 }
 
 
+NUMEROS_ES = {
+    "un": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6,
+    "siete": 7, "ocho": 8, "nueve": 9, "diez": 10, "once": 11, "doce": 12,
+}
+
+
+def cifra_es(texto):
+    """Lo mismo en castellano, que es como habla la landing."""
+    t = (texto or "").strip().lower()
+    return NUMEROS_ES.get(t, int(t) if t.isdigit() else None)
+
+
 def cifra(texto):
     """El numero que hay en esa palabra, escrito con letra o con digito."""
     t = (texto or "").strip().lower()
@@ -83,6 +95,16 @@ def casos():
         real = round(modelo.stat().st_size / 1024)
         yield ("el detector pesa lo que dice el README",
                abs(real - int(m.group(1))) <= 1, True)
+
+    # La landing dice lo mismo con otras palabras, y envejece igual. Ahi la
+    # frase es "diez estilos y ocho entradas", con los numeros escritos con
+    # letra porque es prosa y no una tabla.
+    landing = leer("web/index.html")
+    m = re.search(r"(\w+)\s+estilos\s+y\s+(\w+)\s+entradas", landing)
+    yield ("la landing cuenta los estilos y las entradas", bool(m), True)
+    if m:
+        yield ("estilos que promete la landing", cifra_es(m.group(1)), estilos)
+        yield ("entradas que promete la landing", cifra_es(m.group(2)), anims)
 
     # Y lo que NO se puede prometer: la ventana no vuelve a sugerir musica.
     i18n = leer("app/src/i18n.tsx")
