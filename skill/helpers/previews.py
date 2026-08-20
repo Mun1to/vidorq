@@ -267,14 +267,14 @@ def _face_x(video, at):
 # The three kinds
 # --------------------------------------------------------------------------- #
 def card_still(kind, ratio="source", video="", lang="es",
-               width=1920, height=1080, at=1.0):
+               width=1920, height=1080, at=1.0, color=""):
     """Una foto de un rotulo o una chapa, hecha por el renderizador de verdad.
 
     Sin recorte a la banda del subtitulo a proposito: lo que hay que ver de un
     rotulo es DONDE se pone en el cuadro, y la banda esconde justo eso.
     """
     import overlays
-    p = overlays.as_preset(kind)
+    p = overlays.as_preset(kind, color)
     if not p:
         raise ValueError("'%s' no es un efecto con texto" % kind)
     muestra = {"es": {"rotulo": "Munir Torres", "chapa": "NUEVO"},
@@ -294,9 +294,15 @@ def style_still(preset, ratio="source", video="", lang="es", anim=None,
     funcion casi igual.
     """
     out_w, out_h, crop_w, crop_h = _shape(ratio, width, height)
+    # El color entra en la clave. Sin esto, el mismo rotulo con la marca puesta y
+    # sin ella comparten nombre de archivo y el segundo se sirve con la foto del
+    # primero: la trampa de siempre de un cache que no lleva dentro todo lo que
+    # entro en la imagen.
+    tinta = (str(p.get("panel")) + str(p.get("fill"))) if p else ""
     dest = CACHE / ("style_%s.png" % _key(preset, anim or "", ratio, video, lang,
                                           at, out_w, out_h, PREVIEW_LONG,
-                                          _band_key(band), text or "", "still2"))
+                                          _band_key(band), text or "", tinta,
+                                          "still2"))
     if dest.exists():
         return dest
     exe = ffmpeg()

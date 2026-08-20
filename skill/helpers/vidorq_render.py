@@ -175,6 +175,9 @@ def _cards_by_kind(cards, desde, hasta):
     """
     if not cards:
         return []
+    # La clave lleva el COLOR ademas del tipo. Aqui se armaban dicts nuevos con
+    # solo el texto y los segundos, asi que el color de la marca se quedaba por
+    # el camino y la barra salia siempre del color de fabrica.
     por_tipo = {}
     for c in cards:
         a = float(c.get("at", 0.0))
@@ -182,10 +185,11 @@ def _cards_by_kind(cards, desde, hasta):
         if b <= desde or a >= hasta:
             continue
         texto = str(c.get("text") or "")
-        por_tipo.setdefault(c.get("kind") or "rotulo", []).append(
+        clave = (c.get("kind") or "rotulo", c.get("color") or "")
+        por_tipo.setdefault(clave, []).append(
             {"start": a, "end": b, "text": texto,
              "words": [{"w": texto, "s": a, "e": b}]})
-    return sorted(por_tipo.items())
+    return [(k, color, trozo) for (k, color), trozo in sorted(por_tipo.items())]
 
 
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
@@ -277,9 +281,12 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
         # un ASS lleva un estilo por nombre y aqui hacen falta dos pintas
         # distintas a la vez (la barra de abajo y la etiqueta de arriba). Van
         # despues de los subtitulos en la cadena de filtros, o sea encima.
-        for j, (kind, trozo) in enumerate(_cards_by_kind(cards, ed_at,
-                                                         ed_at + (e - s))):
-            p_ov = overlays.as_preset(kind)
+        for j, (kind, color, trozo) in enumerate(_cards_by_kind(cards, ed_at,
+                                                                ed_at + (e - s))):
+            # El color de la marca viaja dentro de cada rotulo, en el mismo
+            # JSON que ya trae su texto y su segundo: asi no hace falta otra
+            # opcion en la linea de comandos para un dato que es del mismo sitio.
+            p_ov = overlays.as_preset(kind, color)
             if not p_ov:
                 continue
             name = f"seg_{i:04d}_c{j}.ass"

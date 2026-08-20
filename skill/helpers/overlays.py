@@ -141,7 +141,52 @@ def label_of(kind, lang="es", plural=False):
     return (nombre + "s") if plural else nombre
 
 
-def as_preset(kind):
+def brand_rgb(color):
+    """Un `#rrggbb` de la pantalla "Tu marca" en los tres numeros de 0 a 1.
+
+    Devuelve None si no hay color o no se entiende, y ahi el overlay se queda
+    con el suyo: un rotulo de un color inventado es peor que uno neutro.
+    """
+    if not color or not isinstance(color, str):
+        return None
+    s = color.strip().lstrip("#")
+    if len(s) == 3:
+        s = "".join(c * 2 for c in s)
+    if len(s) != 6:
+        return None
+    try:
+        return tuple(int(s[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    except ValueError:
+        return None
+
+
+def _texto_sobre(rgb):
+    """Blanco o negro, el que se lea encima de ese color.
+
+    La formula es la luminancia de siempre (Rec. 709). Sin esto, poner una marca
+    amarilla dejaba el rotulo con letra blanca sobre amarillo, que no se lee.
+    """
+    r, g, b = rgb
+    return (0.0, 0.0, 0.0) if (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.55 \
+        else (1.0, 1.0, 1.0)
+
+
+def con_color(k, color):
+    """El mismo overlay, con la barra del color de tu marca.
+
+    Solo toca la placa y la letra; el tamano, el sitio y la curva son del tipo
+    de overlay y no de la marca. Si el color no se entiende, se devuelve tal
+    cual, que es lo que hacia antes de que esto existiera.
+    """
+    rgb = brand_rgb(color)
+    if not rgb or not k.get("panel"):
+        return k
+    alpha, grosor = k["panel"][3], k["panel"][4]
+    return dict(k, panel=(rgb[0], rgb[1], rgb[2], alpha, grosor),
+                fill=_texto_sobre(rgb))
+
+
+def as_preset(kind, color=None):
     """El mismo overlay con la forma que espera captions.to_ass.
 
     libass sabe pintar la barra: en `BorderStyle 3` rellena la caja con el
@@ -155,6 +200,7 @@ def as_preset(kind):
     k = KINDS.get(kind) or KINDS["rotulo"]
     if k.get("shape") != "text":
         return None
+    k = con_color(k, color)
     return {"words": 12, "max_chars": 90, "upper": False,
             "font": k["font"], "style": k["style"], "size": k["size"],
             "fill": k["fill"], "outline": None, "shadow": None,
@@ -178,7 +224,7 @@ def _fade_keys(dur, peak):
     return [(0, 0.0), (mid, float(peak)), (end, 0.0)]
 
 
-def to_comp(path, kind, w, h, dur, text=""):
+def to_comp(path, kind, w, h, dur, text="", color=""):
     """Escribe el .comp de este overlay. Devuelve la ruta.
 
     Dos formas: un color solido con la opacidad animada (las transiciones) y un
@@ -187,7 +233,7 @@ def to_comp(path, kind, w, h, dur, text=""):
     """
     k = KINDS.get(kind) or KINDS["dip"]
     if k.get("shape") == "text":
-        return _text_comp(path, k, kind, w, h, dur, text)
+        return _text_comp(path, con_color(k, color), kind, w, h, dur, text)
     return _solid_comp(path, k, kind, w, h, dur)
 
 

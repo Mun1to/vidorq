@@ -346,7 +346,8 @@ def zoom_clip(post, index, fps, hasta, work_dir, segundos=0.6, track=1):
     return bool((post("/clip/fusion/import", dict(donde, path=str(listo)))
                  or {}).get("success"))
 
-def place_overlays(post, get, plan, work_dir, width, height, track=3):
+def place_overlays(post, get, plan, work_dir, width, height, track=3,
+                   color=""):
     """Pone capas animadas en una pista de arriba, sin tocar la edicion.
 
     `plan` viene de overlays.at_cuts(): frame, duracion y tipo. La pista se crea
@@ -393,7 +394,8 @@ def place_overlays(post, get, plan, work_dir, width, height, track=3):
     for i, (ev, clip) in enumerate(zip(plan, clips)):
         dur = max(2, int(clip.get("duration", ev["dur"])))
         path = comp_dir / ("ov_%03d.comp" % i)
-        overlays.to_comp(path, ev["kind"], width, height, dur, ev.get("text", ""))
+        overlays.to_comp(path, ev["kind"], width, height, dur,
+                         ev.get("text", ""), color)
         post("/clip/fusion/import", {"trackType": "video", "trackIndex": track,
                                      "clipIndex": i,
                                      "path": str(path).replace("\\", "/")})

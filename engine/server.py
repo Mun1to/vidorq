@@ -1057,7 +1057,7 @@ def paint_clips(look, n, log=None, numbers=None):
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
                    workdir=None, anim="", chunks=None, ratio="source",
                    drop=None, look="", transition="none", cdl=None,
-                   cards=None, card_style=""):
+                   cards=None, card_style="", card_color=""):
     """Builds the edit in Resolve. Returns (what to tell the user, names made)."""
     name = Path(video).stem[:40]
     # La version anterior se va ANTES de crear la nueva, para que el nombre bueno
@@ -1188,7 +1188,8 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
             ev["fps"] = tl_fps
         n = resolve_captions.place_overlays(bridge_post, bridge_get_slow, plan,
                                             workdir or Path(video).parent,
-                                            out_w, out_h, track=ov_track)
+                                            out_w, out_h, track=ov_track,
+                                            color=card_color)
         if n:
             # Con su nombre y en el numero que toca. Antes decia "1 de tipo
             # rotulo puestos", que es el id crudo y el plural equivocado.
@@ -2401,7 +2402,11 @@ def run_job(req):
         # El ritmo de tu marca, en los dos numeros que cortan. Se lee aqui y no
         # dentro de edl_from_speech porque el perfil es del workspace y esto es
         # una decision del turno.
-        hueco, aire = pace_gap(profile_load().get("pace"))
+        marca = profile_load()
+        hueco, aire = pace_gap(marca.get("pace"))
+        # El color de tu marca pinta la barra del rotulo. Era el tercer mando de
+        # "Tu marca" y el unico que seguia siendo solo texto para el modelo.
+        card_color = marca.get("color1") or ""
 
         # A prompt decides the whole edit, not just the cuts: the shape of the
         # frame, the caption look, its entrance, the joins. Before this the
@@ -2800,7 +2805,7 @@ def run_job(req):
                 # timeline equivocado en Resolve ya se ha visto lo que hace.
                 drop=(past0.get("timelines") or []) if again else [],
                 look=colour, transition=transition, cdl=auto_cdl,
-                cards=cards, card_style=card_style)
+                cards=cards, card_style=card_style, card_color=card_color)
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
                 # come back looking finished and be missing the voice, which is
@@ -2830,8 +2835,9 @@ def run_job(req):
             if cards and card_style:
                 cd_path = workdir / "rotulos.json"
                 cd_path.write_text(
-                    json.dumps([dict(c, kind=card_style) for c in cards],
-                               ensure_ascii=False), encoding="utf-8")
+                    json.dumps([dict(c, kind=card_style, color=card_color)
+                                for c in cards], ensure_ascii=False),
+                    encoding="utf-8")
                 cmd += ["--cards", str(cd_path)]
             if translated_chunks:
                 ch_path = workdir / "chunks_traducidos.json"
@@ -3106,8 +3112,11 @@ class Handler(BaseHTTPRequestHandler):
                     path = previews.look_still(one("id", looks.DEFAULT), ratio,
                                                video, w, h, at, band)
                 elif kind == "card":
+                    # Con el color de la marca: la baldosa tiene que enseñar el
+                    # rotulo que va a salir, no uno neutro.
                     path = previews.card_still(one("id", "rotulo"), ratio,
-                                               video, lang, w, h, at)
+                                               video, lang, w, h, at,
+                                               profile_load().get("color1") or "")
                 elif kind == "ratio":
                     path = previews.ratio_still(ratio, video, w, h, at)
                 elif kind == "transition":
