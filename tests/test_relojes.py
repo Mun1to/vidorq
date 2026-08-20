@@ -309,6 +309,36 @@ def casos():
     yield "el punch se come la mitad del zoom antes del fotograma 18", mitad < 18, True
 
 
+    # --- las tomas repetidas ------------------------------------------------
+    # Sale en el informe de cada edicion ("2 tomas repetidas") y no tenia
+    # prueba. Decide cual de dos intentos se queda, asi que equivocarse aqui
+    # borra algo que el usuario SI queria.
+    def frase(texto, s0, e0):
+        return {"text": texto, "start": s0, "end": e0,
+                "words": [{"w": texto.split()[0], "s": s0, "e": e0}]}
+
+    REPES = {"segments": [
+        frase("hola a todos bienvenidos", 1.0, 3.0),
+        frase("hola a todos bienvenidos", 4.0, 6.0),     # el mismo, otra vez
+        frase("hoy vamos a ver una cosa", 7.0, 9.0),
+        frase("y esto no se parece en nada", 20.0, 22.0),
+        frase("hola a todos bienvenidos", 30.0, 32.0),   # vuelve, pero LEJOS
+    ]}
+    quedan, fuera = server.drop_repeated_takes(REPES)
+    yield ("tomas: dos intentos seguidos se quedan en uno", fuera, 1)
+    yield ("tomas: quedan cuatro frases", len(quedan), 4)
+    # Y se queda el ULTIMO intento, no el primero: se mira por donde empieza.
+    yield ("tomas: se queda el ultimo intento", quedan[0]["start"], 4.0)
+    # La que vuelve mas tarde sobrevive: repetir algo al final es un recurso,
+    # no un tropiezo, y solo se comparan vecinas.
+    yield ("tomas: la que vuelve mas tarde sobrevive",
+           [q["start"] for q in quedan if q["text"].startswith("hola")], [4.0, 30.0])
+    # Y dos frases distintas no se tocan.
+    DISTINTAS = {"segments": [frase("una cosa", 1.0, 2.0),
+                              frase("otra completamente distinta", 3.0, 4.0)]}
+    yield ("tomas: dos frases distintas se quedan las dos",
+           len(server.drop_repeated_takes(DISTINTAS)[0]), 2)
+
     # --- el motor de corte por defecto -------------------------------------
     # Es lo que corre cuando no escribes nada (el preset Limpieza), o sea el
     # camino mas usado, y no tenia ni una prueba. Lo que cumple su salida no
