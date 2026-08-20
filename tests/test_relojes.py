@@ -189,6 +189,34 @@ def casos():
     yield "  y la primera acaba antes del corte", round(partido[0]["end"], 3), 9.5
 
 
+    # Y la regla, sobre cinco trozos desordenados y palabras repartidas por
+    # todo el video: cada una cae donde dice `to_edited`, o no cae. Si estas
+    # dos cuentas se separan, los subtitulos se van desincronizando solos y
+    # parece culpa del modelo.
+    CINCO2 = [{"start": 40.0, "end": 47.5}, {"start": 5.0, "end": 15.0},
+              {"start": 60.0, "end": 60.25}, {"start": 20.0, "end": 30.0},
+              {"start": 33.0, "end": 39.0}]
+    sueltas = [{"w": "p%d" % i, "s": round(i * 2.0, 2), "e": round(i * 2.0 + 0.4, 2)}
+               for i in range(1, 31)]
+    T2 = {"segments": [{"words": [w]} for w in sueltas]}
+    salidas = server.retime_transcript(T2, CINCO2)["segments"]
+    # Cada palabra que sale, en el sitio que dice el otro reloj.
+    descolocadas = []
+    for seg in salidas:
+        for w in seg.get("words", []):
+            orig = next(x for x in sueltas if x["w"] == w["w"])
+            debe = server.to_edited(orig["s"], CINCO2)
+            if debe is None or abs(w["s"] - debe) > 0.001:
+                descolocadas.append(w["w"])
+    yield ("subtitulos: cada palabra cae donde dice el reloj", descolocadas, [])
+
+    # Y las que estaban dentro de un corte no salen: no estan en el montaje.
+    salieron = {w["w"] for seg in salidas for w in seg.get("words", [])}
+    coladas = [x["w"] for x in sueltas
+               if server.to_edited(x["s"], CINCO2) is None and x["w"] in salieron]
+    yield ("subtitulos: lo cortado no se cuela", coladas, [])
+    yield ("subtitulos: y algo sobrevive", len(salieron) > 5, True)
+
     # --- la curva del punch zoom -------------------------------------------
     # Son claves de fotograma, o sea el mismo reloj de todo lo de arriba. Lo que
     # se fija aqui es que la curva EMPIECE donde esta y TERMINE donde se pidio,
