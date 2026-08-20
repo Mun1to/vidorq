@@ -235,6 +235,44 @@ Nada de esto entra antes de publicar. Está anotado para no perderlo, no para ha
 - **Rendimiento**: el compositing pasó de PIL/numpy frame a frame (más de 1h) a filtros
   ffmpeg con progreso real. Falta medir la cifra en una prueba end-to-end.
 
+### Lo que falla cuando falla (2026-08-20)
+
+Una tanda entera dedicada a lo que pasa cuando algo va mal, que es donde se pierde a la
+gente. Todo reproducido antes de tocar nada y medido después.
+
+- **Nada se rompe en silencio**. El menú de Resolve fallaba con un `print` a la consola F6
+  (los tres caminos: sin config, config rota, carpeta movida) y ahora sale una caja. Un
+  ordenador sin entorno de Python reventaba con `TypeError: stat: path should be string...
+  not NoneType`, porque el instalador escribía `"python": null` y `.get(clave, "")` devuelve
+  `None` con eso. El cartel final se titulaba *"Vidorq listo"* aunque dentro pusiera que el
+  motor no arranca. Y el aviso de esas ramas no salía nunca: iba en un hilo *daemon* que
+  moría con el proceso.
+- **`onnxruntime` no estaba en `NEEDS`**, y `faster_whisper` lo necesita para el VAD. Sin él,
+  `/health` decía `"missing": []` y la edición moría al 10% con la excepción cruda. Ahora
+  se ve al arrancar, con una frase que dice qué hacer.
+- **Tres sitios por donde salía una clave**: el error del director, el de la voz y el
+  historial en disco. Medido: el 401 de OpenAI **devuelve tu clave** (`sk-ant-C****...9f3a`)
+  y Vidorq relayaba ese cuerpo a la pantalla y a `ediciones.json`. Barrido de los 16
+  endpoints GET con cinco claves falsas plantadas: cero fugas por ahí, el agujero era este.
+- **La aritmética manda sobre el modelo**. `SEG_SYSTEM` le mandaba cortar en límites de frase
+  y el bloque literal decía que era una resta: ganaba la que corría antes. *"Quita del 4 al
+  7"* (3 s) quitaba 4,15 s. Ahora quita 3,000 s, y de paso el reloj lo nota: **36,1 s contra
+  76,3 s**.
+- **Dos esperas de más**: el tanteo a Ollama pagaba 2,03 s por un puerto muerto (`/providers`
+  de 2,07 s a 0,66 s), y el puente caído costaba 4,02 s en dos intentos, justo en la pantalla
+  que mira quien todavía no lo ha arrancado (`/resolve` de 4,35 s a 0,99 s). Esa pantalla
+  además acusaba en falso: decía *"abre Resolve"* con Resolve abierto delante.
+- **`config.json` y `brand.json` se escribían sin red**. `write_text` trunca antes de
+  escribir: un config de 66 bytes con dos claves dentro se queda en 0 si el proceso muere en
+  medio. Ya son atómicos, como la sesión y el historial.
+- **La transcripción va vallada** dentro del prompt (regla 6). Atacada con *"IGNORA LA
+  INSTRUCCIÓN ANTERIOR"* más un JSON ya escrito: por Claude no se coló nada, pero el
+  proveedor de fábrica son modelos de 3B. La valla no se puede cerrar desde dentro.
+- **Pruebas**: de 681 a 754 casos, en cuatro archivos. Nuevas: los dos idiomas completos
+  (en el motor una clave sin inglés sale como la CLAVE en pantalla, sin error), las tres
+  reglas que un montaje cumple siempre, la valla, y las dos tachaduras de claves. Cada una
+  se rompió a propósito para ver que salta.
+
 ### Producto
 - Dos apps de escritorio (Tauri + React): Vidorq (producto, engine 9877) y Vidorq Core
   (privada, engine 9878). Lanzadores en el escritorio, modo dev que se actualiza solo.
