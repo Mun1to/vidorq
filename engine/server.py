@@ -2585,7 +2585,12 @@ def run_job(req):
         preset = req.get("preset", "clean")
         captions = bool(req.get("captions", True))
         output = req.get("output", "mp4")
-        prompt = (req.get("prompt") or "").strip()
+        # Tachado en la PUERTA y no solo al guardar: si alguien pega una
+        # clave en el cuadro de texto, lo peor que puede pasar no es que
+        # se quede escrita, es que viaje a un proveedor que no tiene nada
+        # que ver con ella. Una clave nunca es parte de un encargo de
+        # edicion, asi que quitarla no cambia lo que se pidio.
+        prompt = sin_secretos((req.get("prompt") or "").strip())
         ratio = req.get("ratio") or "source"
         transition = req.get("transition") or "none"
         # `colour` y no `look`: mas abajo `look` es lo que devuelve mirar el
