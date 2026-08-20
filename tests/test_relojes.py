@@ -250,6 +250,43 @@ def casos():
             ("", "")):
         yield "ass: %r se escribe escapado" % crudo, cap._ass_text(crudo), quiere
 
+    # --- una clave no vuelve dentro del error de un tercero ---------------
+    # Medido el 20-ago-2026 con una clave falsa: el 401 de OpenAI contesta
+    # "Incorrect API key provided: sk-ant-C********************9f3a", o sea los
+    # siete primeros caracteres y los cuatro ultimos, y Vidorq relayaba ese
+    # cuerpo entero a la pantalla y al historial en disco. Anthropic no lo hace;
+    # el proveedor "Compatible con OpenAI" lo pone el usuario y ahi no hay nadie
+    # garantizando nada.
+    import providers as _pr
+    CLAVE = "sk-ant-CLAVEFALSA-anthropic-9f3a"
+    for crudo in (
+            # la clave entera, tal cual
+            "Incorrect API key provided: " + CLAVE,
+            # enmascarada como la devuelve OpenAI: principio + asteriscos + final
+            "Incorrect API key provided: sk-ant-C********************9f3a.",
+            # solo los cuatro ultimos, que son los que enseña el panel del proveedor
+            "La clave que acaba en 9f3a no vale"):
+        limpio = _pr.sin_clave(crudo, CLAVE)
+        sigue = (CLAVE in limpio or "9f3a" in limpio or "****" in limpio)
+        yield ("clave: %r no deja rastro" % crudo[:38], sigue, False)
+
+    # Y un error normal llega entero: tachar de mas deja al usuario sin el
+    # unico dato que le sirve.
+    normal = "model_not_found: no existe ese modelo"
+    yield ("clave: un error sin clave no se toca", _pr.sin_clave(normal, CLAVE), normal)
+
+    # Tachar no puede comerse el resto del mensaje, que es lo unico que ayuda.
+    yield ("clave: el mensaje util sobrevive",
+           "You can find your API key at" in _pr.sin_clave(
+               "Incorrect API key provided: sk-ant-C****9f3a. "
+               "You can find your API key at https://ejemplo", CLAVE),
+           True)
+
+    # Una clave demasiado corta no se usa para tachar, o tacharia media frase.
+    yield ("clave: una corta no tacha nada",
+           _pr.sin_clave("el error dice abc por aqui", "abc"),
+           "el error dice abc por aqui")
+
     # Y lo mismo en el .srt que se lleva el usuario: los bloques se separan por
     # una linea EN BLANCO, asi que un subtitulo con un salto doble dentro parte
     # el archivo y le mete un subtitulo inventado en el segundo cero.

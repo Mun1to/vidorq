@@ -270,7 +270,32 @@ def cli_ready(provider):
     return bool(shutil.which(p["cmd"][0]))
 
 
-def _post(url, body, headers, timeout=TIMEOUT):
+def sin_clave(texto, key):
+    """El cuerpo de un error ajeno, con lo que le mandamos nosotros tachado.
+
+    No se fia de que el otro lado enmascare: tacha la clave entera, y tambien
+    cualquier palabra que lleve dentro su principio, su final o una tira de
+    asteriscos, que es la forma en que la devuelven enmascarada. Cuatro
+    caracteres son pocos para identificar a nadie, pero son los mismos cuatro
+    que enseña el proveedor en su panel, asi que tampoco se dejan.
+    """
+    texto = str(texto or "")
+    key = str(key or "")
+    if len(key) < 8:
+        return texto
+    texto = texto.replace(key, "<clave oculta>")
+    ini, fin = key[:6], key[-4:]
+    fuera = []
+    for palabra in texto.split(" "):
+        pelada = palabra.strip(".,;:\"'()[]{}")
+        if pelada and (ini in pelada or fin in pelada or "****" in pelada):
+            fuera.append("<clave oculta>")
+        else:
+            fuera.append(palabra)
+    return " ".join(fuera)
+
+
+def _post(url, body, headers, timeout=TIMEOUT, key=""):
     req = urllib.request.Request(url, data=json.dumps(body).encode(),
                                  headers=dict(headers, **{"Content-Type": "application/json"}),
                                  method="POST")
@@ -282,7 +307,7 @@ def _post(url, body, headers, timeout=TIMEOUT):
         # sends people hunting through their firewall instead of their key.
         detail = ""
         try:
-            detail = e.read().decode()[:300]
+            detail = sin_clave(e.read().decode()[:300], key)
         except Exception:
             pass
         raise RuntimeError("%s respondio %s. %s" % (_host(url), e.code, detail)) from None
@@ -326,7 +351,8 @@ def _anthropic(root, key, model, system, user, tokens, timeout):
     d = _post(root + "/messages",
               {"model": model, "max_tokens": tokens, "system": system,
                "messages": [{"role": "user", "content": user}]},
-              {"x-api-key": key, "anthropic-version": "2023-06-01"}, timeout)
+              {"x-api-key": key, "anthropic-version": "2023-06-01"}, timeout,
+              key=key)
     return "".join(b.get("text", "") for b in d.get("content", [])).strip()
 
 
@@ -339,7 +365,7 @@ def _openai(root, key, model, system, user, tokens, timeout):
                # OpenRouter asks callers to identify themselves, and being a good
                # citizen costs one header.
                "HTTP-Referer": "https://github.com/Mun1to/vidorq",
-               "X-Title": "Vidorq"}, timeout)
+               "X-Title": "Vidorq"}, timeout, key=key)
     choices = d.get("choices") or []
     if not choices:
         raise RuntimeError("la respuesta no traia ninguna opcion")
@@ -354,7 +380,7 @@ def _gemini(root, key, model, system, user, tokens, timeout):
               {"systemInstruction": {"parts": [{"text": system}]},
                "contents": [{"role": "user", "parts": [{"text": user}]}],
                "generationConfig": {"temperature": 0.1, "maxOutputTokens": tokens}},
-              {"x-goog-api-key": key}, timeout)
+              {"x-goog-api-key": key}, timeout, key=key)
     for cand in d.get("candidates", []):
         parts = (cand.get("content") or {}).get("parts") or []
         text = "".join(p.get("text", "") for p in parts).strip()
