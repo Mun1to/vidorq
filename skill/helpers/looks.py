@@ -142,6 +142,28 @@ def apply_cdl(rgb, p):
     return [min(1.0, max(0.0, c)) for c in out]
 
 
+# Cuanto se queda un .cube "de un video" (el que lleva `key`) antes de poderse
+# borrar. Uno del catalogo (key vacia, "cine_33.cube") no entra aqui, esos SI
+# valen para siempre. La key sale de los propios numeros del CDL medido para
+# ESE video, asi que casi nunca coincide con otro: cada edicion con color
+# automatico deja un .cube de un ~1 MB que no se vuelve a pedir jamas, y la
+# carpeta crece sin techo con el uso normal. Medido el 20-ago-2026: 9,7 MB en
+# dos dias de pruebas con solo tres videos. Tres dias de margen porque un
+# retoque sobre el MISMO video (undo, refinar) reutiliza la misma key.
+KEYED_MAX_AGE_S = 3 * 24 * 3600
+
+
+def _prune_keyed(name):
+    import time
+    now = time.time()
+    for f in CACHE.glob("%s_*_%d.cube" % (name, CUBE_SIZE)):
+        try:
+            if now - f.stat().st_mtime > KEYED_MAX_AGE_S:
+                f.unlink()
+        except OSError:
+            pass
+
+
 def cube(name, p=None, key=""):
     """El .cube de este look, generado una vez y cacheado.
 
@@ -152,12 +174,14 @@ def cube(name, p=None, key=""):
 
     Texto plano: una cabecera y SIZE^3 lineas con el color de salida. Con 33
     puntos son 35.937 lineas, que se escriben en unas decimas y se leen desde
-    disco para siempre.
+    disco para siempre... salvo los que llevan `key`, que se podan solos.
     """
     p = p or preset(name)
     dest = CACHE / ("%s%s_%d.cube" % (name, ("_" + key) if key else "", CUBE_SIZE))
     if dest.exists():
         return dest
+    if key:
+        _prune_keyed(name)
     CACHE.mkdir(parents=True, exist_ok=True)
     n = CUBE_SIZE
     step = 1.0 / (n - 1)
