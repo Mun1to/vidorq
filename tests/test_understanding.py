@@ -88,6 +88,13 @@ WORDS = [
     ("ponle flash entre planos", {"transition": "flash"}),
     ("pon un fundido a blanco", {"transition": "white"}),
     ("pon un fundido a negro", {"transition": "dip"}),
+    # Un rotulo es un efecto suyo, no una forma de decir "subtitulo". La palabra
+    # estaba en la regla de los subtitulos de cuando no existia el efecto, asi
+    # que pedir un rotulo los encendia ademas y por encima del panel.
+    ("pon un rotulo en el segundo 3 que diga Munir Torres", {}),
+    ("pon una chapa que diga NUEVO", {}),
+    ("ponle subtitulos", {"captions": True}),
+    ("quita los subtitulos", {"captions": False}),
     # The frame
     ("ponlo en vertical", {"ratio": "vertical"}),
     ("hazlo para tiktok", {"ratio": "vertical"}),
@@ -210,6 +217,23 @@ WHERE = [
 # sobre un video de 60 segundos.
 # ---------------------------------------------------------------------------
 LITERAL = [
+    # Un cartel dicho entero: el efecto, el segundo y lo que dice. Lo decidia el
+    # modelo, y un modelo local no contesta igual dos veces: la misma frase daba
+    # el rotulo unas veces y otras no. El atajo "Rótulo" del chat escribe esto.
+    ("pon un rotulo en el segundo 3 que diga Munir Torres",
+     [{"do": "title", "at": 3.0, "secs": 3.0, "text": "Munir Torres"}]),
+    ("pon una chapa en el segundo 12 que diga NUEVO",
+     [{"do": "title", "at": 12.0, "secs": 3.0, "text": "NUEVO"}]),
+    ("pon un cartel que diga SUSCRIBETE en el segundo 8",
+     [{"do": "title", "at": 8.0, "secs": 3.0, "text": "SUSCRIBETE"}]),
+    # Las comillas y el punto final se van; lo de dentro es del usuario.
+    ('ponme un rotulo en el segundo 5 que diga "Casey Neistat".',
+     [{"do": "title", "at": 5.0, "secs": 3.0, "text": "Casey Neistat"}]),
+    # Sin segundo o sin texto no hay nada literal: eso si es del modelo.
+    ("pon un rotulo bonito", []),
+    ("pon un rotulo en el segundo 4", []),
+    # Y un segundo que no cabe en el video no se inventa.
+    ("pon un rotulo en el segundo 900 que diga TARDE", []),
     ("quita un trozo del segundo 7 al 14",
      [{"do": "cut", "at": 7.0, "until": 14.0}]),
     ("quita de 7 a 14", [{"do": "cut", "at": 7.0, "until": 14.0}]),
@@ -225,7 +249,10 @@ LITERAL = [
     # Y lo que NO es literal tiene que caer al modelo, no resolverse a medias.
     ("ponlo en vertical", []),
     ("quita la parte donde me trabo", []),
-    ("pon un cartel que diga HOLA en el segundo 12", []),
+    # Este estaba aqui de cuando un cartel no se sabia leer literalmente. Ya se
+    # sabe: dice el efecto, el segundo y el texto, o sea las tres cosas.
+    ("pon un cartel que diga HOLA en el segundo 12",
+     [{"do": "title", "at": 12.0, "secs": 3.0, "text": "HOLA"}]),
     # Numeros que no pueden ser: fuera del video, o del reves.
     ("quita un trozo del segundo 7 al 700", []),
     ("quita un trozo del segundo 14 al 7", []),

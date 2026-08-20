@@ -283,7 +283,11 @@ WORD_RULES = (
     # caia en la siguiente y los ENCENDIA.
     ("captions", False, r"(sin|no|quita|quitar|fuera|borra|borrar|elimina|eliminar|"
                         r"remove)\b[^.]{0,14}(subt[ií]tul|caption)"),
-    ("captions", True, r"subt[ií]tul|caption|\brotul"),
+    # Sin `rotul`. Cuando esa palabra entro aqui, un rotulo era una forma
+    # suelta de decir subtitulo; hoy es un efecto con su propia baldosa en
+    # la galeria y su propio atajo en el chat, asi que pedir uno encendia
+    # los subtitulos ademas, por encima de lo que tuvieras en el panel.
+    ("captions", True, r"subt[ií]tul|caption"),
     ("cuts", "montage", r"resumen|mejores momentos|highlight|montaje|best bits|"
                         r"lo mejor\b"),
     ("cuts", "podcast", r"podcast|entrevista|preguntas y respuestas|\bq&a\b"),
@@ -792,6 +796,62 @@ LITERAL_VERBS = (
 )
 
 
+# "pon un rotulo en el segundo 12 que diga Munir Torres": el que, el cuando y el
+# que dice, los tres puestos. Aqui no hay nada que interpretar, y hasta ahora lo
+# decidia el modelo: la misma frase daba el rotulo unas veces y otras no, porque
+# un modelo local no contesta igual dos veces. El atajo "Rótulo" del chat
+# escribe exactamente esta forma.
+CARD_RE = re.compile(
+    r"\b(?:r[oó]tulo|chapa|cartel|t[ií]tulo|texto)\b"      # de que efecto habla
+    r"[^.]{0,40}?\bsegundo\s+(\d+(?:[.,]\d+)?)"            # en que segundo
+    r"[^.]{0,20}?\bdig[ao]\s+(.{1,80}?)\s*$",              # y que dice
+    re.I)
+# Y al reves, que tambien se dice: "que diga X en el segundo N".
+CARD_RE_2 = re.compile(
+    r"\b(?:r[oó]tulo|chapa|cartel|t[ií]tulo|texto)\b"
+    r"[^.]{0,20}?\bdig[ao]\s+(.{1,80}?)"
+    r"\s+(?:en\s+el\s+)?segundo\s+(\d+(?:[.,]\d+)?)\s*$",
+    re.I)
+
+
+def literal_card(prompt, duration):
+    """Un rotulo o una chapa dichos con todas sus letras. [] si falta algo.
+
+    El texto se limpia de comillas y del punto final, que es lo que sobra al
+    dictarlo, pero no se toca por dentro: es del usuario y se dibuja tal cual.
+    """
+    low = (prompt or "").strip()
+    if low.lower().startswith("pick:"):
+        return []
+    m = CARD_RE.search(low)
+    if m:
+        cuando, texto = m.group(1), m.group(2)
+    else:
+        m = CARD_RE_2.search(low)
+        if not m:
+            return []
+        texto, cuando = m.group(1), m.group(2)
+    try:
+        at = float(cuando.replace(",", "."))
+    except ValueError:
+        return []
+    if at < 0 or at > max(1.0, float(duration)) + 0.5:
+        return []
+    # En bucle hasta que no quede nada que quitar: con una sola pasada, un
+    # 'que diga "Casey Neistat".' se quedaba con la comilla pegada, porque el
+    # punto iba delante de ella y la tapaba.
+    limpio = texto.strip()
+    for _ in range(6):
+        antes = limpio
+        limpio = limpio.strip().strip('"').strip("'").strip("“”«»").rstrip(".,;:")
+        if limpio == antes:
+            break
+    texto = limpio
+    if not texto:
+        return []
+    return [{"do": "title", "at": round(at, 2), "secs": 3.0, "text": texto[:90]}]
+
+
 def literal_actions(prompt, duration):
     """Lo que la frase ORDENA con sus numeros puestos, sin preguntarle a nadie.
 
@@ -805,6 +865,11 @@ def literal_actions(prompt, duration):
     low = " " + (prompt or "").lower().strip() + " "
     if low.strip().startswith("pick:"):
         return []
+    # Un cartel se dice con UN segundo y su texto, no con dos segundos, asi que
+    # se mira antes de exigir un tramo.
+    cartel = literal_card(prompt, duration)
+    if cartel:
+        return cartel
     m = SPAN_RE.search(low)
     if not m:
         return []
