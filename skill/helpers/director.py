@@ -355,8 +355,14 @@ VAGUE_RULES = (
     # Nota: "mejora el color" cae aqui por la palabra "color", pero la regla de
     # palabras de arriba ya lo ha resuelto como `auto`, y `vague()` no pregunta
     # por lo que ya esta decidido.
-    ("ratio", r"recorta|recortar|reencuadr|\bformato\b|\bencuadre\b"),
-    ("captionAnim", r"animaci[oó]n|animad|movimiento del texto"),
+    # Mismo "en el encuadre"/"en la animacion" que transition y look: "pon
+    # subtitulos, hay ruido en el encuadre" no esta pidiendo cambiar el
+    # formato, dice DONDE se oye el ruido. Sin esto tiraba "captions: true" a
+    # la basura por preguntar el formato de encuadre que nadie toco.
+    ("ratio", r"(?<!en la )(?<!en el )(?<!de la )(?<!de el )"
+             r"(recorta|recortar|reencuadr|\bformato\b|\bencuadre\b)"),
+    ("captionAnim", r"(?<!en la )(?<!en el )(?<!de la )(?<!de el )"
+                    r"(animaci[oó]n|animad|movimiento del texto)"),
     # "cortalo", "corta el video", "cambia los cortes": nombra el corte sin
     # decir con que criterio, y hay tres. Ojo con no pisar a `ratio`, que se
     # queda con "recorta" y "reencuadra", que en video es encuadrar y no cortar.
