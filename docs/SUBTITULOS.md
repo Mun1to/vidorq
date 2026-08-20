@@ -557,6 +557,29 @@ Tres niveles sobre 255 es un 1,2%: se ve si pones los dos fotogramas uno al lado
 se ve en un vídeo. Queda anotado y no se persigue, porque igualar la ciencia de color de
 Resolve con la de ffmpeg no se arregla con un número.
 
+### Y el color **automático** sí arregla lo que dice que arregla
+
+Comprobado el 20-ago-2026 estropeando un clip a propósito (`eq=contrast=0.62:brightness=-0.06`
+más `colorbalance=bs=0.22`, o sea apagado y con azul metido en las sombras) y pasándole el
+filtro **Automático**:
+
+| | negro (percentil 2) | blanco (percentil 98) |
+| --- | --- | --- |
+| antes | 47,7 | 200,3 |
+| después | 45,7 | **242,3** |
+
+El análisis tarda **1,4 s**, dice qué encontró (`negro 0.14, blanco 0.79`) y qué va a tocar
+(niveles, balance de blancos, saturación), y lo escribe en el turno. La CDL que sale sube el
+`slope` de los tres canales para recuperar el recorrido y deja el del **azul más bajo**
+(1,2456 contra 1,3108 del rojo), que es justo la dominante que se había metido.
+
+Mirado además en pantalla, que en color es obligatorio: la camiseta vuelve a ser blanca y el
+cielo vuelve a ser azul.
+
+**Lo que NO hace**: no inventa un look. Si el vídeo ya está bien lo dice y no toca nada
+(`colour_ok`), que es más útil que aplicar una corrección de cero y cobrarla como si hubiera
+hecho algo.
+
 ## Estado de la verificación
 
 Lo que se ha visto renderizado, y lo que no. Compilar no cuenta.
