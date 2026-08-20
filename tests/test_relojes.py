@@ -117,6 +117,33 @@ def casos():
     yield "el cartel del segundo 6 cae en el 1 del montaje", chunks[0]["start"], 1.0
     yield "y dura los 2 segundos pedidos", chunks[0]["end"], 3.0
 
+    # Y lo que promete su docstring: meter un rotulo en una lista densa de
+    # subtitulos no deja dos lineas en pantalla a la vez. Un subtitulo cada
+    # medio segundo es como sale de verdad con subtitulos de dos palabras.
+    densos = [{"start": round(i * 0.5, 2), "end": round(i * 0.5 + 0.5, 2),
+               "text": "s%d" % i,
+               "words": [{"w": "s%d" % i, "s": round(i * 0.5, 2),
+                          "e": round(i * 0.5 + 0.5, 2)}]}
+              for i in range(0, 40)]
+    for donde, dura in ((6.0, 2.0), (5.0, 3.0), (14.5, 2.0), (25.0, 1.5)):
+        salida = server.titles_into([dict(c) for c in densos],
+                                    [{"do": "title", "at": donde, "secs": dura,
+                                      "text": "ROTULO"}], EDL)
+        solapes = [(round(salida[i]["end"], 2), round(salida[i + 1]["start"], 2))
+                   for i in range(len(salida) - 1)
+                   if float(salida[i]["end"]) > float(salida[i + 1]["start"]) + 0.001]
+        yield ("rotulo en %g: no deja dos lineas a la vez" % donde, solapes[:3], [])
+        # Y sale ordenado, que es como lo lee el renderizador.
+        empiezos = [round(float(c["start"]), 3) for c in salida]
+        yield ("rotulo en %g: la lista sale en orden" % donde,
+               empiezos, sorted(empiezos))
+
+    # Un rotulo pedido en un segundo que el corte se llevo no aparece: no hay
+    # sitio donde ponerlo, y ponerlo "cerca" seria inventarse el momento.
+    cortado = server.titles_into([], [{"do": "title", "at": 17.0, "secs": 2.0,
+                                       "text": "NO"}], EDL)
+    yield ("rotulo en material cortado no se pone", cortado, [])
+
     # --- y el renderizador tiene que leerlo en ese mismo reloj --------------
     # Esta es la que fallaba. Se cuenta cuantas lineas de Dialogue salen con
     # cada reloj: con el del original salian CERO, o sea que el cartel no
