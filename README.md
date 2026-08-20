@@ -157,13 +157,15 @@ the Resolve timeline come out of the same maths. In Resolve they land as an
 ordinary primary correction you can keep adjusting by hand, not a baked-in look.
 
 **Transitions.** Dissolve, wipe, slide and the rest in the MP4. In Resolve, the
-two that only cover the cut - dip to black and dip to white - are built as
-animated layers on their own track, because Resolve's API has no transitions of
-its own. Measured on three seams: the frame at each one comes out pure black,
-against 102.60 average brightness two seconds earlier, and it fades rather than
-jumping (138.60, 92.81, 22.78, 56.03, 139.57 across one seam). The ones that
-need both shots blended stay MP4-only, and Vidorq says so rather than dropping
-them.
+three that only cover the cut - dip to black, dip to white and a short flash -
+are built as animated layers on their own track, because Resolve's API has no
+transitions of its own. Measured on three seams: the frame at each one comes
+out pure black, against 102.60 average brightness two seconds earlier, and it
+fades rather than jumping (138.60, 92.81, 22.78, 56.03, 139.57 across one
+seam). Each one lasts the same in both outputs, off the same table, so a dip is
+not half a second in the timeline and a third of one in the file. The ones that
+need both shots blended stay MP4-only, and the picker says where each one lands
+and switches the output for you rather than refusing after you press it.
 
 **Voice.** A prompt can ask for a voice-over at a given second. Windows' own
 synthesiser ships as the default, so it works with no key and no internet;
