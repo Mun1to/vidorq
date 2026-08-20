@@ -1,8 +1,9 @@
 # Vidorq skill — edición por IA (v1)
 
-> Pipeline de edición que corre desde Claude Code. v1 usa el **backend de render directo**
-> (PyAV + NVENC), independiente de DaVinci Resolve. El backend Resolve (timeline editable)
-> se añade cuando el puente esté disponible. Documentación interna en español (regla D).
+> Pipeline de edición que corre desde Claude Code. Hay **dos salidas y las dos funcionan**:
+> el render directo (PyAV + NVENC), que no necesita Resolve para nada, y el timeline
+> editable dentro de Resolve a través del puente. Auditadas las dos con el mismo encargo
+> el 19-ago-2026. Documentación interna en español (regla D).
 
 ## Flujo
 
@@ -18,7 +19,9 @@ video crudo ──► transcribe.py ──► transcript.json + takes_packed.md
 ## Uso
 
 ```bash
-PY="C:/proyectos/davinci-resolve-mcp/venv/Scripts/python.exe"   # venv con faster-whisper, PyAV, Pillow
+# El intérprete con faster-whisper, PyAV, Pillow y onnxruntime dentro. En una
+# instalación normal es el entorno de Vidorq; si usas otro, apúntalo aquí.
+PY="$PWD/.venv/Scripts/python.exe"
 
 # 1) Transcribir (word-level, local)
 "$PY" skill/helpers/transcribe.py "<video>" "<out_dir>" es
@@ -33,7 +36,9 @@ PY="C:/proyectos/davinci-resolve-mcp/venv/Scripts/python.exe"   # venv con faste
 
 ## helpers/
 
-- **transcribe.py** — faster-whisper `small` int8 CPU. Escribe `transcript.json` (segmentos con
+- **transcribe.py** — faster-whisper: `large-v3-turbo` en float16 sobre la GPU, y `small`
+  int8 en CPU cuando no hay tarjeta o le faltan las librerías de CUDA. Escribe
+  `transcript.json` (segmentos con
   timestamps por palabra) y `takes_packed.md` (vista compacta para que el LLM razone el corte).
 - **vidorq_render.py** — motor de render:
   - **Cortes**: solo los keep-segments del EDL, en orden, con fades de audio de 30 ms en cada

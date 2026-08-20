@@ -7,7 +7,7 @@
 | Recurso | Qué es | Qué nos llevamos |
 |---|---|---|
 | [video-use](https://github.com/browser-use/video-use) (browser-use) | Edición de vídeo con Claude Code, 100% open source | El pipeline entero: transcript-first, EDL, self-eval, project.md, fades 30ms, subtítulos 2 palabras UPPERCASE. Es la validación de que el enfoque funciona |
-| [davinci-resolve-mcp](https://github.com/hiteshK03/davinci-resolve-mcp) | Puente MCP para Resolve FREE (local: `C:\proyectos\davinci-resolve-mcp`) | La base de integración con Resolve: 162 herramientas + IA local (Whisper, Demucs, rembg) |
+| [davinci-resolve-mcp](https://github.com/hiteshK03/davinci-resolve-mcp) | Puente MCP para Resolve FREE (clónalo al lado de Vidorq, o apunta `VIDORQ_BRIDGE` a él) | La base de integración con Resolve: 162 herramientas + IA local (Whisper, Demucs, rembg) |
 | [HyperFrames](https://github.com/heygen-com/hyperframes) (HeyGen) | Skill de generación de animaciones para agentes (`npx skills add heygen-com/hyperframes`) | Overlays de animación generados por sub-agentes en paralelo |
 | [Motion Canvas](https://motioncanvas.io/) | Animación programática en TypeScript, licencia MIT | **Motor de overlays por defecto**: sin restricciones de licencia para empresas |
 | [Revideo](https://github.com/redotvideo/revideo) | Fork MIT de Motion Canvas para pipelines automatizados | Render server-side pensado para generación automática — encaja exacto con Vidorq |
