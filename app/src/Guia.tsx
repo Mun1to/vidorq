@@ -3,7 +3,11 @@ import { apiGet, ENGINE } from "./api";
 import { useLang } from "./i18n";
 import { IconAlert, IconCheck, IconRefresh } from "./Icons";
 
-interface ResolveState { bridge: boolean; project?: string | null; timeline?: string | null }
+/* `app` lo contesta el motor mirando los procesos, no el puente: es lo unico
+   que se puede saber de Resolve cuando el puente esta apagado. null = no se
+   ha podido mirar. */
+interface ResolveState { bridge: boolean; project?: string | null;
+                         timeline?: string | null; app?: boolean | null }
 
 type Status = "ok" | "pending" | "checking";
 
@@ -51,10 +55,14 @@ export default function Guia({ onClose }: { onClose: () => void }) {
     {
       title: t("guide.s2.title"),
       state: projectOk ? "ok" : "pending",
+      /* Con el puente apagado este paso no se puede contestar, y salia "sin
+         hacer": le decia a alguien que abriera un programa que ya tenia
+         delante. Visto en vivo con Resolve abierto en un proyecto y el puente
+         parado. Si el motor ve el proceso, se dice eso en vez de acusar. */
       body: projectOk
         ? <>{t("guide.s2.project")} <b>{resolve?.project}</b>
             {resolve?.timeline ? <> · {t("guide.s2.timeline")} <b>{resolve.timeline}</b></> : null}</>
-        : t("guide.s2.pending"),
+        : resolve?.app ? t("guide.s2.open") : t("guide.s2.pending"),
     },
     {
       title: t("guide.s3.title"),

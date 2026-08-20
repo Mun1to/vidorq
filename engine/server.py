@@ -877,6 +877,23 @@ _bridge_lock = threading.Lock()
 BRIDGE_HOST, BRIDGE_PORT = "127.0.0.1", 9876
 
 
+# Cuanto se espera a que el puente ACEPTE la conexion. Aceptar es cosa del
+# sistema y no del programa: un puente ocupado renderizando acepta igual de
+# rapido, porque de eso se encarga la cola de escucha. Asi que un reloj corto
+# aqui solo dice "no hay nadie", nunca "esta ocupado".
+ACEPTA = 0.6
+
+
+def _puente_escucha():
+    """Si hay algo aceptando conexiones en el puerto del puente."""
+    import socket
+    try:
+        with socket.create_connection((BRIDGE_HOST, BRIDGE_PORT), ACEPTA):
+            return True
+    except OSError:
+        return False
+
+
 def _bridge_call(method, path, body=None, timeout=30):
     """One request on the shared connection, reopening it if it went away."""
     global _bridge_conn
@@ -884,6 +901,13 @@ def _bridge_call(method, path, body=None, timeout=30):
     data = json.dumps(body or {}).encode() if method == "POST" else None
     head = {"Content-Type": "application/json"} if data is not None else {}
     with _bridge_lock:
+        # Sin conexion abierta, primero la pregunta barata: hay alguien ahi? Con
+        # el puente apagado esto corta en 0,6 s lo que costaba 4,0 (dos intentos
+        # de dos segundos), y quien esta mirando esa pantalla es justo quien
+        # todavia no ha arrancado el puente.
+        if _bridge_conn is None and not _puente_escucha():
+            raise ConnectionError("el puente no esta escuchando en %s:%d"
+                                  % (BRIDGE_HOST, BRIDGE_PORT))
         for attempt in (1, 2):
             try:
                 if _bridge_conn is None:
@@ -937,6 +961,24 @@ def bridge_get(path, timeout=2):
     return None if isinstance(data, dict) and data.get("error") else data
 
 
+def resolve_corriendo():
+    """Si Resolve esta abierto, mirando los procesos y no el puente.
+
+    Es lo unico que se puede saber de Resolve sin el puente, y llega justo para
+    no acusar a nadie de tener el programa cerrado cuando lo tiene delante. No
+    dice que proyecto hay abierto: eso solo lo sabe el puente.
+    """
+    if os.name != "nt":
+        return None
+    try:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Resolve.exe", "/NH"],
+                             capture_output=True, text=True, timeout=5,
+                             creationflags=NO_WINDOW)
+        return "Resolve.exe" in (out.stdout or "")
+    except Exception:
+        return None      # ni si ni no: no se ha podido mirar
+
+
 def bridge_status():
     """What the guided setup needs to know: is the bridge up, and is a project open?
 
@@ -953,13 +995,19 @@ def bridge_status():
     """
     status = bridge_get("/status")
     if not status or not status.get("product"):
-        return {"bridge": False, "project": None, "timeline": None}
+        # `app`: si el programa esta abierto, aunque el puente no conteste. Sin
+        # esto los tres pasos salian sin hacer y el segundo mandaba a abrir un
+        # Resolve que ya estaba abierto.
+        return {"bridge": False, "project": None, "timeline": None,
+                "app": resolve_corriendo()}
     project = bridge_get("/project") or {}
     timeline = bridge_get("/timeline") or {}
     return {
         "bridge": True,
         "project": project.get("name"),
         "timeline": timeline.get("name"),
+        # Con puente no hace falta mirar los procesos: si contesta, esta abierto.
+        "app": True,
     }
 
 
