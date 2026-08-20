@@ -222,6 +222,14 @@ LITERAL = [
     # el rotulo unas veces y otras no. El atajo "Rótulo" del chat escribe esto.
     ("pon un rotulo en el segundo 3 que diga Munir Torres",
      [{"do": "title", "at": 3.0, "secs": 3.0, "text": "Munir Torres"}]),
+    # La voz en off comparte forma con el cartel y por eso comparte funcion. Lo
+    # unico que la distingue es la palabra del principio, asi que se mira antes:
+    # "que diga" es de las dos.
+    ("pon una voz en el segundo 5 que diga mira esto",
+     [{"do": "voice", "at": 5.0, "text": "mira esto"}]),
+    ("pon una narracion que diga bienvenidos en el segundo 2",
+     [{"do": "voice", "at": 2.0, "text": "bienvenidos"}]),
+    ("pon una voz bonita", []),
     ("pon una chapa en el segundo 12 que diga NUEVO",
      [{"do": "title", "at": 12.0, "secs": 3.0, "text": "NUEVO"}]),
     ("pon un cartel que diga SUSCRIBETE en el segundo 8",

@@ -796,6 +796,20 @@ LITERAL_VERBS = (
 )
 
 
+# Lo mismo pero para la voz en off: "pon una voz en el segundo 5 que diga...".
+# Comparte forma con el cartel y por eso comparte funcion; lo unico que cambia
+# es la palabra de la que se agarra y el verbo que sale.
+VOZ_RE = re.compile(
+    r"\b(?:voz|locuci[oó]n|narraci[oó]n|voice ?over)\b"
+    r"[^.]{0,40}?\bsegundo\s+(\d+(?:[.,]\d+)?)"
+    r"[^.]{0,20}?\bdig[ao]\s+(.{1,120}?)\s*$",
+    re.I)
+VOZ_RE_2 = re.compile(
+    r"\b(?:voz|locuci[oó]n|narraci[oó]n|voice ?over)\b"
+    r"[^.]{0,20}?\bdig[ao]\s+(.{1,120}?)"
+    r"\s+(?:en\s+el\s+)?segundo\s+(\d+(?:[.,]\d+)?)\s*$",
+    re.I)
+
 # "pon un rotulo en el segundo 12 que diga Munir Torres": el que, el cuando y el
 # que dice, los tres puestos. Aqui no hay nada que interpretar, y hasta ahora lo
 # decidia el modelo: la misma frase daba el rotulo unas veces y otras no, porque
@@ -812,6 +826,44 @@ CARD_RE_2 = re.compile(
     r"[^.]{0,20}?\bdig[ao]\s+(.{1,80}?)"
     r"\s+(?:en\s+el\s+)?segundo\s+(\d+(?:[.,]\d+)?)\s*$",
     re.I)
+
+
+def _dicho_en(prompt, uno, otro, duration):
+    """Saca (segundo, texto) de una frase que trae los dos, o None."""
+    low = (prompt or "").strip()
+    if low.lower().startswith("pick:"):
+        return None
+    m = uno.search(low)
+    if m:
+        cuando, texto = m.group(1), m.group(2)
+    else:
+        m = otro.search(low)
+        if not m:
+            return None
+        texto, cuando = m.group(1), m.group(2)
+    try:
+        at = float(cuando.replace(",", "."))
+    except ValueError:
+        return None
+    if at < 0 or at > max(1.0, float(duration)) + 0.5:
+        return None
+    limpio = texto.strip()
+    for _ in range(6):
+        antes = limpio
+        limpio = limpio.strip().strip('"').strip("'").strip(
+            "“”«»").rstrip(".,;:")
+        if limpio == antes:
+            break
+    return (round(at, 2), limpio) if limpio else None
+
+
+def literal_voice(prompt, duration):
+    """Una voz en off dicha con todas sus letras. [] si falta algo."""
+    got = _dicho_en(prompt, VOZ_RE, VOZ_RE_2, duration)
+    if not got:
+        return []
+    at, texto = got
+    return [{"do": "voice", "at": at, "text": texto[:300]}]
 
 
 def literal_card(prompt, duration):
@@ -867,6 +919,11 @@ def literal_actions(prompt, duration):
         return []
     # Un cartel se dice con UN segundo y su texto, no con dos segundos, asi que
     # se mira antes de exigir un tramo.
+    # La voz se mira ANTES que el cartel, porque "que diga" es de las dos y la
+    # palabra que decide cual es es la del principio.
+    voz = literal_voice(prompt, duration)
+    if voz:
+        return voz
     cartel = literal_card(prompt, duration)
     if cartel:
         return cartel

@@ -2927,7 +2927,11 @@ def run_job(req):
         # los contaba bien ("1 cartel"). Esta linea los repetia y ademas los
         # decia en plural siempre, asi que un turno con uno solo terminaba en
         # "1 cartel - 1 carteles". Contarlo dos veces y una de ellas mal.
-        if voice_files:
+        # Las voces ya las conto `said_deeds` unas lineas mas arriba, igual que
+        # pasaba con los carteles: "1 voz - 1 voz en off" es lo mismo dicho dos
+        # veces. Lo que si aporta es cuando alguna se cayo por el camino porque
+        # su segundo estaba en un trozo cortado.
+        if voice_files and len(voice_files) < len(want_voice):
             did.append(tr("did_voice", len(voice_files)))
         blocked = blocked_by_output(output, settings_now, set(changed),
                                     want_voice=bool(want_voice),
