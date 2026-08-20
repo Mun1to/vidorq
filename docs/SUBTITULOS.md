@@ -511,10 +511,26 @@ transcripción, para que un montaje reordenado no baraje las frases), porque ese
 donde un fallo no revienta: desplaza. Y un subtítulo medio segundo tarde no parece un error
 de reloj, parece que el programa es malo.
 
-**Cómo repetirla**: renderizar un MP4 con subtítulos, sacar los `chunks` con
-`cap.build_chunks(server.retime_transcript(transcript, edl), preset)`, transcribir el MP4 de
-salida con `word_timestamps=True` y emparejar la primera palabra de cada línea con la palabra
-oída más cercana.
+Y lo mismo por el otro camino, que es el que de verdad importa porque es el del producto:
+se montó el timeline en Resolve, se **renderizó desde Resolve** (`/render/format`,
+`/render/settings`, `/render/job/add`, `/render/start`) y se midió sobre ESE archivo. 23
+líneas, 22 comparables:
+
+| | MP4 (libass) | Resolve (Fusion, renderizado por Resolve) |
+| --- | --- | --- |
+| desfase mediano | +0,020 s | **-0,020 s** |
+| peor por abajo | -0,100 s | -0,200 s |
+| peor por arriba | +0,240 s | +0,180 s |
+| dentro de 0,25 s | 34 de 34 | **22 de 22** |
+
+Es la primera vez que el camino de Resolve se comprueba **a la salida** y no mirando
+fotogramas sueltos. Un fotograma dice que el subtítulo está bien dibujado; esto dice que está
+en el segundo que le toca, que es otra cosa.
+
+**Cómo repetirla**: renderizar un MP4 con subtítulos (o el timeline, desde el puente), sacar
+los `chunks` con `cap.build_chunks(server.retime_transcript(transcript, edl), preset)`,
+transcribir el archivo de salida con `word_timestamps=True` y emparejar la primera palabra de
+cada línea con la palabra oída más cercana.
 
 ## Estado de la verificación
 
