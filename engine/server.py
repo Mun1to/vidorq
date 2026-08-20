@@ -2629,8 +2629,10 @@ def note_stopped(video, prompt, output=""):
     if not video:
         return
     past, work = session_for(video)
-    if not past.get("edl"):
-        return  # No hay conversacion todavia: no habia nada que continuar.
+    # Sin la comprobacion de `edl` que habia aqui: se rendia cuando no habia un
+    # montaje anterior, o sea en la PRIMERA edicion, que es justo cuando mas
+    # falta hace. Escribias, pulsabas Editar, parabas, y la sesion se quedaba
+    # con cero turnos: tu frase no habia existido nunca.
     why = tr("stopped_by_you") if output == "resolve" else tr("stopped_by_you_mp4")
     past["history"] = (past.get("history") or []) + [
         {"you": shown(prompt, _lang), "cannot": [{"what": "stop", "why": why}],
