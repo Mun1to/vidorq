@@ -60,6 +60,12 @@ BRIDGE = "http://127.0.0.1:9876"
 # Windows, hence the getattr.
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
+# Lo mas gordo que Vidorq recibe de verdad es un /edit con sus trozos
+# traducidos y sus voces, y eso son kilobytes. Esto es holgado por dos
+# ordenes de magnitud, y esta para que una cabecera que anuncie un gigabyte
+# no haga que se reserve un gigabyte.
+MAX_BODY = 16 * 1024 * 1024
+
 # The caption presets and the filler-word lists live with the renderers that use
 # them, so the engine borrows them instead of keeping a second copy.
 sys.path.insert(0, str(HELPERS))
@@ -3684,7 +3690,12 @@ class Handler(BaseHTTPRequestHandler):
         global _busy
         if self._ajeno():
             return
-        n = int(self.headers.get("Content-Length", 0))
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            n = -1
+        if n < 0 or n > MAX_BODY:
+            return self._send({"error": "body too large"}, 413)
         try:
             body = json.loads(self.rfile.read(n).decode() or "{}")
         except Exception:
