@@ -106,6 +106,21 @@ def casos():
         yield ("estilos que promete la landing", cifra_es(m.group(1)), estilos)
         yield ("entradas que promete la landing", cifra_es(m.group(2)), anims)
 
+    # Cada endpoint que el motor atiende tiene su fila en el doc de usuario.
+    # Se leen todas las rutas entre comillas invertidas, y no solo las de la
+    # forma `GET /x`: hay una fila que junta tres en una.
+    doc = leer("docs/APP_USUARIO.md")
+    srv = leer("engine/server.py")
+    documentados = set(re.findall(r"`(?:GET |POST )?(/[a-z/]+)`", doc))
+    reales = set(re.findall(r'self\.path\s*==\s*"(/[a-z/]+)"', srv))
+    reales |= set(re.findall(r'self\.path\.startswith\("(/[a-z/]+)"\)', srv))
+    # `/shutdown` no se cuenta: no es para nadie, la usa el propio programa
+    # para cerrarse, y ponerla en el doc es invitar a apagar el motor.
+    reales.discard("/shutdown")
+    yield ("hay endpoints que mirar", len(reales) > 15, True)
+    yield ("todo endpoint tiene su fila en el doc",
+           sorted(reales - documentados), [])
+
     # Y lo que NO se puede prometer: la ventana no vuelve a sugerir musica.
     i18n = leer("app/src/i18n.tsx")
     ejemplos = re.findall(r'"say\.eg\d+":\s*"([^"]*)"', i18n)
