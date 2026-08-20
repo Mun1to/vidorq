@@ -140,6 +140,23 @@ def translate_lines(lines, target, model=None, ai=None, log=None):
     return out
 
 
+# Chino y japones no separan las palabras con espacios, asi que ".split()"
+# devuelve la frase ENTERA como una sola "palabra". Medido el 20-ago-2026:
+# una frase de 34 caracteres se quedaba en pantalla 8,1 segundos de un tiron,
+# porque para el renderizador solo habia una palabra que ocupar ese hueco - el
+# estilo "punch" (una palabra por golpe) dejaba de tener sentido en chino. Por
+# caracter no es la segmentacion lingueisticamente correcta, pero reparte el
+# tiempo de verdad y es lo que hacen la mayoria de generadores de subtitulos
+# cuando no llevan un segmentador de idioma aparte.
+NO_SPACES = {"zh", "ja"}
+
+
+def _split_words(text, target):
+    if target in NO_SPACES:
+        return [c for c in text if not c.isspace()]
+    return [w for w in text.split() if w]
+
+
 def translate_transcript(transcript, target, model=None, ai=None, log=None):
     """Translate whole sentences, then hand the words their times back.
 
@@ -160,7 +177,7 @@ def translate_transcript(transcript, target, model=None, ai=None, log=None):
 
     out = []
     for seg, text in zip(segs, done):
-        words = [w for w in (text or "").split() if w]
+        words = _split_words(text or "", target)
         if not words:
             continue
         start, end = float(seg["start"]), float(seg["end"])
