@@ -152,9 +152,15 @@ video, on your own footage, with the crop aimed where it will really be aimed.
 The gallery puts all ten looks on one wall and the nine entrances animating over
 the one you picked, so choosing is looking rather than reading names.
 
-**Colour.** Eight filters, each defined once as ASC CDL numbers, so the MP4 and
-the Resolve timeline come out of the same maths. In Resolve they land as an
-ordinary primary correction you can keep adjusting by hand, not a baked-in look.
+**Colour.** Eight filters, each defined once as ASC CDL numbers, and both
+outputs read that one definition. They are not pixel for pixel identical, and
+saying they were would be easy and wrong: measured on the same frame with the
+warm filter, the MP4 moves it R+11.77 G+3.42 B-10.27 and the file Resolve
+renders moves it R+14.87 G+5.54 B-6.92. Same direction, same intent, about
+three levels out of 255 apart, because Resolve applies it inside its own
+colour-managed pipeline and ffmpeg applies it to the encoded values. In Resolve
+they land as an ordinary primary correction you can keep adjusting by hand, not
+a baked-in look.
 
 **Transitions.** Dissolve, wipe, slide and the rest in the MP4. In Resolve, the
 three that only cover the cut - dip to black, dip to white and a short flash -

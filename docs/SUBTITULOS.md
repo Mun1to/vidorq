@@ -532,6 +532,31 @@ los `chunks` con `cap.build_chunks(server.retime_transcript(transcript, edl), pr
 transcribir el archivo de salida con `word_timestamps=True` y emparejar la primera palabra de
 cada línea con la palabra oída más cercana.
 
+## El color va en la misma dirección por los dos caminos, pero no al mismo sitio
+
+Comprobado el 20-ago-2026 sobre el mismo fotograma del mismo montaje, con el filtro **Cálido**
+y midiendo la media de cada canal. El de Resolve no es un fotograma exportado sino el archivo
+que **renderiza Resolve**, porque el exportador de stills pasa por otro sitio y falsearía la
+comparación (con él la distancia salía de 4,15 en vez de 3,11).
+
+| | R | G | B |
+| --- | --- | --- | --- |
+| original sin filtro | 111,32 | 110,02 | 114,23 |
+| MP4 de Vidorq | 123,09 | 113,44 | 103,95 |
+| renderizado por Resolve | 126,19 | 115,56 | 107,31 |
+
+O sea que el filtro **mueve**: los dos calientan (sube el rojo, baja el azul), que es lo que
+"Cálido" promete. Pero no al mismo sitio: el MP4 baja el azul 10,27 y Resolve solo 6,92, y
+todo Resolve queda unos 3 niveles más claro.
+
+**Lo que sí es verdad**: los números (`slope`, `offset`, `power`, `sat`) están escritos UNA vez
+en `looks.py` y los leen las dos salidas. **Lo que no**: que el resultado sea idéntico. Resolve
+lo aplica dentro de su gestión de color y ffmpeg sobre los valores ya codificados.
+
+Tres niveles sobre 255 es un 1,2%: se ve si pones los dos fotogramas uno al lado del otro y no
+se ve en un vídeo. Queda anotado y no se persigue, porque igualar la ciencia de color de
+Resolve con la de ffmpeg no se arregla con un número.
+
 ## Estado de la verificación
 
 Lo que se ha visto renderizado, y lo que no. Compilar no cuenta.

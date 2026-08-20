@@ -73,7 +73,7 @@ PRESETS = {
         "power": (0.98, 1.0, 1.03), "sat": 1.05,
     },
     "frio": {
-        "label": {"es": "Frio", "en": "Cool"},
+        "label": {"es": "Frío", "en": "Cool"},
         "note": {"es": "Azulado y limpio. Para tecnologia y para interiores feos.",
                  "en": "Blue and clean. For tech, and for ugly interiors."},
         "slope": (0.93, 0.99, 1.08), "offset": (-0.004, 0.0, 0.010),

@@ -46,7 +46,8 @@ PELADAS = """
     seleccion direccion suscripcion retencion atencion intencion
     explicacion expresion impresion tension pasion vision mision ocasion
     presion revision television
-    energia energias musica dia dias sabado
+    energia energias musica dia dias sabado frio fria frios frias
+    dificiles armonia melodia bateria fotografia
     frances ingles aleman japones portugues arabe hungaro
     pequeno pequena pequenos pequenas tamano tamanos senal senales espanol
     enfasis exito exitos numero telefono parametro parametros
