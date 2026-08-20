@@ -2437,7 +2437,9 @@ def shown(prompt, lang="es"):
     """
     if prompt.startswith(PICK):
         return said_pick(prompt, lang)
-    return prompt
+    # Y sin lo que parezca una clave: esto se guarda en `sesion.json`, que dura
+    # lo que dure el video. El historial ya se tachaba; esto faltaba.
+    return sin_secretos(prompt)
 
 
 def ask_for(keys, lang="es", output=None):
@@ -2561,7 +2563,7 @@ def note_stopped(video, prompt, output=""):
         return  # No hay conversacion todavia: no habia nada que continuar.
     why = tr("stopped_by_you") if output == "resolve" else tr("stopped_by_you_mp4")
     past["history"] = (past.get("history") or []) + [
-        {"you": prompt, "cannot": [{"what": "stop", "why": why}],
+        {"you": shown(prompt, _lang), "cannot": [{"what": "stop", "why": why}],
          "ok": False}]
     session_save(work, past)
 
@@ -2916,7 +2918,7 @@ def run_job(req):
         if again and prompt and director.needs_where(prompt):
             ask_at = spans_ask(prompt, edl, transcript, _lang)
             if ask_at:
-                answer = {"you": prompt, "did": [], "cannot": [], "unknown": [],
+                answer = {"you": shown(prompt, _lang), "did": [], "cannot": [], "unknown": [],
                           "ask": ask_at, "offer": {}, "ok": False}
                 past["history"] = history + [answer]
                 session_save(sesdir, past)
