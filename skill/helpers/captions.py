@@ -713,6 +713,33 @@ def _anim_splines(a, dur, size, els):
     return tools, wires, extra
 
 
+# Arial no trae glifos chinos ni japoneses, y a diferencia de libass (el
+# renderizador del MP4, que hace fallback de fuente solo cuando falta un
+# glifo) el Text+ de Fusion NO sustituye nada: dibuja un simple trazo vacio.
+# Medido el 20-ago-2026 en un timeline real: un subtitulo en chino salia como
+# una rayita azul en vez del caracter. Windows trae estas dos de fabrica, asi
+# que se cambia la fuente SOLO cuando el texto de ese trozo las necesita; el
+# resto de idiomas sigue viendo la fuente de siempre.
+#
+# Cambiar solo la fuente no basta: los presets piden "Black" (Punch, Pop...) y
+# ninguna de las dos CJK trae ese grosor instalado (medido con
+# `FontFamily.IsStyleAvailable`: solo Regular y Bold). Pedirle a Fusion una
+# combinacion fuente+grosor que no existe no cae al grosor mas cercano, tira
+# la composicion entera: el render fallaba con "The Fusion composition...
+# could not be processed successfully" desde el primerisimo cartel.
+_KANA_RE = re.compile(r"[぀-ヿ]")
+_HAN_RE = re.compile(r"[一-鿿㐀-䶿]")
+
+
+def _font_for(text, fallback_font, fallback_style):
+    """(fuente, grosor) a usar para este trozo de texto."""
+    if _KANA_RE.search(text):
+        return "Yu Gothic", ("Regular" if fallback_style == "Regular" else "Bold")
+    if _HAN_RE.search(text):
+        return "Microsoft YaHei", ("Regular" if fallback_style == "Regular" else "Bold")
+    return fallback_font, fallback_style
+
+
 def _text_inputs(p, chunk, w, h, dur, wires, size, y, els):
     """The Inputs block of the Text+ node: preset values plus the spline wires."""
     def wired(input_name, fallback):
@@ -721,14 +748,15 @@ def _text_inputs(p, chunk, w, h, dur, wires, size, y, els):
             return '%s = Input { SourceOp = "%s", Source = "Value", },' % (input_name, sp)
         return fallback
 
+    font, style = _font_for(chunk["text"], p["font"], p["style"])
     lines = [
         'GlobalOut = Input { Value = %d, },' % max(1, dur - 1),
         'Width = Input { Value = %d, },' % w,
         'Height = Input { Value = %d, },' % h,
         'UseFrameFormatSettings = Input { Value = 1, },',
         'StyledText = Input { Value = "%s", },' % _fu_str(chunk["text"]),
-        'Font = Input { Value = "%s", },' % p["font"],
-        'Style = Input { Value = "%s", },' % p["style"],
+        'Font = Input { Value = "%s", },' % font,
+        'Style = Input { Value = "%s", },' % style,
         'VerticalJustificationNew = Input { Value = 3, },',
         'HorizontalJustificationNew = Input { Value = 3, },',
         'Center = Input { Value = { 0.5, %.4f }, },' % y,
