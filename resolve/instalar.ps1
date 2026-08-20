@@ -60,7 +60,14 @@ $confDir = Join-Path $env:APPDATA "Vidorq"
 if (-not (Test-Path $confDir)) { New-Item -ItemType Directory -Path $confDir | Out-Null }
 # Sin la ruta de la app a proposito: se busca al hacer clic, porque normalmente
 # se compila despues de que la extension ya este en el menu.
-$conf = [ordered]@{ home = $home_; bridge = $bridge; python = $python }
+# Cadena vacia y no $null: ConvertTo-Json escribe `null`, y del otro lado
+# `.get(clave, "")` devuelve None con eso, no "". Un null aqui salia como
+# TypeError al pulsar el menu, dentro de Resolve, sin mensaje.
+$conf = [ordered]@{
+    home   = "$home_"
+    bridge = if ($bridge) { "$bridge" } else { "" }
+    python = if ($python) { "$python" } else { "" }
+}
 # Sin BOM a proposito: Set-Content -Encoding utf8 lo mete y json.load de Python lo rechaza.
 $sinBom = New-Object System.Text.UTF8Encoding $false
 [System.IO.File]::WriteAllText((Join-Path $confDir "resolve.json"), ($conf | ConvertTo-Json), $sinBom)

@@ -58,7 +58,7 @@ else:
         fail("La configuracion esta corrupta (%s): %s" % (e, CONF))
 
     if conf:
-        payload = os.path.join(conf.get("home", ""), "resolve", "vidorq_resolve.py")
+        payload = os.path.join(conf.get("home") or "", "resolve", "vidorq_resolve.py")
         if not os.path.isfile(payload):
             fail("No encuentro el codigo de Vidorq en: %s" % payload,
                  "La carpeta de instalacion ha cambiado de sitio o se ha borrado.")

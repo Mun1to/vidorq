@@ -27,8 +27,11 @@ BRIDGE = "http://127.0.0.1:9876"
 ENGINE_WAIT_S = 25
 
 CONF = globals().get("VIDORQ_CONF", {})
-HOME = CONF.get("home", "")
-BRIDGE_SRC = CONF.get("bridge", "")
+# `or ""` y no el segundo argumento de get(): la clave puede estar escrita
+# valiendo null, y ahi get() devuelve None, no el valor por defecto. Con eso
+# `os.path.isfile()` lanza TypeError y el clic del menu muere sin decir nada.
+HOME = CONF.get("home") or ""
+BRIDGE_SRC = CONF.get("bridge") or ""
 
 def spanish():
     """Spanish if the machine is Spanish. No setting to fiddle with.
@@ -156,7 +159,7 @@ if alive(ENGINE + "/health"):
 else:
     # pythonw, not the .bat: a GUI-subsystem interpreter cannot flash a console,
     # and the launcher is only a convenience wrapper around this same call.
-    python = CONF.get("python", "")
+    python = CONF.get("python") or ""
     server = os.path.join(HOME, "engine", "server.py")
     if not (os.path.isfile(python) and os.path.isfile(server)):
         say("engine_missing", python or server)
@@ -180,7 +183,7 @@ def find_app():
     Searched at click time and not written down at install time, because the app
     usually gets built after the extension is already in the menu.
     """
-    seen = [CONF.get("app", "")]
+    seen = [CONF.get("app") or ""]
     target = os.environ.get("CARGO_TARGET_DIR", "")
     if target:
         seen.append(os.path.join(target, "release", "Vidorq.exe"))
