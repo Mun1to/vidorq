@@ -793,39 +793,6 @@ def edl_montage(video, transcript, keep_ratio=0.45, track=None, lang="es",
     return joined, report
 
 
-def edl_from_prompt(prompt, packed, key):
-    """Ask the chosen model for an EDL over the packed transcript.
-
-    Which model that is comes from the settings screen and can be the local
-    Ollama, a coding agent already installed and signed in, or a key.
-    """
-    body = {
-        "model": "claude-sonnet-5",
-        "max_tokens": 4000,
-        "system": (
-            "Eres el editor de video de Vidorq. Recibes la transcripcion empaquetada de un video "
-            "(lineas '[inicio-fin] texto' en segundos) y la instruccion del usuario. Devuelve SOLO un JSON: "
-            '{"segments":[{"start":s,"end":s,"zoom":1.0-1.08,"note":"..."}]} con los tramos A CONSERVAR, '
-            "en orden, cortando en limites de frase. Zoom >1 solo en momentos de enfasis."),
-        "messages": [{"role": "user", "content": f"INSTRUCCION: {prompt}\n\nTRANSCRIPCION:\n{packed}"}],
-    }
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "x-api-key": key,
-                 "anthropic-version": "2023-06-01"},
-        method="POST")
-    with urllib.request.urlopen(req, timeout=120) as r:
-        data = json.loads(r.read().decode())
-    text = "".join(b.get("text", "") for b in data.get("content", []))
-    m = re.search(r"\{.*\}", text, re.S)
-    edl = json.loads(m.group(0))["segments"]
-    for seg in edl:
-        seg.setdefault("zoom", 1.0)
-        seg.setdefault("note", "")
-    return edl
-
-
 # --------------------------------------------------------------------------- #
 # Output backends
 # --------------------------------------------------------------------------- #
