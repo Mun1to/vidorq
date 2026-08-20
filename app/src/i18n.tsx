@@ -137,6 +137,8 @@ const es = {
   "history.sure": "¿Borro la lista? Los vídeos y los timelines no se tocan.",
   "history.yes": "Borrar",
   "history.noFile": "Sin archivo",
+  "history.play": "Ver",
+  "history.folder": "Carpeta",
   "history.stopped": "La paraste tú. Lo que ya estaba hecho se quedó.",
   "history.failed": "Falló",
 
@@ -386,6 +388,8 @@ const en: Record<keyof typeof es, string> = {
   "history.sure": "Clear the list? Videos and timelines are left alone.",
   "history.yes": "Clear",
   "history.noFile": "No file",
+  "history.play": "Watch",
+  "history.folder": "Folder",
   "history.stopped": "You stopped it. Whatever was already done stayed.",
   "history.failed": "Failed",
 

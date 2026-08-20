@@ -327,12 +327,13 @@ function App() {
    * SI puede abrir un archivo del disco; en un navegador normal (que es donde se
    * prueba el diseño) no hay nada que abrir y no pasa nada.
    */
-  async function openMade(what: "file" | "folder") {
-    if (!made) return;
+  async function openMade(what: "file" | "folder", ruta?: string) {
+    const donde = ruta || made;
+    if (!donde) return;
     try {
       const mod = await import("@tauri-apps/plugin-opener");
-      if (what === "folder") await mod.revealItemInDir(made);
-      else await mod.openPath(made);
+      if (what === "folder") await mod.revealItemInDir(donde);
+      else await mod.openPath(donde);
     } catch (e) {
       // Sin Tauri detras no hay abridor. Se dice en la consola y se sigue: no es
       // motivo para romper la conversacion.
@@ -539,7 +540,12 @@ function App() {
       {view === "history" ? (
         // Pulsar una edicion vuelve a su video, que es lo unico que se puede
         // querer hacer con una fila del historial: seguir con aquello.
-        <History onOpen={(v) => { setVideo(v); setView("edit"); }} />
+        <History
+          onOpen={(v) => { setVideo(v); setView("edit"); }}
+          // El historial guardaba donde quedo cada video y no dejaba abrirlo:
+          // para eso es un historial, para encontrar aquello de la semana
+          // pasada sin acordarse de la carpeta.
+          onFile={(ruta, what) => openMade(what, ruta)} />
       ) : chatting ? (
         <Chat
           title={fileName || t("head.title")}

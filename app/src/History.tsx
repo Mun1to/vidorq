@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost } from "./api";
 import { useLang } from "./i18n";
-import { IconClock, IconFilm, IconScissors, IconVideo } from "./Icons";
+import { IconClock, IconFilm, IconFolder, IconPlay, IconScissors, IconVideo } from "./Icons";
 
 /**
  * El historial de ediciones: lo que hiciste, cuando, y sobre que video.
@@ -37,13 +37,26 @@ function dayOf(at: number) {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }
 
+/** Si eso que salio del turno es un archivo que se puede abrir.
+
+    Un turno a Resolve devuelve el NOMBRE de un timeline, no una ruta, y el de
+    MP4 devuelve la ruta del video. Se distinguen mirando si acaba en algo que
+    un reproductor sabe abrir; asi un cambio en el texto del motor no convierte
+    un boton en una promesa que falla al pulsarla. */
+function esArchivo(result: string) {
+  return /\.(mp4|mov|mkv|webm)$/i.test((result || "").trim());
+}
+
 function lasted(s: number) {
   if (s < 60) return `${Math.round(s)}s`;
   const m = Math.floor(s / 60);
   return s % 60 < 5 ? `${m} min` : `${m} min ${Math.round(s % 60)}s`;
 }
 
-export default function History({ onOpen }: { onOpen: (video: string) => void }) {
+export default function History({ onOpen, onFile }: {
+  onOpen: (video: string) => void;
+  onFile?: (ruta: string, what: "file" | "folder") => void;
+}) {
   const { t, lang } = useLang();
   const [edits, setEdits] = useState<Edit[] | null>(null);
   const [asking, setAsking] = useState(false);
@@ -151,6 +164,21 @@ export default function History({ onOpen }: { onOpen: (video: string) => void })
                     <span className="hist-why">{e.error || t("history.failed")}</span>
                   ) : null}
                 </span>
+                {/* Lo que salio de ese turno, si fue un archivo. El timeline
+                    de Resolve no se abre desde aqui: no es un archivo, es un
+                    sitio dentro de un programa que puede ni estar abierto. */}
+                {esArchivo(e.result) && onFile && (
+                  <span className="hist-open">
+                    <button title={e.result}
+                            onClick={(ev) => { ev.stopPropagation(); onFile(e.result, "file"); }}>
+                      <IconPlay size={12} />{t("history.play")}
+                    </button>
+                    <button title={e.result}
+                            onClick={(ev) => { ev.stopPropagation(); onFile(e.result, "folder"); }}>
+                      <IconFolder size={12} />{t("history.folder")}
+                    </button>
+                  </span>
+                )}
                 <span className="hist-meta">
                   {e.cuts ? (
                     <span><IconScissors size={12} /> {e.cuts}</span>

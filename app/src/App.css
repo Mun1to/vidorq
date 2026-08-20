@@ -1006,3 +1006,12 @@ select:focus-visible,
 }
 /* La misma marca en el panel de ajustes que en los botones del chat. */
 .capstyle.elsewhere { border-style: dashed; }
+/* Abrir lo que salió de un turno, desde su fila del historial. */
+.hist-open { flex: 0 0 auto; display: flex; gap: 6px; align-items: center; }
+.hist-open button {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
+  color: var(--muted); font-family: inherit; font-size: 11px; padding: 4px 9px;
+  cursor: pointer;
+}
+.hist-open button:hover { border-color: var(--accent); color: var(--text); }
