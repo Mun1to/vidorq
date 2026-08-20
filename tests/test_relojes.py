@@ -250,6 +250,20 @@ def casos():
             ("", "")):
         yield "ass: %r se escribe escapado" % crudo, cap._ass_text(crudo), quiere
 
+    # Y lo mismo en el .srt que se lleva el usuario: los bloques se separan por
+    # una linea EN BLANCO, asi que un subtitulo con un salto doble dentro parte
+    # el archivo y le mete un subtitulo inventado en el segundo cero.
+    import translate as _tl
+    sucio = [{"start": 0.0, "end": 1.0, "text": "uno"},
+             {"start": 1.0, "end": 2.0,
+              "text": "dos\n\n9\n00:00:00,000 --> 00:00:01,000\ninventado"},
+             {"start": 2.0, "end": 3.0, "text": "tres"}]
+    srt = _tl.to_srt(sucio)
+    bloques = [b for b in srt.replace("\r\n", "\n").split("\n\n") if b.strip()]
+    yield "srt: tres subtitulos son tres bloques", len(bloques), 3
+    yield ("srt: el salto de linea se aplasta",
+           "dos 9 00:00:00,000 --> 00:00:01,000 inventado" in srt, True)
+
     # --- una fila del historial --------------------------------------------
     fila = server.ledger_entry("C:/videos/clase.mp4", "quita un trozo", "mp4",
                                "MiProyecto", 0.0, cuts=3, did=["3 tramos"])

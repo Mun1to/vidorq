@@ -171,7 +171,19 @@ def translate_chunks(chunks, target, model=None, log=None):
 
 
 def to_srt(chunks):
-    """A plain .srt, which is what every platform accepts for a second language."""
+    """A plain .srt, which is what every platform accepts for a second language.
+
+    Un bloque de SRT se separa del siguiente por una linea EN BLANCO, asi que un
+    subtitulo con un salto de linea doble dentro parte el archivo en dos. Medido
+    el 20-ago-2026: con cuatro subtitulos, uno de ellos con un salto y un numero
+    dentro, un lector de SRT contaba CINCO, y el de sobra era un subtitulo
+    inventado en el segundo cero.
+
+    De donde puede venir un salto ahi: el texto traducido lo escribe un modelo, y
+    lo que devuelve un modelo es un dato ajeno como cualquier otro. Los
+    subtitulos de Vidorq no llevan saltos a proposito en ningun caso, asi que
+    aplastar los espacios no quita nada y cierra el agujero entero.
+    """
     def stamp(t):
         ms = max(0, int(round(t * 1000)))
         h, ms = divmod(ms, 3600000)
@@ -179,5 +191,9 @@ def to_srt(chunks):
         s, ms = divmod(ms, 1000)
         return "%02d:%02d:%02d,%03d" % (h, m, s, ms)
 
-    return "".join("%d\n%s --> %s\n%s\n\n" % (i, stamp(c["start"]), stamp(c["end"]), c["text"])
+    def plano(t):
+        return re.sub(r"\s+", " ", str(t or "")).strip()
+
+    return "".join("%d\n%s --> %s\n%s\n\n"
+                   % (i, stamp(c["start"]), stamp(c["end"]), plano(c["text"]))
                    for i, c in enumerate(chunks, 1))
