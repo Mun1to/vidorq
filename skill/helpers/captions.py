@@ -567,6 +567,35 @@ def _ass_anim(p, a, x, y, sh_x, sh_y, h, still=False):
     return "{%s}" % tags
 
 
+def _ass_text(text):
+    """El texto de una linea, sin que pueda dar ordenes al renderizador.
+
+    En ASS, `{...}` no es texto: es un bloque de etiquetas. libass lee lo de
+    dentro como instrucciones y lo que no reconoce lo TIRA, asi que una linea
+    que contenga llaves o se mueve o se come un trozo de si misma.
+
+    Medido el 20-ago-2026 sobre un cuadro de 640x360, con la misma linea puesta
+    de tres formas:
+
+        HOLA                  el texto sale en las filas 280-315 (abajo)
+        {\\an8}HOLA            sale en las filas  48-83  (arriba del todo)
+        \\{\\an8\\}HOLA          sale en las filas 280-319, con las llaves a la vista
+
+    O sea que `\\{` y `\\}` neutralizan la etiqueta y ademas dibujan la llave, que
+    es exactamente lo que hace falta.
+
+    De donde viene el texto y por que importa: de la transcripcion, que es un
+    dato ajeno (regla AL), y de lo que el usuario escribe en un rotulo. El
+    segundo caso es el que se nota a diario: escribir "Sección {beta}" hacia
+    desaparecer media frase sin decir nada.
+
+    El `\\N` de ASS (salto de linea) se deja pasar a proposito: no esconde texto,
+    y escaparlo obligaria a inventar una forma de escribir una contrabarra
+    literal que ASS no tiene.
+    """
+    return (text or "").replace("{", "\\{").replace("}", "\\}")
+
+
 def _ass_body(c, p):
     """The line itself, cut into \\kf spans when the preset wants word timing.
 
@@ -576,8 +605,9 @@ def _ass_body(c, p):
     Resolve path cannot match, and it is why the same preset is worth more here.
     """
     if p["word_fx"] != "karaoke" or len(c["words"]) < 2:
-        return c["text"]
-    return " ".join("{\\kf%d}%s" % (max(1, int(round((wd["e"] - wd["s"]) * 100))), wd["w"])
+        return _ass_text(c["text"])
+    return " ".join("{\\kf%d}%s" % (max(1, int(round((wd["e"] - wd["s"]) * 100))),
+                                        _ass_text(wd["w"]))
                     for wd in c["words"])
 
 

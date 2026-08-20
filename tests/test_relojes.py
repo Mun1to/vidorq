@@ -39,6 +39,9 @@ sys.path.insert(0, str(RAIZ / "engine"))
 
 import captions as cap  # noqa: E402
 
+# La contrabarra, escrita asi para que se lea sin contar barras.
+BS = chr(92)
+
 _argv, sys.argv = sys.argv, ["test"]
 import server  # noqa: E402
 sys.argv = _argv
@@ -233,6 +236,19 @@ def casos():
     fuera = [dict(x) for x in EDL]
     server.apply_actions(fuera, [{"do": "marker", "at": 17.0, "text": "cortado"}])
     yield "marca: en material cortado no se pone", [x.get("note") for x in fuera], [None, None]
+
+    # --- el texto no puede dar ordenes al renderizador --------------------
+    # En ASS, `{...}` no es texto: es un bloque de etiquetas. libass lee lo de
+    # dentro como instrucciones y tira lo que no reconoce, asi que una linea con
+    # llaves o se mueve o se come un trozo de si misma. Medido: `{\\an8}HOLA`
+    # se iba a las filas 48-83 (arriba del todo) en vez de a las 297-334.
+    for crudo, quiere in (
+            ("Munir Torres", "Munir Torres"),
+            ("{" + BS + "an8}ARRIBA", BS + "{" + BS + "an8" + BS + "}ARRIBA"),
+            ("Seccion {beta}", "Seccion " + BS + "{beta" + BS + "}"),
+            ("}suelta{", BS + "}suelta" + BS + "{"),
+            ("", "")):
+        yield "ass: %r se escribe escapado" % crudo, cap._ass_text(crudo), quiere
 
     # --- una fila del historial --------------------------------------------
     fila = server.ledger_entry("C:/videos/clase.mp4", "quita un trozo", "mp4",
