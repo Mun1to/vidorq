@@ -130,6 +130,10 @@ TEXT = {
         "busy": "Ya hay una edición en marcha",
         "no_video": "No encuentro el vídeo: %s",
         "did_shots": "%d planos vistos",
+        "failed_moments": "no he podido aplicar lo que pedías en momentos concretos: %s",
+        "failed_colour": "no he podido calcular el color automático: %s",
+        "failed_translate": "no he podido traducir los subtítulos: %s",
+        "failed_voice": "no he podido decir la línea del segundo %.0f: %s",
         "no_eye": "he encontrado los planos por el movimiento, pero no he podido "
                   "DESCRIBIR lo que se ve: para eso hace falta un modelo de visión "
                   "en Ollama.",
@@ -210,6 +214,10 @@ TEXT = {
         "busy": "There is already an edit running",
         "no_video": "Cannot find the video: %s",
         "did_shots": "%d shots seen",
+        "failed_moments": "I could not carry out what you asked for at particular moments: %s",
+        "failed_colour": "I could not work out the automatic colour: %s",
+        "failed_translate": "I could not translate the captions: %s",
+        "failed_voice": "I could not speak the line at second %.0f: %s",
         "no_eye": "I found the shots from the movement, but I could not DESCRIBE "
                   "what is on screen: that needs a vision model in Ollama.",
         "no_brain": "I read your sentence with my own rules only, with no model: "
@@ -2681,6 +2689,8 @@ def run_job(req):
                 # edit: the rest of it is still exactly what was asked for.
                 traceback.print_exc()
                 set_progress(tr("moments"), 59, "sin momentos: %s" % str(e)[:120])
+                not_understood = list(not_understood) + [
+                    tr("failed_moments", str(e)[:100])]
 
         # 3d) El color automatico. Aqui y no antes porque hasta ahora el usuario
         #     podia haberlo cambiado con una frase, y porque mirar el video
@@ -2698,6 +2708,8 @@ def run_job(req):
             except Exception as e:
                 traceback.print_exc()
                 set_progress(tr("colouring"), 63, "sin color automatico: %s" % str(e)[:90])
+                not_understood = list(not_understood) + [
+                    tr("failed_colour", str(e)[:100])]
                 colour = ""
 
         edl_path = workdir / "edl.json"
@@ -2753,6 +2765,8 @@ def run_job(req):
                         traceback.print_exc()
                         set_progress(tr("translating", target), 62,
                                      "sin traducir: %s" % str(e)[:120])
+                        not_understood = list(not_understood) + [
+                            tr("failed_translate", str(e)[:100])]
 
         # 4b) The cards the prompt asked for join the captions, so they get the
         #     same look and the same renderer in both backends instead of a
@@ -2807,6 +2821,8 @@ def run_job(req):
                     traceback.print_exc()
                     set_progress(tr("rendering"), 63,
                                  "sin voz en %.1fs: %s" % (at, str(ex)[:120]))
+                    not_understood = list(not_understood) + [
+                        tr("failed_voice", at, str(ex)[:100])]
 
         # 5) Execute on the chosen backend
         if output == "resolve":
