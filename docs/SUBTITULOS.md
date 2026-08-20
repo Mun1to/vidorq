@@ -490,6 +490,32 @@ exactamente donde acaba la curva. O sea que se mueve, y llega donde dice.
 el punch. Lo que NO cambia: el `fill` de un 16:9 dentro de un 9:16 sigue siendo una propiedad
 del clip y no un efecto, porque ahí moverse sería el fallo.
 
+## Los subtítulos cuadran con la voz, medido sobre el vídeo final
+
+Comprobado el 20-ago-2026, y es la comprobación que más vale de todas: **se transcribe el MP4
+ya editado** y se compara cuándo se OYE cada palabra con cuándo se PINTA su subtítulo. Cierra
+el círculo entero (transcribir, cortar, retimar, agrupar, quemar) sin fiarse de ningún paso
+intermedio.
+
+Sobre 30 s de habla espontánea, 35 líneas quemadas y 34 comparables:
+
+| | |
+| --- | --- |
+| desfase mediano | **+0,020 s** |
+| peor por abajo | -0,100 s |
+| peor por arriba | +0,240 s |
+| dentro de 0,25 s | **34 de 34** |
+
+Se hizo justo después de tocar `retime_transcript` (que ahora recorre el MONTAJE y no la
+transcripción, para que un montaje reordenado no baraje las frases), porque ese es el punto
+donde un fallo no revienta: desplaza. Y un subtítulo medio segundo tarde no parece un error
+de reloj, parece que el programa es malo.
+
+**Cómo repetirla**: renderizar un MP4 con subtítulos, sacar los `chunks` con
+`cap.build_chunks(server.retime_transcript(transcript, edl), preset)`, transcribir el MP4 de
+salida con `word_timestamps=True` y emparejar la primera palabra de cada línea con la palabra
+oída más cercana.
+
 ## Estado de la verificación
 
 Lo que se ha visto renderizado, y lo que no. Compilar no cuenta.
