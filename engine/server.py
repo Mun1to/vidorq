@@ -1985,6 +1985,32 @@ def ledger_add(entry):
         traceback.print_exc()
 
 
+# Formas de clave que se reconocen a simple vista, con su largo minimo. No es
+# una lista de todo lo secreto del mundo: es la de lo que un usuario puede pegar
+# en el cuadro de texto por error, que son las mismas que le pide la pantalla de
+# ajustes. Un `sk-` suelto o cuatro letras no entran, porque tachar de mas deja
+# el historial sin lo unico que hace: contar lo que pediste.
+SECRETOS = re.compile(
+    r"\b("
+    r"sk-ant-[A-Za-z0-9_\-]{16,}"      # Anthropic
+    r"|sk-or-[A-Za-z0-9_\-]{16,}"      # OpenRouter
+    r"|sk-proj-[A-Za-z0-9_\-]{16,}"    # OpenAI, claves de proyecto
+    r"|sk-[A-Za-z0-9]{20,}"            # OpenAI, las de siempre
+    r"|AIza[A-Za-z0-9_\-]{30,}"        # Google AI Studio
+    r"|xi-[A-Za-z0-9]{24,}"            # ElevenLabs
+    r")\b")
+
+
+def sin_secretos(texto):
+    """La frase del usuario, sin lo que parezca una clave suya.
+
+    Va donde la frase se GUARDA, no donde se usa: si la escribio queriendo, la
+    edicion de ese momento la lleva igual. Lo que no puede es quedarse escrita
+    en un archivo que no caduca y que se abre delante de otros.
+    """
+    return SECRETOS.sub("<clave oculta>", str(texto or ""))
+
+
 def ledger_entry(video, prompt, output, scope, started, **more):
     """La forma de una fila, en un solo sitio.
 
@@ -1996,7 +2022,7 @@ def ledger_entry(video, prompt, output, scope, started, **more):
            "seconds": round(max(0.0, time.time() - started), 1),
            "video": video or "",
            "name": Path(video).name if video else "",
-           "prompt": prompt or "",
+           "prompt": sin_secretos(prompt),
            "output": output or "",
            "scope": scope or "",
            "did": [],

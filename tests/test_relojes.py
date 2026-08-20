@@ -287,6 +287,36 @@ def casos():
            _pr.sin_clave("el error dice abc por aqui", "abc"),
            "el error dice abc por aqui")
 
+    # --- ni el historial, que no caduca ----------------------------------
+    # `ediciones.json` guarda la frase tal cual y se enseña entera en la
+    # pantalla de Historial, o sea en cualquier captura. Y la pantalla de
+    # ajustes le pide claves al usuario, asi que pegar una en el cuadro de
+    # texto es un error que existe. Lo que NO puede pasar es tachar de mas: el
+    # historial esta para poder leer lo que pediste.
+    for frase, quiere in (
+            # lo normal no se toca
+            ("quita del segundo 2 al 5", "quita del segundo 2 al 5"),
+            # las formas de clave que pide la pantalla de ajustes
+            ("usa sk-ant-api03-AAAAbbbbCCCCddddEEEEffff1234 porfa",
+             "usa <clave oculta> porfa"),
+            ("mi clave es sk-proj-abcdefghij0123456789ABCDEFGH",
+             "mi clave es <clave oculta>"),
+            ("la de google es AIzaSyD-1234567890abcdefghijklmnopqrstuv",
+             "la de google es <clave oculta>"),
+            # y lo que se le parece pero no lo es
+            ("pon un rotulo que diga SK-8 en el segundo 3",
+             "pon un rotulo que diga SK-8 en el segundo 3"),
+            ("el video se llama sk-corto.mp4", "el video se llama sk-corto.mp4"),
+            ("", "")):
+        yield ("historial: %r" % frase[:34], server.sin_secretos(frase), quiere)
+
+    # Y que llegue de verdad a la fila que se escribe, no solo a la funcion.
+    fila = server.ledger_entry("C:/x/v.mp4",
+                               "usa sk-ant-api03-AAAAbbbbCCCCddddEEEEffff1234",
+                               "mp4", "Principal", __import__("time").time())
+    yield ("historial: la fila ya va tachada",
+           "sk-ant-api03" in fila["prompt"], False)
+
     # Y lo mismo en el .srt que se lleva el usuario: los bloques se separan por
     # una linea EN BLANCO, asi que un subtitulo con un salto doble dentro parte
     # el archivo y le mete un subtitulo inventado en el segundo cero.
