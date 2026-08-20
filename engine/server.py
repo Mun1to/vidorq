@@ -535,8 +535,18 @@ def profile_load():
 # claves manda a alguien a cinco paneles de proveedor a sacarlas otra vez, y
 # perder el perfil de marca borra un rato de alguien rellenandolo.
 def profile_save(p):
-    _atomic_write(ws_dir() / "brand.json",
-                  json.dumps(p, ensure_ascii=False, indent=1))
+    nuevo = json.dumps(p, ensure_ascii=False, indent=1)
+    destino = ws_dir() / "brand.json"
+    # La copia de antes, al lado, y solo si de verdad cambia algo. Guardar dos
+    # veces lo mismo no puede comerse la unica version buena que quedaba.
+    try:
+        if destino.exists():
+            viejo = destino.read_text(encoding="utf-8")
+            if viejo.strip() and viejo != nuevo:
+                _atomic_write(ws_dir() / "brand.anterior.json", viejo)
+    except OSError:
+        pass      # sin copia, pero el guardado sigue adelante
+    _atomic_write(destino, nuevo)
 
 
 # --------------------------------------------------------------------------- #
