@@ -38,8 +38,8 @@ La API no expone keyframes, pero hay una escalera de técnicas, de más segura a
 
 | # | Técnica | Estado (verificado 2026-07-04) | Cómo |
 |---|---|---|---|
-| 1 | Propiedades estáticas por clip | hoy | zoom, pan, tilt, rotación vía `set_clip_properties` |
-| 2 | **Zoom punch por segmentación** | hoy · confirmado por investigación | cortar el clip en el punto de énfasis y aplicar zoom estático mayor al segundo segmento; NO necesita keyframes y es la técnica de zoom más robusta para el MVP (AutoCut la vende como modo propio) |
+| 1 | Propiedades estáticas por clip | hoy | zoom, pan, tilt, rotación vía `set_clip_properties`. Sigue siendo lo correcto para lo que NO es un efecto: el zoom que hace que un 16:9 llene un 9:16 y el desplazamiento que apunta el recorte a la cara |
+| 2 | **Zoom punch** | **hoy · ANIMADO desde ago-2026** | Ya no es un tamaño fijo. `AddFusionComp` sobre el clip devuelve una comp con su `MediaIn` atado al material; se le mete un `Transform` con el tamaño en un `BezierSpline` entre el `MediaIn` y el `MediaOut` y se reimporta. Medido contra el original escalado: en el segundo 0,05 gana ×1.00 y en el 0,75 gana ×1.06, que es donde acaba la curva. Si la comp no entra, se cae al tamaño fijo de antes en vez de perderse |
 | 3 | **Composiciones Fusion pre-animadas** | **hoy · EN USO y verificado a mano en 21.0.4.5 Free (ago-2026)** | `ImportFusionComp` sobre un Text+ recién insertado funciona directo, sin el baile de `AddFusionComp` → `LoadFusionCompByName` → borrar dummy que se documentó antes; lo único obligatorio es **ruta absoluta**. Ya implementado en `skill/helpers/captions.py` + `engine/resolve_captions.py` |
 | 4 | Plantillas .drfx / Text+ paramétricas | probable (config 100% por script sin verificar) | macros instaladas con animación interna; instanciables vía media pool + `AppendToTimeline` |
 | 5 | Import de timeline con keyframes (FCPXML) | POCO FIABLE - descartado como vía principal | reportes de ~95% de propiedades PTZR mal traducidas en imports complejos; los keyframes a veces llegan pero los valores base no son de fiar; solo como experimento |

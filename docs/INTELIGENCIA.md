@@ -94,8 +94,12 @@ El **corte seco sigue siendo el de por defecto** a propósito: sobre voz, una di
 emborrona las palabras. Esto es para el montaje, no para el hablado. Si `xfade` falla por lo
 que sea, el render **vuelve al concat sin pérdida** en vez de tirar la edición entera.
 
-**En Resolve no hay transiciones**, y esa limitación de la API sigue en pie tal cual: no hay
-forma de añadirlas por script. Lo que Vidorq monta en Resolve son cortes.
+**En Resolve no hay transiciones por API**, y esa parte de la limitación sigue en pie: no se
+puede añadir una transición a un corte por script. Pero eso no quiere decir que en Resolve solo
+haya cortes, que es lo que decía aquí antes y era falso desde agosto: las tres que solo **tapan**
+el corte (fundido a negro, a blanco y destello) se montan como una capa animada encima, en su
+propia pista, y las tres están medidas fotograma a fotograma. Las que tienen que **mezclar** los
+dos planos siguen siendo imposibles. El detalle está en 8e, más abajo.
 
 ## Transcribir: la parte lenta, y lo que la arregla
 
