@@ -230,6 +230,13 @@ LITERAL = [
     ("pon una narracion que diga bienvenidos en el segundo 2",
      [{"do": "voice", "at": 2.0, "text": "bienvenidos"}]),
     ("pon una voz bonita", []),
+    # Y la marca, que era la ultima de las cinco acciones que seguia pasando por
+    # el modelo pudiendo resolverse con los numeros que trae la frase.
+    ("pon una marca en el segundo 12 que diga cambio de tema",
+     [{"do": "marker", "at": 12.0, "text": "cambio de tema"}]),
+    ("pon un marcador que diga intro en el segundo 30",
+     [{"do": "marker", "at": 30.0, "text": "intro"}]),
+    ("pon una marca bonita", []),
     ("pon una chapa en el segundo 12 que diga NUEVO",
      [{"do": "title", "at": 12.0, "secs": 3.0, "text": "NUEVO"}]),
     ("pon un cartel que diga SUSCRIBETE en el segundo 8",

@@ -1139,16 +1139,26 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     # descolocaba los subtitulos dos minutos y medio al final de un video de
     # diez, y aqui descolocaria cada transicion de su corte.
     tl_fps = resolve_captions.timeline_fps(tl_now, fps)
-    record = 0
+    # En SEGUNDOS, no en fotogramas del video. Los dos relojes otra vez: los
+    # fotogramas de aqui son del archivo (29,97 en este ejemplo) y el frameId de
+    # una marca es del TIMELINE (24). Contando en fotogramas del archivo, una
+    # marca pedida en el segundo 6 aterrizaba en el 7,5, y cuanto mas avanzado
+    # el video, mas lejos. Medido el 20-ago-2026.
+    record_s = 0.0
     for seg in edl:
         sf = round(seg["start"] * fps)
         ef = max(sf, round(seg["end"] * fps) - 1)
         bridge_post("/media/insert", {"clipName": Path(video).name,
                                       "startFrame": sf, "endFrame": ef})
         if seg.get("note"):
-            bridge_post("/marker/add", {"frameId": record, "color": "Yellow",
-                                        "name": seg["note"][:40], "note": seg["note"]})
-        record += ef - sf + 1
+            # Donde cae dentro del tramo, si se pidio en un segundo concreto.
+            dentro = max(0.0, min(float(seg.get("note_at") or 0.0),
+                                   (ef - sf) / max(1.0, fps)))
+            bridge_post("/marker/add",
+                        {"frameId": int(round((record_s + dentro) * tl_fps)),
+                         "color": "Yellow",
+                         "name": seg["note"][:40], "note": seg["note"]})
+        record_s += (ef - sf + 1) / max(1.0, fps)
     fill = fill_zoom(width, height, out_w, out_h)
     for i, seg in enumerate(edl):
         punch = float(seg.get("zoom", 1.0))
@@ -1394,6 +1404,13 @@ def apply_actions(edl, acts, log=None):
             for seg in edl:
                 if float(seg["start"]) <= at <= float(seg["end"]):
                     seg["note"] = act["text"]
+                    # Y CUANTO despues de empezar el tramo. Sin esto la marca
+                    # caia siempre al principio del tramo que la contiene:
+                    # pedirla en el segundo 6 la dejaba en el 0, porque el tramo
+                    # empezaba ahi. Las del preset de podcast no traen este
+                    # campo y siguen marcando el tramo entero, que es lo suyo:
+                    # ahi lo que se marca es la pregunta, no un instante.
+                    seg["note_at"] = round(at - float(seg["start"]), 3)
                     done["marker"] += 1
                     break
         elif kind == "title":

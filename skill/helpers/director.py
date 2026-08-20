@@ -810,6 +810,20 @@ VOZ_RE_2 = re.compile(
     r"\s+(?:en\s+el\s+)?segundo\s+(\d+(?:[.,]\d+)?)\s*$",
     re.I)
 
+# Y la marca, que es la ultima accion que quedaba pasando por el modelo sin
+# necesitarlo. Una marca en Resolve es una chincheta con un texto: mismo qué,
+# mismo cuándo, mismo qué dice.
+MARCA_RE = re.compile(
+    r"\b(?:marca|marcador|marker|chincheta)\b"
+    r"[^.]{0,40}?\bsegundo\s+(\d+(?:[.,]\d+)?)"
+    r"[^.]{0,20}?\bdig[ao]\s+(.{1,80}?)\s*$",
+    re.I)
+MARCA_RE_2 = re.compile(
+    r"\b(?:marca|marcador|marker|chincheta)\b"
+    r"[^.]{0,20}?\bdig[ao]\s+(.{1,80}?)"
+    r"\s+(?:en\s+el\s+)?segundo\s+(\d+(?:[.,]\d+)?)\s*$",
+    re.I)
+
 # "pon un rotulo en el segundo 12 que diga Munir Torres": el que, el cuando y el
 # que dice, los tres puestos. Aqui no hay nada que interpretar, y hasta ahora lo
 # decidia el modelo: la misma frase daba el rotulo unas veces y otras no, porque
@@ -864,6 +878,15 @@ def literal_voice(prompt, duration):
         return []
     at, texto = got
     return [{"do": "voice", "at": at, "text": texto[:300]}]
+
+
+def literal_marker(prompt, duration):
+    """Una marca dicha con todas sus letras. [] si falta algo."""
+    got = _dicho_en(prompt, MARCA_RE, MARCA_RE_2, duration)
+    if not got:
+        return []
+    at, texto = got
+    return [{"do": "marker", "at": at, "text": texto[:80]}]
 
 
 def literal_card(prompt, duration):
@@ -924,6 +947,9 @@ def literal_actions(prompt, duration):
     voz = literal_voice(prompt, duration)
     if voz:
         return voz
+    marca = literal_marker(prompt, duration)
+    if marca:
+        return marca
     cartel = literal_card(prompt, duration)
     if cartel:
         return cartel

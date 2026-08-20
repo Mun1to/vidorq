@@ -220,6 +220,20 @@ def casos():
     # El `i` es la posicion en el MONTAJE, que es lo que la interfaz reordena.
     yield "tramos: el indice es la posicion de ahora", [x["i"] for x in tv], [0, 1]
 
+    # --- una marca cae donde se pidio, no al principio del tramo ------------
+    # `apply_actions` guarda en el tramo CUANTO despues de su principio va la
+    # marca. Sin ese numero, pedirla en el segundo 6 la dejaba en el 0, que es
+    # donde empieza el tramo que la contiene.
+    marcado = [dict(x) for x in EDL]
+    server.apply_actions(marcado, [{"do": "marker", "at": 22.0, "text": "aqui"}])
+    yield "marca: va al tramo que la contiene", marcado[1].get("note"), "aqui"
+    yield "marca: y a 2 s de su principio", marcado[1].get("note_at"), 2.0
+    yield "marca: el otro tramo no se entera", marcado[0].get("note"), None
+    # Una marca fuera de todo tramo no se coloca en ningun sitio plausible.
+    fuera = [dict(x) for x in EDL]
+    server.apply_actions(fuera, [{"do": "marker", "at": 17.0, "text": "cortado"}])
+    yield "marca: en material cortado no se pone", [x.get("note") for x in fuera], [None, None]
+
     # --- una fila del historial --------------------------------------------
     fila = server.ledger_entry("C:/videos/clase.mp4", "quita un trozo", "mp4",
                                "MiProyecto", 0.0, cuts=3, did=["3 tramos"])
