@@ -258,6 +258,21 @@ function App() {
       .then((d) => {
         setNow(d.settings || {}); setMade(d.result || ""); setScope(d.scope || "");
         setCanUndo(!!d.canUndo);
+        // Y el panel se pone al dia con lo que de verdad tiene el montaje. Sin
+        // esto, decir "ponlo en vertical" por el chat dejaba el desplegable
+        // diciendo "Como el original": la cabecera contaba una cosa y el panel
+        // otra, sobre la misma edicion. Solo pasa al cargar o al terminar un
+        // turno, nunca mientras estas tocando los botones.
+        const st = d.settings || {};
+        if (st.ratio) setRatio(st.ratio);
+        if (st.transition) setTransition(st.transition);
+        if (st.captionPreset) setCapStyle(st.captionPreset);
+        if (typeof st.captionAnim === "string") setCapAnim(st.captionAnim);
+        if (typeof st.captions === "boolean") setCaptions(st.captions);
+        if (typeof st.shake === "boolean") setShake(st.shake);
+        if (st.look !== undefined) setColour(st.look || "");
+        if (st.cuts) setPreset(st.cuts as Preset);
+        if (st.output) setOutput(st.output as Output);
         return d;
       })
       // Lo que sigue en la fila todavia no existe para el motor, asi que se
