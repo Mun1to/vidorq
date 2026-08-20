@@ -214,6 +214,23 @@ mklink /J "%USERPROFILE%\.claude\skills\vidorq" "<path>\vidorq\skill"
 Same idea for Codex or OpenCode with their own skills folder. In Cursor or
 Antigravity, open the repo and ask the agent to read `skill/SKILL.md`.
 
+## Where your stuff goes
+
+The engine is a small HTTP server on `127.0.0.1:9877`, so nothing of yours
+leaves the machine unless you have set an API key and asked for a prompt. Two
+details worth knowing, because "local" is not the same as "private":
+
+- It answers the Vidorq window and refuses everything else. A local port is
+  reachable from any page you happen to have open in a browser, and until it
+  was fixed this one replied to all of them with `Access-Control-Allow-Origin:
+  *`, so a website could have read `/history` (the paths of your videos and
+  what you asked for), `/words` (a whole transcript) or simply stopped the
+  engine mid-edit. Requests carrying an `Origin` that is not this machine now
+  get a 403 before anything happens. Tools with no browser behind them - curl,
+  your own agent, Python - are unaffected.
+- Keys live in `%APPDATA%/Vidorq/config.json`, outside this repository, one per
+  provider, and the engine never hands one back out.
+
 ## Honest limits
 
 Resolve Free's scripting API is missing things, and pretending otherwise wastes

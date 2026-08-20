@@ -2899,6 +2899,38 @@ def run_job(req):
         _busy = False
 
 
+def de_casa(origin):
+    """True si ese `Origin` es una ventana de Vidorq y no una web cualquiera.
+
+    El motor escucha en 127.0.0.1, o sea que desde fuera del ordenador no se
+    llega. Lo que si llega es cualquier PAGINA que el usuario tenga abierta en
+    el navegador: una web puede hacerle peticiones a localhost, y con
+    `Access-Control-Allow-Origin: *` ademas puede LEER lo que contesta. Ahi hay
+    cosas suyas: `/history` lleva las rutas de sus videos y lo que le pidio a
+    cada uno, `/words` la transcripcion entera, `/tramos` lo que dice en cada
+    trozo, y `/shutdown` apaga el motor a mitad de una edicion.
+
+    Vale cualquier cosa servida desde su propia maquina, que es donde vive la
+    ventana: `http://localhost:1420` en desarrollo y `http://tauri.localhost`
+    (o `tauri://localhost`) en la aplicacion compilada. La lista se deja ancha a
+    proposito, porque Tauri cambia ese origen entre versiones y entre sistemas,
+    y una ventana que no puede hablar con su motor es peor que el problema.
+
+    Sin cabecera `Origin` no hay navegador detras: eso es curl, el skill de un
+    agente o Python, y se deja pasar como siempre.
+    """
+    if not origin:
+        return True
+    try:
+        from urllib.parse import urlparse
+        u = urlparse(origin)
+    except Exception:
+        return False
+    if u.scheme in ("tauri", "asset"):
+        return True
+    host = (u.hostname or "").lower()
+    return host in ("localhost", "127.0.0.1", "::1") or host.endswith(".localhost")
+
 # --------------------------------------------------------------------------- #
 # HTTP plumbing
 # --------------------------------------------------------------------------- #
@@ -2940,7 +2972,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control", "no-cache")
             self.send_header("ETag", etag)
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._cors()
             self.end_headers()
             self.wfile.write(data)
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
@@ -2951,9 +2983,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             self.send_response(code)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type")
-            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self._cors()
             self.end_headers()
             self.wfile.write(data)
         except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
@@ -2961,10 +2991,33 @@ class Handler(BaseHTTPRequestHandler):
             # user should not see a stack trace in the console for it.
             pass
 
+    def _cors(self):
+        """Las cabeceras de origen, solo para una ventana de esta maquina."""
+        origin = self.headers.get("Origin")
+        if not de_casa(origin):
+            return
+        self.send_header("Access-Control-Allow-Origin", origin or "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+    def _ajeno(self):
+        """Cierra la puerta a una pagina de fuera antes de hacerle nada.
+
+        No basta con callarse la cabecera: sin ella el navegador impide LEER la
+        respuesta, pero la peticion ya se ha hecho, y  o
+         no necesitan que nadie lea nada para hacer dano.
+        """
+        if de_casa(self.headers.get("Origin")):
+            return False
+        self._send({"error": "origen no permitido"}, 403)
+        return True
+
     def do_OPTIONS(self):
         self._send({})
 
     def do_GET(self):
+        if self._ajeno():
+            return
         if self.path == "/health":
             self._send({"ok": True, "version": VERSION, "busy": _busy,
                         "missing": missing_modules()})
@@ -3161,6 +3214,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         global _busy
+        if self._ajeno():
+            return
         n = int(self.headers.get("Content-Length", 0))
         try:
             body = json.loads(self.rfile.read(n).decode() or "{}")
