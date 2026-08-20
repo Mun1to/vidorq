@@ -112,8 +112,11 @@ it is a conversation: type the next change and it is applied on top of the edit
 that exists, and every turn comes back saying what it did, what it could not do
 here and why, and what it did not understand. When something only works in the
 other output it offers to switch, instead of quietly doing nothing. No re-transcribing, no re-deciding the cuts, and the settings carry
-over. On a 30 s clip the first pass took 98 s and every change after it took
-7.5 s. Times are read on the clock of the EDIT, not the original file, because
+over. Re-measured on 20-aug-2026, 30 s clip, captions on, MP4 out, on a laptop
+with an RTX 5060: the first pass took 26 s and three changes on top of it took
+11.2 s, 13.7 s and 12.7 s. The first pass is the one that transcribes; a change
+re-renders but does not re-listen. Times are read on the clock of the EDIT, not
+the original file, because
 that is what you are looking at by then. In Resolve the previous version is
 replaced rather than piled up next to it.
 
