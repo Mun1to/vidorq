@@ -52,18 +52,21 @@ PY="C:/proyectos/davinci-resolve-mcp/venv/Scripts/python.exe"   # venv con faste
 
 ## Backend Resolve (funciona · 2026-07-07)
 
-`helpers/build_resolve_timeline.py` habla HTTP con el CursorBridge (127.0.0.1:9876) y monta el mismo `edl.json` como **timeline editable** dentro de Resolve:
+`helpers/build_resolve_timeline.py` habla HTTP con el puente (127.0.0.1:9876) y monta un `edl.json` como **timeline editable** dentro de Resolve. Es el PRIMER backend de Resolve, de julio, y se queda porque es lo más pequeño que demuestra que el puente funciona de punta a punta; lo que corre el producto hoy es `engine/server.py` (`output_resolve`), que hace todo esto y además subtítulos nativos, transiciones, rótulos y un punch zoom que se mueve. Se lanza con `python build_resolve_timeline.py edl.json "mi video.mp4"`:
 - crea el timeline (a 29.97 fps para cuadrar con la fuente),
 - inserta cada keep-segment con `startFrame`/`endFrame` (endpoint `/media/insert`, en orden estricto),
-- aplica punch zoom estático por segmento (`/clip/properties` → ZoomX/ZoomY),
+- aplica punch zoom estático por segmento (`/clip/properties` → ZoomX/ZoomY); el motor de hoy lo **anima** con un comp de Fusion sobre el propio clip,
 - pone un marcador por cada pregunta del Q&A (`/marker/add`),
 - guarda (`/project/save`).
 
-Requisito: Resolve abierto con un proyecto y el CursorBridge arrancado (Workspace > Scripts > CursorBridge) una vez. A partir de ahí todo es por API. Verificación: `export_current_frame` desde el bridge (el viewport de Resolve se captura en negro en screenshots normales, pero el frame exportado por Resolve sí es válido).
+Requisito: Resolve abierto con un proyecto y el puente arrancado (**Workspace > Scripts > Vidorq**, una sola entrada desde el 2026-08-17) una vez. A partir de ahí todo es por API. Verificación: `export_current_frame` desde el bridge (el viewport de Resolve se captura en negro en screenshots normales, pero el frame exportado por Resolve sí es válido).
 
 ## Pendiente (siguientes versiones)
 
-- Captions nativos en el timeline de Resolve (macro Fusion, patrón AutoSubs). El backend directo ya los quema; el de Resolve aún no.
-- Captions animados (aparición palabra por palabra) vía macro Fusion o overlay animado.
+- ~~Captions nativos en el timeline de Resolve~~ **hecho** (2026-08): Text+ editables en su
+  propia pista, diez estilos y nueve entradas, los diez mirados fotograma a fotograma dentro
+  de Resolve. Detalle en `docs/SUBTITULOS.md`.
+- ~~Captions animados~~ **hecho**: las curvas viajan dentro del `.comp` y `ImportFusionComp`
+  las conserva.
 - Detección automática de énfasis para colocar los zooms sin autoría manual del EDL.
 - Perfil de estilo por marca (colores, fuente, posición de captions configurables).

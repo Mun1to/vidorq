@@ -4,8 +4,12 @@ Talks HTTP to the bridge (127.0.0.1:9876) so cuts land in strict order:
   create timeline -> insert each keep-segment (source in/out) -> punch zoom
   on emphasis segments -> a marker per Q&A beat -> save.
 
-This is the Resolve backend of Vidorq: same edl.json that the direct PyAV
-render used, but here it produces a timeline you can still tweak by hand.
+This is the FIRST Resolve backend of Vidorq, from July, and it stays because it
+is the smallest thing that proves the bridge works end to end. What the product
+runs today is engine/server.py (output_resolve), which does all of this plus
+native captions, transitions, overlays and a punch zoom that moves.
+
+    python build_resolve_timeline.py edl.json "my video.mp4" [timeline name]
 """
 import json
 import sys
@@ -14,8 +18,6 @@ from pathlib import Path
 
 BRIDGE = "http://127.0.0.1:9876"
 FPS = 30000 / 1001
-CLIP = "Video SIN EDITAR de Luisito [W7VPKaDhBTs].mp4"
-EDL = json.loads(Path(r"C:\Users\Muni\Downloads\edit\edl.json").read_text(encoding="utf-8"))["segments"]
 
 
 def post(path, body):
@@ -27,23 +29,34 @@ def post(path, body):
 
 
 def main():
-    tl_name = "Vidorq_Luisito_Edit"
+    # El EDL y el nombre del clip se pasan por la linea de comandos. Antes
+    # estaban escritos aqui dentro, con la carpeta de Descargas de una persona
+    # concreta y el nombre de su video, asi que en cualquier otro ordenador este
+    # archivo reventaba al IMPORTARLO, antes siquiera de llegar a main(); y en
+    # el suyo, ejecutarlo sin querer montaba un timeline entero.
+    if len(sys.argv) < 3:
+        print("uso: build_resolve_timeline.py <edl.json> <nombre del clip en el "
+              "media pool> [nombre del timeline]")
+        return 1
+    edl = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))["segments"]
+    clip = sys.argv[2]
+    tl_name = sys.argv[3] if len(sys.argv) > 3 else "Vidorq_Edit"
     print("create timeline:", post("/timeline/create", {"name": tl_name}))
 
     record = 0
     marks = []
-    for i, seg in enumerate(EDL):
+    for i, seg in enumerate(edl):
         sf = round(seg["start"] * FPS)
         ef = round(seg["end"] * FPS) - 1
         dur = ef - sf + 1
-        res = post("/media/insert", {"clipName": CLIP, "startFrame": sf, "endFrame": ef})
+        res = post("/media/insert", {"clipName": clip, "startFrame": sf, "endFrame": ef})
         ok = res.get("result", res).get("success")
         print(f"  insert {i:2d} sf={sf} ef={ef} -> {ok}")
         marks.append((record, seg))
         record += dur
 
     # Punch zooms on emphasis segments (static scale, no keyframes)
-    for i, seg in enumerate(EDL):
+    for i, seg in enumerate(edl):
         z = float(seg.get("zoom", 1.0))
         if z > 1.001:
             res = post("/clip/properties", {
@@ -60,7 +73,8 @@ def main():
         print(f"  marker@{rec} ({color}) -> {res.get('result', res).get('success')}")
 
     print("save:", post("/project/save", {}))
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

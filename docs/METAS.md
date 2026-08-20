@@ -123,7 +123,16 @@ menos de 30 minutos.
       Windows los marca como de origen desconocido. GOTCHA: `cargo clean -p vidorq` tras tocar iconos.
 - [x] **Push público descongelado** (2026-08-17): 14 commits publicados en `Mun1to/vidorq` tras
       el OK explícito de Munir, con barrido previo de visibilidad y de docs internos.
-- [ ] Auditoría de consistencia de punta a punta (ambas apps, ambos backends).
+- [x] **Auditoría de consistencia de punta a punta** (2026-08-19): el mismo encargo por los
+      dos caminos, con todo encendido a la vez (vertical, subtítulos, destello, rótulo y
+      zoom). MP4: 92 s, 1080x1920, 1669 fotogramas, con el rótulo encima del subtítulo, el
+      destello blanco en la unión y las tildes puestas. Resolve: 34 s, timeline 1080x1920 de
+      3 pistas, 3 transiciones y 158 subtítulos editables, con el zoom visible donde se pidió.
+      La auditoría encontró, y se arreglaron: el cuadro de texto se comía lo elegido en el
+      panel; el panel enseñaba ajustes viejos después de hablar por el chat; el motor
+      contestaba a cualquier web (`Access-Control-Allow-Origin: *`); el estilo y el ritmo de
+      "Tu marca" no llegaban a la edición; pedir un rótulo encendía los subtítulos; y el
+      rótulo salía o no según el humor del modelo local.
 - [x] **README público al día** (2026-08-19): ya cuenta la instalación de un clic
       (`resolve\instalar.ps1` + `Workspace > Scripts > Vidorq`), no la vieja de tres scripts,
       y lleva editar leyendo, reordenar, deshacer e historial con sus medidas.
@@ -135,7 +144,15 @@ menos de 30 minutos.
       prompts de ejemplo (Gaming montage es literalmente nuestra historia), y sección
       changelog (patrón del ecosistema: changelog = pasado, "próximamente" en bloque aparte).
 - [ ] Vídeo de lanzamiento editado CON Vidorq (dogfooding: la demo es el producto).
-- [ ] Barrido de seguridad: sin secretos, sin keys, sin rutas personales (regla B).
+- [x] **Barrido de seguridad** (2026-08-19): ni una clave, ni en el árbol de ahora ni en el
+      historial entero (los dos `sk-ant-...` y `AIza...` que saltaron son los *placeholders*
+      del formulario de ajustes). Ningún doc interno publicado, ningún carácter invisible, el
+      `.gitignore` acaba en salto de línea. **Un hallazgo**: `build_resolve_timeline.py`
+      llevaba escrita dentro la carpeta de Descargas de Munir y el nombre de su vídeo, así
+      que en cualquier otro ordenador reventaba al IMPORTARLO, y en el suyo montaba un
+      timeline entero con solo ejecutarlo. Ahora pide el EDL y el clip por la línea de
+      comandos. En el historial se queda: es una ruta, no una credencial, y lo publicado no
+      se reescribe (regla AH).
 - [ ] **`vidorq.com`, y con prisa** (la parte del push ya está hecha, arriba). El nombre
       lleva publicado en GitHub desde el 2026-08-17 y ahí es donde a VoCript le pillaron el
       `.com` treinta y siete días después de publicarlo (regla AK). El plazo no lo pone
