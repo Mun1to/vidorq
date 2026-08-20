@@ -134,6 +134,16 @@ def transcriber(model):
 
 def run(model, video, language, dur, how):
     """One full pass. Raises if the engine cannot finish, so a caller can retry."""
+    # faster-whisper busca la pista de audio pidiendo streams.audio[0], y en un
+    # video sin audio eso revienta dentro de PyAV con un IndexError en crudo
+    # ("tuple index out of range") que no dice nada de lo que de verdad paso.
+    # Medido el 20-ago-2026 con un video mudo real. Se comprueba aqui, antes de
+    # cargar el modelo, para no pagar la carga por un archivo que va a fallar.
+    import av
+    with av.open(video) as c:
+        if not c.streams.audio:
+            raise RuntimeError(
+                "Este video no tiene pista de audio: no hay nada que transcribir.")
     print("CARGANDO_MODELO: %s" % how, flush=True)
     engine, batched = transcriber(model)
     print("MODO: %s" % ("por lotes" if batched else "seguido"), flush=True)
