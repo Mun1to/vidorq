@@ -52,6 +52,7 @@ PELADAS = """
     pequeno pequena pequenos pequenas tamano tamanos senal senales espanol
     enfasis exito exitos numero telefono parametro parametros
     estan sera seran hara haran podra podran vera veran quedara quedaran
+    ningun algun
     """.split()
 
 # Y las que hay que dejar en paz, porque la version sin tilde tambien existe:
@@ -112,6 +113,10 @@ def textos_de_catalogos():
         yield ("providers", pid, p.get("label") or "")
         yield ("providers", pid,
                nota.get("es", "") if isinstance(nota, dict) else (nota or ""))
+    # Los motivos de "este proveedor no se puede usar": se leen debajo de la
+    # lista, no solo en un tooltip, asi que cuentan como texto de pantalla.
+    for pid, motivos in providers.PORQUE_NO.items():
+        yield ("providers", (pid or "otros") + ".why", motivos.get("es", ""))
     for eid, e in speech.ENGINES.items():
         nota = e.get("note")
         yield ("speech", eid, str(e.get("label") or ""))

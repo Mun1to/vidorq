@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiGet, apiPost } from "./api";
 import { useLang } from "./i18n";
-import { IconCheck } from "./Icons";
+import { IconAlert, IconCheck } from "./Icons";
 
 // Un proveedor tal y como lo sirve el motor en /providers.
 export interface Provider {
@@ -117,7 +117,19 @@ export default function Providers() {
             </button>
           ))}
         </div>
-        {info && <small className="under">{info.note}</small>}
+        {/* El proveedor de fabrica es Ollama local, y un ordenador sin
+            ningun modelo descargado lo tiene apagado. Salia elegido, en violeta
+            y con su nota de "gratis y sin clave": el motivo real vivia solo en
+            el `title` de un boton deshabilitado, o sea en ningun sitio para
+            quien abre el programa por primera vez. */}
+        {info && !info.installed ? (
+          <p className="warn-line under">
+            <IconAlert size={13} className="icon" />
+            {info.why || t("prov.cli.missing")}
+          </p>
+        ) : (
+          info && <small className="under">{info.note}</small>
+        )}
       </section>
 
       {info?.custom && (

@@ -231,22 +231,35 @@ def ready(provider):
     return cli_ready(provider)
 
 
-def why_not(provider, lang="es"):
-    """Por que no se puede usar, o "" si se puede. Va al tooltip del boton.
+# Los motivos, sueltos, porque se leen en pantalla y por tanto los mira la
+# prueba de castellano, que no puede llamar a `why_not()` sin preguntarle a
+# Ollama por la red.
+PORQUE_NO = {
+    "local": {
+        "es": ("Ollama no responde, o está encendido y sin ningún modelo "
+               "descargado."),
+        "en": ("Ollama is not answering, or it is running with no model "
+               "downloaded."),
+    },
+    "": {
+        "es": "Esa herramienta no está instalada en este ordenador.",
+        "en": "That tool is not installed on this computer.",
+    },
+}
 
-    Un boton apagado sin motivo es un boton roto: el que lo mira no sabe si le
-    falta algo a el o al programa.
+
+def why_not(provider, lang="es"):
+    """Por que no se puede usar, o "" si se puede.
+
+    Sale escrito debajo de la lista de proveedores cuando el elegido es ese, no
+    solo en el tooltip: el de fabrica es Ollama local y un ordenador recien
+    estrenado lo tiene apagado, asi que ese motivo es lo primero que hay que
+    leer al abrir los ajustes.
     """
     if ready(provider):
         return ""
-    if provider == "local":
-        return ("Ollama no responde, o esta encendido y sin ningun modelo "
-                "descargado." if lang == "es" else
-                "Ollama is not answering, or it is running with no model "
-                "downloaded.")
-    return ("Esa herramienta no esta instalada en este ordenador."
-            if lang == "es" else
-            "That tool is not installed on this computer.")
+    motivo = PORQUE_NO.get(provider) or PORQUE_NO[""]
+    return motivo.get(lang) or motivo["es"]
 
 
 def cli_ready(provider):
