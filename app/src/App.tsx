@@ -719,7 +719,12 @@ function App() {
             </div>
           </div>
 
-          {output === "resolve" && bridgeUp === false && engineUp !== false && (
+          {/* Y no cuando ya hay un error en pantalla diciendo lo mismo: el
+             aviso de "te va a faltar el puente" y el fallo de "te ha faltado
+             el puente" apilados son la misma frase dos veces, y leer dos
+             veces lo mismo hace dudar de si son dos problemas. */}
+          {output === "resolve" && bridgeUp === false && engineUp !== false
+            && phase !== "error" && (
             <div className="alert">
               <IconAlert size={16} className="icon" />
               <span>{t("out.noBridge")}</span>
