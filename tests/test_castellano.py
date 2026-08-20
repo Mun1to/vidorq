@@ -33,7 +33,7 @@ sys.path.insert(0, str(RAIZ / "engine"))
 # Palabras sin homografo: si aparecen asi, estan mal. Escritas en minusculas;
 # la comprobacion no distingue mayusculas.
 PELADAS = """
-    mayusculas minusculas numero numeros tambien ademas aqui asi segun quiza
+    mayusculas minusculas numero numeros tambien ademas aqui asi segun quiza mas
     ultimo ultima ultimos ultimas unico unica unicos unicas
     rapido rapida rapidos rapidas facil dificil faciles dificiles
     automatico automatica automaticos automaticas clasico clasica basico
@@ -55,7 +55,10 @@ PELADAS = """
 
 # Y las que hay que dejar en paz, porque la version sin tilde tambien existe:
 #   esta/está  solo/sólo  aun/aún  el/él  tu/tú  mi/mí  si/sí  se/sé  de/dé
-#   mas/más    este/éste  ano/año (el segundo no sale en esta interfaz)
+#   este/éste  ano/año (el segundo no sale en esta interfaz)
+# `mas` SI entra, aunque exista como conjuncion ("mas" = pero): en esta interfaz
+# eso no se escribe nunca, se escribe "pero", y dejandolo fuera la prueba se
+# comia justo el fallo con el que nacio, que era "Mas ajustes" en el panel.
 # Y tampoco van los plurales de la familia -cion / -sion / -on, que PIERDEN la
 # tilde al pasar al plural porque cambia la silaba fuerte: transiciones,
 # ediciones, opciones, botones, razones. Estaban al principio y sacaron cinco
