@@ -121,6 +121,24 @@ def casos():
     yield ("todo endpoint tiene su fila en el doc",
            sorted(reales - documentados), [])
 
+    # Cada atajo del chat lleva a algo. Es la prueba de la queja que abrio
+    # todo esto: un boton que ofrecia una transicion y luego la negaba.
+    import director
+    chat = leer("app/src/Chat.tsx")
+    atajos = re.findall(r'\{\s*key:\s*"([^"]+)",\s*send:\s*"([^"]*)"\s*\}', chat)
+    yield ("hay atajos en el chat", len(atajos) >= 8, True)
+    perdidos = []
+    for clave, envia in atajos:
+        if not envia.endswith(" "):        # los que acaban en espacio se rematan
+            frase = envia.strip()          # a mano, y ese es su destino
+            decide = director.decided(frase)
+            if not (decide
+                    or director.literal_actions(frase, 60.0)
+                    or director.vague(frase, decide)
+                    or director.needs_where(frase)):
+                perdidos.append(clave)
+    yield ("ningun atajo del chat acaba en nada", perdidos, [])
+
     # Y lo que NO se puede prometer: la ventana no vuelve a sugerir musica.
     i18n = leer("app/src/i18n.tsx")
     ejemplos = re.findall(r'"say\.eg\d+":\s*"([^"]*)"', i18n)
