@@ -23,7 +23,9 @@ Presets (no API key needed, fully local):
     clean    keep speech, drop silences/dead air
     podcast  clean + a marker/zoom on every question
     montage  keep the highest-energy chunks (beta)
-Prompt mode (Modo Pro) uses the Anthropic API with the user's own key.
+A prompt decides the whole edit. Anything it states with numbers in it is
+arithmetic and never reaches a model; for the rest the provider is a choice,
+and the factory default is the Ollama on the user's own machine.
 """
 from __future__ import annotations
 
@@ -792,7 +794,11 @@ def edl_montage(video, transcript, keep_ratio=0.45, track=None, lang="es",
 
 
 def edl_from_prompt(prompt, packed, key):
-    """Modo Pro: ask Claude for an EDL over the packed transcript."""
+    """Ask the chosen model for an EDL over the packed transcript.
+
+    Which model that is comes from the settings screen and can be the local
+    Ollama, a coding agent already installed and signed in, or a key.
+    """
     body = {
         "model": "claude-sonnet-5",
         "max_tokens": 4000,
