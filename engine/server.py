@@ -129,6 +129,10 @@ TEXT = {
     "es": {
         "busy": "Ya hay una edición en marcha",
         "no_video": "No encuentro el vídeo: %s",
+        "did_shots": "%d planos vistos",
+        "no_eye": "he encontrado los planos por el movimiento, pero no he podido "
+                  "DESCRIBIR lo que se ve: para eso hace falta un modelo de visión "
+                  "en Ollama.",
         "no_brain": "he leído tu frase solo con mis reglas, sin modelo: no hay "
                     "ninguno local instalado ni clave puesta. Entiende bastante, "
                     "pero para lo raro pon un modelo en Ollama o una clave en Ajustes.",
@@ -205,6 +209,9 @@ TEXT = {
     "en": {
         "busy": "There is already an edit running",
         "no_video": "Cannot find the video: %s",
+        "did_shots": "%d shots seen",
+        "no_eye": "I found the shots from the movement, but I could not DESCRIBE "
+                  "what is on screen: that needs a vision model in Ollama.",
         "no_brain": "I read your sentence with my own rules only, with no model: "
                     "there is none installed locally and no key set. It gets a lot, "
                     "but for anything unusual add a model to Ollama or a key in "
@@ -2888,6 +2895,17 @@ def run_job(req):
         if auto_did:
             did = [d for d in did if not d.startswith(("color:", "colour:"))]
             did.append(("color: " if _lang == "es" else "colour: ") + ", ".join(auto_did))
+        # Mirar el video cuesta minutos y no dejaba ni una linea en la
+        # conversacion: marcabas la casilla, esperabas, y el turno terminaba sin
+        # mencionarlo. Y si no habia modelo de vision, los planos se encuentran
+        # igual (eso es aritmetica) pero no se DESCRIBEN, que es justo la mitad
+        # por la que se marca la casilla.
+        if req.get("vision"):
+            n_planos = len(look.get("shots") or [])
+            if n_planos:
+                did.append(tr("did_shots", n_planos))
+                if not look.get("model"):
+                    not_understood = list(not_understood) + [tr("no_eye")]
         did += said_deeds(deeds, _lang)
         # Pediste algo en un momento y no salio nada: se dice. Un turno que se
         # calla es indistinguible de uno que lo ha hecho, que es de donde sale el
