@@ -338,12 +338,20 @@ WORD_RULES = (
 # Se mira DESPUES de las reglas literales: si la frase ya dijo "fundido a
 # negro", no hay nada que preguntar.
 VAGUE_RULES = (
-    ("transition", r"transicion|transición|transiciones|\btransition"),
+    # Mismo problema que "cuts" mas abajo, en dos categorias que no tenian
+    # ninguna proteccion: "el color se ve raro EN LA transicion" (quejandose
+    # de un fallo, sin pedir ninguna) o "ponlo vertical, se ve mal EN EL color"
+    # tiraban a la basura un "ponlo vertical" clarisimo por preguntar dos veces
+    # algo que nadie pidio. Medido el 20-ago-2026 con "ponlo vertical, el color
+    # se ve raro en la transicion": did quedaba vacio y salian dos preguntas.
+    ("transition", r"(?<!en la )(?<!en el )(?<!de la )(?<!de el )"
+                   r"(transicion|transición|transiciones|\btransition)"),
     # Sin "rotul": desde que existe el rotulo de verdad, esa palabra pide UNA
     # cosa concreta y no la pregunta de que estilo de subtitulo quieres.
     ("captionPreset", r"subt[ií]tul|caption"),
-    ("look", r"filtro|color grading|\bcolor\b(?!.*(negro|blanco))|\btono\b|"
-             r"\bfiltros\b|\blook\b"),
+    ("look", r"(?<!en la )(?<!en el )(?<!de la )(?<!de el )"
+             r"(filtro|color grading|\bcolor\b(?!.*(negro|blanco))|\btono\b|"
+             r"\bfiltros\b|\blook\b)"),
     # Nota: "mejora el color" cae aqui por la palabra "color", pero la regla de
     # palabras de arriba ya lo ha resuelto como `auto`, y `vague()` no pregunta
     # por lo que ya esta decidido.
