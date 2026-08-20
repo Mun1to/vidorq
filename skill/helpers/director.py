@@ -1051,6 +1051,36 @@ def literal_actions(prompt, duration):
     return fuera
 
 
+# Pedir que elija OTRO. Son las palabras que significan "tu decides que entra",
+# y con una de ellas delante el montaje si necesita al modelo, aunque la frase
+# traiga ademas un corte con sus dos segundos.
+ELIGE_TU_RE = re.compile(
+    r"lo mejor|los mejores|lo bueno|lo interesante|lo importante|lo util|"
+    r"lo que valga|resumen|resumelo|resume\b|highlights|montage|montaje|"
+    r"lo mas |quita lo que sobre|deja lo que valga|selecciona|escoge tu|"
+    r"lo que mole|los momentos", re.I)
+
+
+def es_aritmetica(prompt, duration):
+    """True cuando la frase YA dice el montaje entero, con sus numeros.
+
+    Sirve para no gastarle al modelo una decision que la frase trae hecha. No
+    basta con que `literal_actions()` encuentre algo: eso encuentra una accion
+    dentro de una frase que puede pedir mas cosas. Lo que descalifica es que la
+    frase pida ADEMAS elegir, porque elegir es justo lo que un modelo hace y una
+    resta no.
+
+    Los ajustes globales (vertical, subtitulos, color) no descalifican: esos no
+    los decide el montaje, los decide `look()`, que va por su cuenta.
+    """
+    texto = (prompt or "").strip()
+    if not texto or texto.lower().startswith("pick:"):
+        return False
+    if ELIGE_TU_RE.search(texto):
+        return False
+    return bool(literal_actions(texto, duration))
+
+
 def actions(prompt, packed, duration, ai=None, model=None, log=None):
     """What the prompt asks for at particular moments, in SOURCE seconds.
 

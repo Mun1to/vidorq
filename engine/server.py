@@ -2637,9 +2637,25 @@ def run_job(req):
             if brand:
                 prompt += "\n\nPERFIL DE MARCA DEL USUARIO (respetalo): " + json.dumps(
                     brand, ensure_ascii=False)
-            edl = director.segments(prompt, packed, ai_choice(req),
-                                    req.get("directorModel") or None,
-                                    log=lambda m: set_progress(tr("deciding"), 52, m))
+            # Una frase que trae el verbo y los dos segundos NO va al modelo,
+            # ni siquiera para el montaje. Medido el 20-ago-2026 sobre un clip
+            # de 18,018 s con "quita un trozo del segundo 4 al 7": el modelo
+            # corto de 4,0 a 8,16 para caer en un limite de frase y el video
+            # salio 4,15 s mas corto en vez de 3. La accion literal se aplicaba
+            # despues, sobre un montaje al que ya le faltaba ese trozo, o sea
+            # que no llegaba a corregir nada. Aqui manda la resta: el montaje
+            # base es el del panel, igual que sin frase, y el trozo lo quita
+            # `apply_actions` mas abajo con los numeros que dijo el usuario.
+            if director.es_aritmetica(prompt, float(transcript.get("duration", 0))):
+                set_progress(tr("deciding"), 54, tr("literal"))
+                edl, report = edl_from_speech(transcript,
+                                              transcript.get("language", _lang),
+                                              max_gap=hueco, pad=aire,
+                                              track=look.get("track"), shake=shake)
+            else:
+                edl = director.segments(prompt, packed, ai_choice(req),
+                                        req.get("directorModel") or None,
+                                        log=lambda m: set_progress(tr("deciding"), 52, m))
             if not edl:
                 # A model that could not produce a usable timeline must not cost
                 # the edit: the deterministic engine is good, and the look the

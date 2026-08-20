@@ -302,6 +302,35 @@ VALLA = [
 ]
 
 
+# --- cuando el montaje no necesita modelo -------------------------------
+# Medido el 20-ago-2026 sobre un clip de 18,018 s con "quita un trozo del
+# segundo 4 al 7": el modelo construia el montaje entero y cortaba de 4,0 a
+# 8,16 para caer en un limite de frase, o sea 4,15 s fuera en vez de 3, y de
+# paso se saltaba la Limpieza del panel. La accion literal se aplicaba despues,
+# sobre un montaje al que ya le faltaba ese trozo, asi que no corregia nada.
+# Con la regla puesta: base del panel 11,830 s menos 3,000 s exactos.
+ARITMETICA = [
+    # la frase trae verbo y los dos segundos: es una resta
+    ("quita un trozo del segundo 4 al 7", True),
+    ("quedate solo del segundo 10 al 30", True),
+    ("haz un zoom del segundo 0 al 5", True),
+    ("pon un rotulo en el segundo 5 que diga Munir Torres", True),
+    ("pon una voz en el segundo 8 que diga mira bien esto", True),
+    # pedir que elija otro devuelve la decision al modelo, aunque haya numeros
+    ("quita del segundo 4 al 7 y quedate con lo mejor", False),
+    ("un montaje con lo mejor, y quita del segundo 4 al 7", False),
+    ("los mejores momentos del segundo 0 al 30", False),
+    ("hazme un resumen del segundo 2 al 40", False),
+    # sin numeros no hay nada que restar
+    ("ponlo en vertical con subtitulos grandes", False),
+    ("quita la parte donde me trabo", False),
+    # y lo que no es una frase
+    ("", False),
+    (None, False),
+    ("pick:transition=dissolve", False),
+]
+
+
 def main():
     bad = []
 
@@ -322,6 +351,13 @@ def main():
         if got != want:
             bad.append("needs_where(%r) esperaba %s y devolvio %s"
                        % (sentence, want, got))
+
+    # --- el montaje sin modelo ------------------------------------------
+    for frase, quiero in ARITMETICA:
+        got = director.es_aritmetica(frase, 60.0)
+        if got != quiero:
+            bad.append("es_aritmetica(%r) esperaba %s y devolvio %s"
+                       % (frase, quiero, got))
 
     # --- la valla de la transcripcion -----------------------------------
     for dentro, tienen_que_estar, no_pueden_estar in VALLA:
@@ -423,7 +459,8 @@ def main():
                        % (frase, want, got))
 
     total = (len(WORDS) + len(VAGUE) + len(WHERE) + len(LITERAL)
-             + len(VALLA) + 2 + echo_n)   # +2: la regla en los dos prompts
+             + len(VALLA) + 2 + len(ARITMETICA) + echo_n)   # +2: la regla
+                                                            # en los dos prompts
     if bad:
         print("%d de %d casos MAL:\n" % (len(bad), total))
         for line in bad:
