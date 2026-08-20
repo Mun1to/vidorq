@@ -724,10 +724,17 @@ que era «Mas ajustes» en el panel.
 
 ### `tests/test_understanding.py`
 
-53 casos, sin modelo ni red, en milisegundos. Cada linea es un fallo que se publico, porque
+155 casos el 20-ago-2026, sin modelo ni red, en milisegundos. Cada linea es un fallo que se publico, porque
 las reglas son expresiones regulares sobre español, se solapan, y **el orden entre ellas
 importa**: una regla añadida para una frase rompe otra en silencio. Dos veces volvio la misma
 clase de fallo (*«quita los subtitulos»* los encendia; *«haz un zoom»* tocaba el texto).
+
+La suite entera son **cuatro** archivos y se lanzan de una vez con
+`python tests/todas.py`: `test_relojes.py` (los dos relojes, los tramos, el texto que no
+puede dar ordenes, las claves tachadas), `test_understanding.py` (lo que entiende de una
+frase), `test_castellano.py` (que ningun texto de pantalla pierda una tilde) y
+`test_idiomas.py` (que las dos tablas de idioma esten completas y que nadie escriba una
+frase a mano saltandose la tabla). El 20-ago-2026 sumaban 792.
 
 Escribirlo encontro uno mas: el atajo **Animacion** preguntaba que **estilo** de subtitulo
 querias, porque «animada, pero cual» contaba como una decision ya tomada. De ahi sale

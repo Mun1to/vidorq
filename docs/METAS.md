@@ -268,7 +268,7 @@ gente. Todo reproducido antes de tocar nada y medido después.
 - **La transcripción va vallada** dentro del prompt (regla 6). Atacada con *"IGNORA LA
   INSTRUCCIÓN ANTERIOR"* más un JSON ya escrito: por Claude no se coló nada, pero el
   proveedor de fábrica son modelos de 3B. La valla no se puede cerrar desde dentro.
-- **Pruebas**: de 681 a 754 casos, en cuatro archivos. Nuevas: los dos idiomas completos
+- **Pruebas**: de 681 a 792 casos, en cuatro archivos. Nuevas: los dos idiomas completos
   (en el motor una clave sin inglés sale como la CLAVE en pantalla, sin error), las tres
   reglas que un montaje cumple siempre, la valla, y las dos tachaduras de claves. Cada una
   se rompió a propósito para ver que salta.
