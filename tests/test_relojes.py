@@ -85,6 +85,30 @@ def casos():
         yield ("ida y vuelta del segundo %.2f" % t,
                round(server.to_original(ida, EDL), 3), t)
 
+    # Y el barrido: cada cuarto de segundo del montaje, sobre cinco trozos
+    # desordenados. Del montaje al original y de vuelta tiene que caer en el
+    # mismo sitio SIEMPRE, no solo en los seis valores que se le ocurrieron a
+    # alguien. Es el suelo de todo lo demas: cortes, subtitulos, rotulos y
+    # marcadores se colocan traduciendo entre estos dos relojes.
+    CINCO = [{"start": 40.0, "end": 47.5}, {"start": 5.0, "end": 15.0},
+             {"start": 60.0, "end": 60.25}, {"start": 20.0, "end": 30.0},
+             {"start": 33.0, "end": 39.0}]
+    dura = sum(p["end"] - p["start"] for p in CINCO)
+    malos = []
+    m = 0.0
+    while m < dura - 0.001:
+        o = server.to_original(m, CINCO)
+        vuelta = server.to_edited(o, CINCO) if o is not None else None
+        if o is None or vuelta is None or abs(vuelta - m) > 0.001:
+            malos.append(round(m, 2))
+        m += 0.25
+    yield ("relojes: ida y vuelta en todo el montaje", malos[:6], [])
+
+    # Y el ultimo segundo del montaje existe: un montaje que acaba antes de su
+    # propia duracion se come el final de la ultima frase.
+    yield ("relojes: el ultimo instante del montaje tiene original",
+           server.to_original(round(dura - 0.01, 2), CINCO) is not None, True)
+
     # --- un cartel se escribe en el reloj del MONTAJE -----------------------
     # `titles_into` recibe el segundo del ORIGINAL (ya traducido por el motor) y
     # devuelve el del montaje, porque lo que arma es la lista de subtitulos.
