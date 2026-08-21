@@ -472,6 +472,58 @@ def main():
             if not quiere_nota and manda:
                 bad.append("choices_for(transition, %s)[%s] cambia la salida y no debe"
                            % (salida, ident))
+        # --- y pulsarlo cierra el bucle ------------------------------------
+        # Que la opcion lleve la salida puesta no vale de nada si al aplicarla
+        # se vuelve a negar. Aqui se pulsa de verdad: el texto del boton entra
+        # por el mismo camino que una frase escrita, y lo que sale ya no puede
+        # seguir bloqueado. Es la otra mitad de la captura del 19-ago.
+        for ident in director.TRANSITIONS:
+            if ident == "none":
+                continue
+            for salida in ("mp4", "resolve"):
+                opt = next(o for o in server.choices_for("transition", "es", salida)
+                           if o["id"] == ident)
+                pulsado = opt.get("send") or (server.PICK + "transition=" + ident)
+                ajustes, tocado, _no = server.refine_settings(
+                    pulsado, {"output": salida, "transition": "none"})
+                echo_n += 1
+                if ajustes.get("transition") != ident:
+                    bad.append("pulsar %s en %s no pone la transicion (%s)"
+                               % (ident, salida, ajustes.get("transition")))
+                echo_n += 1
+                queda = server.blocked_by_output(ajustes.get("output", salida),
+                                                 ajustes, tocado)
+                if queda:
+                    bad.append("pulsar %s en %s lo ofrece y luego lo niega: %s"
+                               % (ident, salida, [q["what"] for q in queda]))
+                echo_n += 1
+                # Y lo pulsado no se lee nunca como codigo en la conversacion.
+                texto = server.shown(pulsado, "es")
+                if texto.startswith(server.PICK) or "=" in texto or "&" in texto:
+                    bad.append("pulsar %s en %s se lee como codigo: %r"
+                               % (ident, salida, texto))
+
+        # Ninguna opcion de ninguna pregunta llega cruda a la pantalla, en los
+        # dos idiomas y en las dos salidas. Un solo "pick:captionPreset=neon"
+        # visible ya es el fallo de la captura.
+        for lang in ("es", "en"):
+            for salida in ("mp4", "resolve"):
+                for pregunta in server.ask_for(list(server.ASK_WORDS[lang]),
+                                               lang, salida):
+                    for opt in pregunta["options"]:
+                        manda = opt.get("send") or (
+                            "%s%s=%s" % (server.PICK, pregunta["what"], opt["id"]))
+                        echo_n += 1
+                        pares = server.pick_pairs(manda)
+                        if pregunta["what"] not in pares:
+                            bad.append("%s/%s/%s: el boton no manda su ajuste"
+                                       % (lang, salida, opt["id"]))
+                        echo_n += 1
+                        leido = server.shown(manda, lang)
+                        if leido.startswith(server.PICK) or "=" in leido:
+                            bad.append("%s/%s/%s se lee como codigo: %r"
+                                       % (lang, salida, opt["id"], leido))
+
     except Exception as e:
         print("(no pude probar _echoes: %s)" % str(e)[:70])
 
