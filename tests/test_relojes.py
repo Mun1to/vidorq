@@ -752,6 +752,49 @@ def casos():
     yield ("nombre: nunca pasa de 40 caracteres",
            len(server._safe_name("x" * 500)), 40)
 
+    # --- un emoji en el nombre del archivo no puede tumbar el render -------
+    # Los dos scripts que corren como SUBPROCESO heredan la codepage de la
+    # consola (cp1252 en un Windows en espanol) para su propio stdout, pase lo
+    # que pase en el lado que los lee. Un nombre arrastrado por el usuario tipo
+    # "video (claqueta) prueba.mp4" reventaba el print de "MUX_OK: <ruta>" con
+    # UnicodeEncodeError, y ahi el render ya iba por el 93%.
+    import subprocess as _sp
+    for guion in ("vidorq_render.py", "transcribe.py"):
+        fuente = (RAIZ / "skill" / "helpers" / guion).read_text(encoding="utf-8")
+        yield ("emoji: %s blinda su stdout" % guion,
+               "reconfigure(encoding=" in fuente, True)
+        # Y por DELANTE de los imports pesados, no detras: lo que se escriba
+        # antes del blindaje sale con la codepage vieja, y eso incluye la traza
+        # de un import que falle, que es justo la que hay que poder leer.
+        # Medido el 21-ago-2026: con el blindaje detras, un ImportError que
+        # dice "no se pudo cargar la libreria de video" se lee con rombos donde
+        # van las tildes, o sea que el unico mensaje que ayuda llega roto.
+        primero = fuente.index("reconfigure(encoding=")
+        for pesado in ("NLimport av", "NLimport numpy"):
+            pesado = pesado.replace("NL", chr(10))
+            if pesado in fuente:
+                yield ("emoji: %s blinda antes de %s" % (guion, pesado.strip()),
+                       primero < fuente.index(pesado), True)
+
+    # Y funciona de verdad: un hijo sin PYTHONIOENCODING imprimiendo un emoji.
+    fuente = (RAIZ / "skill" / "helpers" / "vidorq_render.py").read_text(encoding="utf-8")
+    i = fuente.index("if sys.stdout.encoding")
+    j = fuente.index("sys.stderr.reconfigure", i)
+    blindaje = fuente[i:fuente.index(chr(10), j)]
+    carpeta = Path(tempfile.mkdtemp())
+    CLAQUETA = chr(0x1F3AC)
+    for nombre, cuerpo in (("sin blindaje", "import sys" + chr(10)),
+                           ("con blindaje", "import sys" + chr(10) + blindaje + chr(10))):
+        hijo = carpeta / ("h%d.py" % len(cuerpo))
+        hijo.write_text(cuerpo + "print('MUX_OK: ' + sys.argv[1])" + chr(10),
+                        encoding="utf-8")
+        entorno = dict(os.environ)
+        entorno.pop("PYTHONIOENCODING", None)
+        fin = _sp.run([sys.executable, str(hijo), "video %s prueba.mp4" % CLAQUETA],
+                      capture_output=True, env=entorno)
+        yield ("emoji: un hijo %s" % nombre, fin.returncode == 0,
+               nombre == "con blindaje")
+
     # --- saber si el modelo ya esta bajado --------------------------------
     import tempfile as _tmp
     _guardado = os.environ.get("HF_HOME")
