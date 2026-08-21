@@ -942,6 +942,126 @@ def casos():
     for caso in marca:
         yield caso
 
+    # --- el criterio Podcast: marcar donde se pregunta ----------------------
+    # `mark_questions` es lo que hace que en un podcast el zoom entre justo
+    # cuando alguien pregunta. Se equivoca de dos maneras: no marcar (y el
+    # video queda plano) o marcar de mas (y el zoom entra a cada frase, que
+    # marea).
+    PREGUNTAS = {"duration": 60.0, "segments": [
+        {"text": "Hola a todos, bienvenidos", "start": 1.0, "end": 3.0},
+        {"text": "Que te llevo a montar esto", "start": 6.0, "end": 8.0},
+        {"text": "Pues mira, fue por casualidad", "start": 9.0, "end": 12.0},
+        {"text": "Y como lo hiciste?", "start": 20.0, "end": 22.0},
+        {"text": "Con mucha paciencia", "start": 23.0, "end": 26.0},
+        {"text": "Donde aprendiste", "start": 40.0, "end": 42.0},
+    ]}
+    tramos_q = [{"start": 0.0, "end": 5.0, "zoom": 1.0, "note": ""},
+                {"start": 6.0, "end": 13.0, "zoom": 1.0, "note": ""},
+                {"start": 20.0, "end": 27.0, "zoom": 1.0, "note": ""},
+                {"start": 30.0, "end": 35.0, "zoom": 1.0, "note": ""},
+                {"start": 40.0, "end": 45.0, "zoom": 1.0, "note": ""}]
+    marcados = server.mark_questions(PREGUNTAS, [dict(t) for t in tramos_q])
+    yield ("podcast: se marcan los tramos donde se pregunta",
+           [round(float(t["zoom"]), 2) for t in marcados],
+           [1.0, 1.05, 1.05, 1.0, 1.05])
+    # El que no lleva pregunta se queda como estaba, sin nota inventada.
+    yield ("podcast: el tramo sin pregunta no se toca",
+           (marcados[0]["note"], marcados[3]["note"]), ("", ""))
+    yield ("podcast: el marcado dice por que lo esta",
+           bool(marcados[1]["note"]), True)
+    # Se reconoce por el signo Y por como empieza la frase, con tilde y sin
+    # ella: nadie dicta acentos, y "Como lo hiciste" es una pregunta igual.
+    for frase, quiere in (("Que opinas", True), ("Qué opinas", True),
+                          ("Como lo ves", True), ("Cómo lo ves", True),
+                          ("Cual prefieres", True), ("Quien vino", True),
+                          ("Por que no", True), ("Donde queda", True),
+                          ("Cuando empieza", True), ("Cuanto cuesta", True),
+                          ("Cuantos anos tienes", True),
+                          ("Esto no es una pregunta", False),
+                          ("Comodo, verdad?", True),
+                          # Las que se colaban antes de poner la frontera de
+                          # palabra: trece de diecinueve frases normales de
+                          # podcast se leian como pregunta, o sea que el zoom
+                          # entraba casi en cada frase.
+                          ("Comodamente sentado", False),
+                          ("Queremos hacer un video", False),
+                          ("Queria contarte algo", False),
+                          ("Quedamos en eso", False),
+                          ("Quesos de la zona", False),
+                          ("Cualidades que tiene", False),
+                          ("Cualquiera lo hace", False),
+                          ("Cuantioso el gasto", False),
+                          ("Cuerpo entero en el plano", False),
+                          ("Hola a todos", False)):
+        uno = {"duration": 10.0,
+               "segments": [{"text": frase, "start": 1.0, "end": 2.0}]}
+        salida = server.mark_questions(
+            uno, [{"start": 0.0, "end": 5.0, "zoom": 1.0, "note": ""}])
+        yield ("podcast: %r se lee como pregunta" % frase,
+               round(float(salida[0]["zoom"]), 2) == 1.05, quiere)
+
+    # La union de dos tramos es del SIGUIENTE, no del anterior: una pregunta que
+    # empieza justo donde acaba un tramo se ve en el que entra.
+    borde = server.mark_questions(
+        {"duration": 20.0, "segments": [{"text": "Que tal?", "start": 5.0, "end": 6.0}]},
+        [{"start": 0.0, "end": 5.0, "zoom": 1.0, "note": ""},
+         {"start": 5.0, "end": 10.0, "zoom": 1.0, "note": ""}])
+    yield ("podcast: la pregunta del borde es del tramo que entra",
+           [round(float(t["zoom"]), 2) for t in borde], [1.0, 1.05])
+
+    # --- el criterio Montaje: quedarse con lo mejor -------------------------
+    # Elige sobre lo que ya sobrevivio a la limpieza, asi que los titubeos y las
+    # tomas repetidas ya no estan. Lo que no puede hacer nunca es inventarse
+    # metraje que el video no tiene.
+    def dice(texto, a, b):
+        return {"text": texto, "start": a, "end": b,
+                "words": [{"w": w, "s": round(a + i * 0.2, 2),
+                           "e": round(a + i * 0.2 + 0.2, 2)}
+                          for i, w in enumerate(texto.split())]}
+
+    LARGO = {"duration": 60.0, "language": "es", "segments": [
+        dice("primera frase del video", 1.0, 3.0),
+        dice("segunda frase que dura", 6.0, 8.0),
+        dice("tercera frase por aqui", 12.0, 14.0),
+        dice("cuarta frase mas larga todavia", 18.0, 21.0),
+        dice("quinta frase de las buenas", 26.0, 28.0),
+        dice("sexta frase para acabar", 33.0, 35.0),
+        dice("septima y ultima frase", 40.0, 42.0),
+    ]}
+    limpio, _r = server.edl_from_speech(LARGO, "es")
+    pista_m = [{"t": round(i * 0.5, 2), "diff": 1.0 + (i % 7),
+                "sig": [10, 10, 10, 10]} for i in range(0, 120)]
+    corto, informe = server.edl_montage("no_existe.mp4", LARGO, keep_ratio=0.45,
+                                        track=pista_m, lang="es")
+    yield ("montaje: sale algo", len(corto) > 0, True)
+    yield ("montaje: se queda con menos de lo que habia",
+           len(corto) < len(limpio), True)
+    # Lo que se queda tenia que estar en el video: cada tramo del montaje cae
+    # dentro de uno de la limpieza. Inventarse un segundo aqui seria enseñar
+    # metraje que el usuario nunca grabo.
+    def cabe(p):
+        return any(float(q["start"]) - 1e-6 <= float(p["start"])
+                   and float(p["end"]) <= float(q["end"]) + 1e-6 for q in limpio)
+    yield ("montaje: no se inventa ni un segundo",
+           [p for p in corto if not cabe(p)], [])
+    yield ("montaje: en orden y sin pisarse",
+           [i for i in range(len(corto) - 1)
+            if float(corto[i]["end"]) > float(corto[i + 1]["start"]) + 1e-9], [])
+    # Y se acerca a lo que se le pidio guardar, por arriba: se para en cuanto
+    # llega, asi que puede pasarse un tramo pero no quedarse corto.
+    yield ("montaje: guarda al menos lo que se le pidio",
+           float(informe["kept"]) >= float(informe["of"]) * 0.45 - 1e-6, True)
+    yield ("montaje: el informe cuenta los tramos que salen",
+           informe["cuts"], len(corto))
+
+    # Con tres frases o menos no hay nada que elegir: se devuelve la limpieza
+    # tal cual en vez de dejar un video de un solo plano.
+    CORTO = {"duration": 20.0, "language": "es", "segments": [
+        dice("una frase sola", 1.0, 3.0), dice("y otra mas", 8.0, 10.0)]}
+    poco, _ = server.edl_montage("no_existe.mp4", CORTO, keep_ratio=0.45, lang="es")
+    yield ("montaje: con dos frases no se elige nada",
+           poco, server.edl_from_speech(CORTO, "es")[0])
+
     # --- saber si el modelo ya esta bajado --------------------------------
     import tempfile as _tmp
     _guardado = os.environ.get("HF_HOME")

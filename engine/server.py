@@ -452,8 +452,22 @@ def tr_in(lang, key, *args):
     text = TEXT.get(lang, TEXT["es"]).get(key, key)
     return text % args if args else text
 
+# Donde acaba la palabra importa. Sin el \b final, `qu[eé]` se traga
+# "Queremos", "Quería" y "Quesos", y `c[oó]mo` se traga "Cómodamente".
+# Medido el 21-ago-2026 sobre diecinueve frases normales de podcast: TRECE
+# se leian como pregunta, o sea que el zoom del criterio Podcast entraba
+# casi en cada frase, que es justo lo contrario de lo que se le pide.
+#
+# Con la frontera puesta quedan tres, y las tres son la misma duda de
+# verdad: "cuando quieras lo vemos" y "donde yo vivo" empiezan igual que
+# su pregunta y solo las separa la tilde, que no siempre llega bien de una
+# transcripcion. Eso ya no es un fallo del regex sino una decision de
+# producto, y mientras no se tome se prefiere marcar de mas: un zoom de
+# 1.05 sobrando se nota menos que la pregunta del invitado pasando sin
+# nada.
 QUESTION_RE = re.compile(
-    r"^\s*(qu[eé]|c[oó]mo|cu[aá]l|qui[eé]n|por qu[eé]|d[oó]nde|cu[aá]ndo|cu[aá]nt)", re.I)
+    r"^\s*(qu[eé]|c[oó]mo|cu[aá]l(es)?|qui[eé]n(es)?|por qu[eé]|"
+    r"d[oó]nde|cu[aá]ndo|cu[aá]nt[oa]s?)\b", re.I)
 PROGRESS_RE = re.compile(r"^PROGRESS (\d+) (\d+)")
 
 
