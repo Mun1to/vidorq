@@ -109,6 +109,48 @@ def casos():
     yield ("relojes: el ultimo instante del montaje tiene original",
            server.to_original(round(dura - 0.01, 2), CINCO) is not None, True)
 
+    # --- un retoque entero cambia de reloj de una sola vez ------------------
+    # `actions_to_original` es donde se juntan los dos relojes en un retoque, y
+    # tiene que hacerlo ANTES de tocar el montaje: en cuanto se aplica el primer
+    # corte, el mapa ha cambiado debajo de las demas acciones. Este es el fallo
+    # que ya se colo dos veces, y no da error: desplaza.
+    def accion(at, **mas):
+        return dict({"do": "title", "at": at, "text": "HOLA"}, **mas)
+
+    tres = server.actions_to_original(
+        [accion(0.0), accion(9.0), accion(15.0)], EDL)
+    yield ("acciones: el 0 del montaje es el 5 del original",
+           [a["at"] for a in tres], [5.0, 14.0, 25.0])
+    yield ("acciones: llegan en el mismo orden que se pidieron", len(tres), 3)
+    yield ("acciones: lo demas de la accion viaja entero",
+           [(a["do"], a["text"]) for a in tres[:1]], [("title", "HOLA")])
+
+    # El segundo de una union es el principio del plano SIGUIENTE, no el final
+    # del anterior: lo que el usuario ve ahi es el plano nuevo, y el otro
+    # fotograma es justo el que se corto.
+    yield ("acciones: la union apunta al plano siguiente",
+           [a["at"] for a in server.actions_to_original([accion(10.0)], EDL)],
+           [20.0])
+
+    # Un segundo que el corte se llevo no se coloca "cerca": se tira. Un cartel
+    # dos segundos corrido es peor que un cartel que no sale, porque solo uno
+    # de los dos se ve a la primera.
+    yield ("acciones: la que cae fuera del montaje se tira",
+           server.actions_to_original([accion(25.0)], EDL), [])
+    yield ("acciones: sin montaje no se coloca ninguna",
+           server.actions_to_original([accion(3.0, until=9.0)], []), [])
+
+    # "Quita desde el minuto 3" sin decir hasta donde es normal y tiene una
+    # respuesta obvia: hasta el final de lo que hay.
+    largo = server.actions_to_original([accion(15.0, until=999.0)], EDL)
+    yield ("acciones: sin final se llega hasta el final del video",
+           [(a["at"], a.get("until")) for a in largo], [(25.0, 30.0)])
+
+    # Y un tramo del reves no se endereza, se tira: enderezarlo seria decidir
+    # por el usuario que quiso decir.
+    yield ("acciones: un tramo del reves se tira",
+           server.actions_to_original([accion(9.0, until=1.0)], EDL), [])
+
     # --- un cartel se escribe en el reloj del MONTAJE -----------------------
     # `titles_into` recibe el segundo del ORIGINAL (ya traducido por el motor) y
     # devuelve el del montaje, porque lo que arma es la lista de subtitulos.
