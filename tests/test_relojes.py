@@ -1140,6 +1140,112 @@ def casos():
     for caso in puerta:
         yield caso
 
+    # --- la conversacion de un proyecto no es la de otro --------------------
+    # El mismo video abierto desde dos proyectos de Resolve distintos son dos
+    # conversaciones. Mezclarlas le enseña a alguien lo que pidio en OTRO sitio,
+    # y peor: el montaje de antes de otro proyecto se toma como punto de
+    # partida del retoque de este.
+    sesion = []
+    _bs = server.bridge_status
+    try:
+        video = str(Path(tempfile.mkdtemp()) / "clip.mp4")
+        Path(video).write_bytes(b"x" * 8)
+
+        server.bridge_status = lambda: {"project": "Proyecto A"}
+        vacia, dir_a = server.session_for(video, "Proyecto A")
+        sesion.append(("sesion: la primera vez no hay nada", vacia, {}))
+        server.session_save(dir_a, {"result": "lo de A", "edl": [{"start": 0.0}]})
+
+        server.bridge_status = lambda: {"project": "Proyecto B"}
+        deb, dir_b = server.session_for(video, "Proyecto B")
+        sesion.append(("sesion: el otro proyecto no ve lo de A", deb, {}))
+        sesion.append(("sesion: y no es la misma carpeta", dir_a != dir_b, True))
+        server.session_save(dir_b, {"result": "lo de B"})
+
+        server.bridge_status = lambda: {"project": "Proyecto A"}
+        vuelta, _ = server.session_for(video, "Proyecto A")
+        sesion.append(("sesion: al volver a A esta lo de A",
+                       vuelta.get("result"), "lo de A"))
+        sesion.append(("sesion: y sigue entero", len(vuelta.get("edl") or []), 1))
+
+        # La compatibilidad, que tiene UNA regla. Las conversaciones de antes
+        # vivian sueltas en la carpeta del video, sin saber de que proyecto
+        # eran. Se siguen leyendo, pero solo si NO hay proyecto abierto: si lo
+        # hay, no se sabe si esa charla vieja es suya, y enseñarsela es el
+        # fallo que se estaba arreglando.
+        otro = str(Path(tempfile.mkdtemp()) / "viejo.mp4")
+        Path(otro).write_bytes(b"x" * 8)
+        server.session_save(server.workdir_for(otro), {"result": "de antes"})
+
+        server.bridge_status = lambda: {}
+        vieja, dir_v = server.session_for(otro, "suelto")
+        sesion.append(("sesion: sin Resolve se lee la charla vieja",
+                       vieja.get("result"), "de antes"))
+        # Se LEE la vieja, pero la carpeta que se devuelve es la nueva: lo que
+        # se guarde a continuacion tiene que caer ya en su proyecto, o la
+        # conversacion se queda para siempre suelta y sin dueño.
+        sesion.append(("sesion: la vieja se lee, pero se guarda en la nueva",
+                       str(dir_v) != str(server.workdir_for(otro)), True))
+
+        server.bridge_status = lambda: {"project": "Proyecto C"}
+        nada, dir_c = server.session_for(otro, "Proyecto C")
+        sesion.append(("sesion: con un proyecto abierto la vieja no se enseña",
+                       nada, {}))
+        # Pero la carpeta que devuelve es la del proyecto, no la suelta: lo que
+        # se guarde despues tiene que caer en su sitio.
+        sesion.append(("sesion: y lo siguiente se guarda en el proyecto",
+                       str(dir_c) != str(server.workdir_for(otro)), True))
+
+        # Un puente que revienta se trata como "no hay proyecto", que es lo
+        # unico que se puede hacer sin inventarse de quien es la charla.
+        def _revienta():
+            raise RuntimeError("el puente no contesta")
+        server.bridge_status = _revienta
+        pese, _ = server.session_for(otro, "suelto")
+        sesion.append(("sesion: si el puente falla no se pierde la charla",
+                       pese.get("result"), "de antes"))
+
+        # Y un archivo de sesion a medias se lee como "no hay nada" en vez de
+        # tumbar el motor.
+        (Path(dir_a) / server.SESSION).write_text("{a med", encoding="utf-8")
+        server.bridge_status = lambda: {"project": "Proyecto A"}
+        rota, _ = server.session_for(video, "Proyecto A")
+        sesion.append(("sesion: una sesion rota no tumba nada", rota, {}))
+    finally:
+        server.bridge_status = _bs
+    for caso in sesion:
+        yield caso
+
+    # --- un workspace nuevo no se fusiona con otro en silencio -------------
+    # El cuadro de "Nuevo workspace" es un `window.prompt` que no valida nada.
+    # `_safe_name` cae en "Principal" cuando no queda nada aprovechable, que
+    # esta bien para SABER donde estas y es un desastre para CREAR: un fallo de
+    # teclado metia el workspace nuevo dentro del que ya hubiera en "Principal",
+    # con sus datos, sin decir nada.
+    nombres = []
+    _ws2, _cfg2 = server.WORKSPACES, server.CONFIG
+    try:
+        raiz2 = Path(tempfile.mkdtemp())
+        server.WORKSPACES, server.CONFIG = raiz2 / "workspaces", raiz2 / "config.json"
+        (server.WORKSPACES / "Principal").mkdir(parents=True, exist_ok=True)
+        nombres.append(("workspace: un nombre normal se respeta",
+                        server._new_ws_name("Mi marca"), "Mi marca"))
+        for basura in ("", "   ", "***", "!!!", "~"):
+            nuevo = server._new_ws_name(basura)
+            nombres.append(("workspace: %r no cae en Principal" % (basura or "(vacio)"),
+                            nuevo != "Principal", True))
+            nombres.append(("workspace: %r sale con nombre usable" % (basura or "(vacio)"),
+                            bool(nuevo.strip()), True))
+        # Y no pisa uno que ya existe.
+        (server.WORKSPACES / "Workspace 2").mkdir(parents=True, exist_ok=True)
+        nombres.append(("workspace: no repite uno que ya existe",
+                        server._new_ws_name("***") not in
+                        set(server.ws_list()["list"]), True))
+    finally:
+        server.WORKSPACES, server.CONFIG = _ws2, _cfg2
+    for caso in nombres:
+        yield caso
+
     # --- saber si el modelo ya esta bajado --------------------------------
     import tempfile as _tmp
     _guardado = os.environ.get("HF_HOME")
