@@ -676,6 +676,40 @@ def casos():
     yield ("historial: la fila ya va tachada",
            "sk-ant-api03" in fila["prompt"], False)
 
+    # --- ni un nombre puede salirse de su carpeta -------------------------
+    # El nombre del workspace lo escribe el usuario en un `window.prompt` que
+    # no valida nada, y el del proyecto lo trae el puente de Resolve, que es
+    # codigo de un tercero. Los dos acaban siendo una CARPETA, asi que la
+    # unica defensa es `_safe_name`: una carpeta que se escapa de la suya
+    # escribe donde nadie la va a buscar.
+    RAIZ_FALSA = Path(tempfile.mkdtemp()) / "edit" / "video"
+    PROHIBIDOS = "/" + BS + ':.*?"<>|'
+    HOSTILES = ["..", "../..", "../../etc/passwd", ".." + BS + ".." + BS + "x",
+                "C:" + BS + "Windows" + BS + "System32", "a/b", ".oculto",
+                "nombre.txt", "", "   ", "***", "~", "$HOME", "con:stream"]
+    for crudo in HOSTILES:
+        limpio = server._safe_name(crudo)
+        corto = crudo[:18] or "(vacio)"
+        yield ("nombre: %r no deja separadores" % corto,
+               [c for c in limpio if c in PROHIBIDOS], [])
+        yield ("nombre: %r nunca sale vacio" % corto, bool(limpio), True)
+        destino = (RAIZ_FALSA / "p" / limpio).resolve()
+        yield ("nombre: %r se queda dentro de su carpeta" % corto,
+               str(destino).startswith(str(RAIZ_FALSA.resolve())), True)
+
+    # Limpiar dos veces tiene que dar lo mismo que limpiar una. El nombre
+    # limpio es con el que se busca la carpeta que YA existe, asi que si
+    # cambiara al pasarlo otra vez, la conversacion de ayer no se encontraria.
+    for crudo in HOSTILES + ["Principal", "suelto", "Proyecto 12", "ñandú"]:
+        una = server._safe_name(crudo)
+        yield ("nombre: limpiar %r dos veces da lo mismo" % (crudo[:18] or "(vacio)"),
+               server._safe_name(una), una)
+
+    # Y no crece. El tope de 40 es lo que evita meter un nombre de mil
+    # caracteres en una ruta de Windows, que se acaba a los 260.
+    yield ("nombre: nunca pasa de 40 caracteres",
+           len(server._safe_name("x" * 500)), 40)
+
     # --- saber si el modelo ya esta bajado --------------------------------
     import tempfile as _tmp
     _guardado = os.environ.get("HF_HOME")
