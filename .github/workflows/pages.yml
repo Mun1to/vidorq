@@ -1,0 +1,39 @@
+name: Pages
+
+# Publishes web/ to GitHub Pages. The site lives in web/ rather than at the
+# repository root or in docs/ (the two folders a branch-based Pages source can
+# use), so it is deployed by this workflow instead: that way the landing page
+# stays where it belongs and docs/ stays being documentation.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time. A queued run is not cancelled halfway: a half-published
+# site is worse than a slightly old one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deployment
+        uses: actions/deploy-pages@v4
