@@ -309,6 +309,52 @@ def casos():
     yield "el punch se come la mitad del zoom antes del fotograma 18", mitad < 18, True
 
 
+    # --- el corte cae en un momento quieto ----------------------------------
+    # La otra promesa del README: "cuts land on a still moment rather than
+    # mid-gesture". El track lleva cuanto se mueve la imagen en cada decima.
+    def pista(picos):
+        """Movimiento bajo en todas partes, y alto en los segundos que digas."""
+        out = []
+        t = 0.0
+        while t < 30.0:
+            alto = any(abs(t - p) < 0.05 for p in picos)
+            out.append({"t": round(t, 2), "diff": 40.0 if alto else 1.0,
+                        "sig": [10, 10, 10, 10]})
+            t += 0.1
+        return out
+
+    # El corte cae justo encima de un movimiento: se aparta, y solo ese.
+    uno = [{"start": 1.0, "end": 5.0, "zoom": 1.0, "note": ""},
+           {"start": 10.0, "end": 14.0, "zoom": 1.0, "note": ""}]
+    salida, movidos = server.snap_to_picture(uno, pista([5.0]))
+    yield ("quieto: se aparta el corte que cae sobre un movimiento", movidos, 1)
+    yield ("quieto: y no se va mas alla de la ventana",
+           abs(float(salida[0]["end"]) - 5.0) <= 0.31, True)
+
+    # Metraje tranquilo de principio a fin: no se toca nada. Aqui el instante
+    # mas quieto es una moneda al aire, y correr cada corte un tercio de
+    # segundo para nada es peor que dejarlos donde estaban.
+    dos = [{"start": 1.0, "end": 5.0, "zoom": 1.0, "note": ""},
+           {"start": 10.0, "end": 14.0, "zoom": 1.0, "note": ""}]
+    _, n = server.snap_to_picture(dos, pista([]))
+    yield ("quieto: en metraje tranquilo no mueve nada", n, 0)
+
+    # Sin haber mirado el video no se inventa nada.
+    tres2 = [{"start": 1.0, "end": 5.0, "zoom": 1.0, "note": ""}]
+    _, n2 = server.snap_to_picture(tres2, None)
+    yield ("quieto: sin mirar el video no mueve nada", n2, 0)
+
+    # El caso que de verdad duele: el instante quieto mas cercano cae DENTRO
+    # del tramo anterior. Apartar el corte hasta ahi solaparia los dos tramos,
+    # asi que se prefiere un corte peor a una linea de tiempo rota.
+    vecinos = [{"start": 1.0, "end": 5.0, "zoom": 1.0, "note": ""},
+               {"start": 5.1, "end": 9.0, "zoom": 1.0, "note": ""}]
+    server.snap_to_picture(vecinos, pista([5.1, 5.2, 5.3, 5.4]))
+    yield ("quieto: no se mete en el tramo vecino",
+           float(vecinos[0]["end"]) <= float(vecinos[1]["start"]) + 1e-9, True)
+    yield ("quieto: no le da la vuelta a ningun tramo",
+           [p for p in vecinos if float(p["end"]) <= float(p["start"])], [])
+
     # --- esconder los saltos ------------------------------------------------
     # Lo que separa un video cortado de uno editado, y el README lo promete.
     # La huella de un track es una lista de numeros por segundo; iguales a los
