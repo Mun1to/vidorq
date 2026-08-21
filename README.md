@@ -8,6 +8,21 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-1487%20checks-00b359.svg)](tests/)
+
+**[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
+
+| | |
+| --- | --- |
+| **[Quick start](#quick-start)** | five steps, about ten minutes |
+| **[What it actually does](#what-it-actually-does)** | cuts, subtitles, vertical, prompts, colour, voice |
+| **[Which AI thinks about your prompt](#which-ai-thinks-about-your-prompt)** | Ollama, your existing CLI agent, or a key |
+| **[From the AI agent you already use](#from-the-ai-agent-you-already-use)** | Vidorq as a skill |
+| **[Where your stuff goes](#where-your-stuff-goes)** | what leaves the machine, and what does not |
+| **[Honest limits](#honest-limits)** | what Resolve Free will not do, measured |
+| **[How it is checked](#how-it-is-checked)** | the test suite, and what it proves |
+| **[Something broke](#something-broke)** | the three usual ones |
+| **[Don't trust it, check it](#dont-trust-it-check-it)** | audit this repo with your own AI |
 
 ---
 
@@ -226,7 +241,7 @@ Antigravity, open the repo and ask the agent to read `skill/SKILL.md`.
 ## Where your stuff goes
 
 The engine is a small HTTP server on `127.0.0.1:9877`, so nothing of yours
-leaves the machine unless you have set an API key and asked for a prompt. Two
+leaves the machine unless you have set an API key and asked for a prompt. Four
 details worth knowing, because "local" is not the same as "private":
 
 - It answers the Vidorq window and refuses everything else. A local port is
@@ -286,6 +301,41 @@ your afternoon. Measured on 21.0.4.5:
 Everything above was checked by rendering it and looking at the frame. The
 details are in [docs/SUBTITULOS.md](docs/SUBTITULOS.md) and
 [docs/INTELIGENCIA.md](docs/INTELIGENCIA.md) (Spanish).
+
+## How it is checked
+
+A video editor fails quietly. A cut half a second off, a caption ten seconds
+late, a montage that lost a sentence - none of them throw an error, they just
+make the video worse, and you find out watching it. So the tests are not there
+to make a badge green:
+
+```
+python tests/todas.py
+```
+
+```
+test_relojes.py          409 cases          the two clocks, the cut engine, the safety nets
+test_understanding.py    533 cases          what a sentence means, and what a button does
+test_castellano.py       485 strings        every accent in the Spanish the app shows
+test_idiomas.py           22 checks         Spanish and English say the same things
+test_promesas.py          20 promises       this README matches the code
+test_render.py            18 cases          a real video in, a real MP4 out
+```
+
+Eleven seconds, no model, no network, no API key.
+
+Two of those deserve a word. **`test_promesas.py`** reads this file and compares
+its counts against the catalogues in the code, so a README that drifts out of
+date fails the build rather than misleading you. And **`test_render.py`** is the
+only one that can say the product works: it builds a video of four flat colour
+blocks - red, green, blue, yellow, five seconds each - edits it with the real
+engine, then **opens the resulting MP4 and reads the frames**. A cut that lands
+half a second off shows a different colour, and the test sees it.
+
+Every rule in there was checked by deliberately breaking the code to watch the
+test fail. A check that cannot fail is worse than no check, and one of them was
+thrown out for exactly that: it asserted the vertical export leaves no black
+bars, which turned out to be impossible in the MP4 path by construction.
 
 ## Something broke
 
