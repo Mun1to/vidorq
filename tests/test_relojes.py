@@ -878,6 +878,70 @@ def casos():
     yield ("ritmo: el aire nunca se va a cero",
            [g for g in huecos if g[1] <= 0 or g[0] <= 0], [])
 
+    # --- el perfil de marca no se puede perder de un guardado --------------
+    # Rellenar "Tu marca" es un rato de trabajo de alguien y no vive en ningun
+    # otro sitio: si un guardado lo pisa, no hay de donde sacarlo. Por eso cada
+    # guardado deja la version de antes al lado.
+    #
+    # `WORKSPACES` y `CONFIG` apuntan al %APPDATA% de VERDAD, asi que aqui se
+    # desvian a una carpeta temporal y se devuelven a su sitio pase lo que
+    # pase. Sin esto, la prueba haria el destrozo que viene a evitar.
+    import json
+    marca = []
+    _ws, _cfg = server.WORKSPACES, server.CONFIG
+    try:
+        raiz = Path(tempfile.mkdtemp())
+        server.WORKSPACES = raiz / "workspaces"
+        server.CONFIG = raiz / "config.json"
+        casa = server.ws_dir()
+        bueno = {"brandName": "Vidorq", "pace": 7, "tone": "directo"}
+
+        def copia():
+            """La copia de seguridad, o None si no la hay. Sin reventar: una
+            red que no esta tiene que salir como caso fallado con su nombre,
+            no como una traza en mitad de la tanda."""
+            try:
+                return json.loads((casa / "brand.anterior.json").read_text(
+                    encoding="utf-8"))
+            except Exception:
+                return None
+
+        def perfil():
+            try:
+                return server.profile_load()
+            except Exception as e:
+                return "REVENTO: " + type(e).__name__
+
+        server.profile_save(bueno)
+        marca.append(("marca: lo guardado se lee igual", perfil(), bueno))
+        marca.append(("marca: el primer guardado no inventa una copia",
+                      (casa / "brand.anterior.json").exists(), False))
+
+        # Y ahora lo que paso de verdad: llega un guardado que lo pisa.
+        server.profile_save({"brandName": "Prueba"})
+        marca.append(("marca: el perfil de antes queda al lado", copia(), bueno))
+
+        # Guardar dos veces lo MISMO no puede comerse la copia buena, que es
+        # como se pierde de verdad: pisas, te das cuenta, y al volver a darle
+        # a guardar te has cargado la unica version que quedaba.
+        server.profile_save({"brandName": "Prueba"})
+        marca.append(("marca: guardar lo mismo no se come la copia", copia(), bueno))
+
+        # Un perfil vacio no merece copia: guardarla taparia la buena con nada.
+        server.profile_save({})
+        marca.append(("marca: un perfil vacio se guarda", perfil(), {}))
+        marca.append(("marca: y aun asi la copia buena sigue ahi",
+                      (copia() or {}).get("brandName"), "Prueba"))
+
+        # Un brand.json roto se lee como "no hay perfil" y no revienta el motor:
+        # un JSON a medias no puede dejar la ventana sin abrir.
+        (casa / "brand.json").write_text("{roto", encoding="utf-8")
+        marca.append(("marca: un perfil roto no tumba nada", perfil(), {}))
+    finally:
+        server.WORKSPACES, server.CONFIG = _ws, _cfg
+    for caso in marca:
+        yield caso
+
     # --- saber si el modelo ya esta bajado --------------------------------
     import tempfile as _tmp
     _guardado = os.environ.get("HF_HOME")
