@@ -755,6 +755,36 @@ def casos():
     yield ("srt: el salto de linea se aplasta",
            "dos 9 00:00:00,000 --> 00:00:01,000 inventado" in srt, True)
 
+    # --- guardar el montaje no puede dejarlo a medias ----------------------
+    # `edl.json` ES el montaje, y ademas es lo que decide de que reloj habla
+    # una frase: leerlo roto se lee como "no hay montaje", asi que el turno
+    # siguiente entiende "el segundo 12" en el reloj del original y apunta a
+    # otro sitio, sin un solo error por pantalla. Por eso se escribe aparte y
+    # se renombra, que es lo unico atomico de verdad en Windows.
+    carpeta = Path(tempfile.mkdtemp())
+    destino = carpeta / "edl.json"
+    ANTES = '{"segments": [{"start": 0.0, "end": 5.0}]}'
+    destino.write_text(ANTES, encoding="utf-8")
+
+    try:
+        server._atomic_write(destino, "roto " + chr(0xD800))   # no se codifica
+        fallo = False
+    except Exception:
+        fallo = True
+    yield ("guardar: una escritura rota falla y se nota", fallo, True)
+    yield ("guardar: el montaje de antes sigue entero",
+           destino.read_text(encoding="utf-8"), ANTES)
+    # Y estos archivos viven en la carpeta del usuario, al lado de su video:
+    # un `edl.json.part9184` suelto ahi es basura que el ve y no entiende.
+    yield ("guardar: no deja un .part suelto cuando falla",
+           sorted(p.name for p in carpeta.iterdir()), ["edl.json"])
+
+    server._atomic_write(destino, '{"segments": []}')
+    yield ("guardar: el montaje nuevo pisa al viejo entero",
+           destino.read_text(encoding="utf-8"), '{"segments": []}')
+    yield ("guardar: ni cuando sale bien",
+           sorted(p.name for p in carpeta.iterdir()), ["edl.json"])
+
     # --- una fila del historial --------------------------------------------
     fila = server.ledger_entry("C:/videos/clase.mp4", "quita un trozo", "mp4",
                                "MiProyecto", 0.0, cuts=3, did=["3 tramos"])

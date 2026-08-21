@@ -2021,8 +2021,19 @@ def _atomic_write(path, text):
     """
     path = Path(path)
     tmp = path.with_suffix(path.suffix + ".part%d" % os.getpid())
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(path)
+    except Exception:
+        # Estos archivos viven al lado del video del usuario, en su carpeta. Si
+        # la escritura falla, el archivo de antes se salva (que es para lo que
+        # esta todo esto) pero se quedaba un `edl.json.part9184` suelto ahi, que
+        # el ve, no entiende y no sabe si puede borrar.
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def session_save(workdir, state):
@@ -3072,7 +3083,12 @@ def run_job(req):
                 colour = ""
 
         edl_path = workdir / "edl.json"
-        edl_path.write_text(json.dumps({"segments": edl}, indent=1), encoding="utf-8")
+        # Atomico como la sesion y el historial. Este archivo ES el montaje, y
+        # ademas es el que decide de que reloj habla una frase: si se queda a
+        # medias se lee como "no hay montaje", asi que el turno siguiente
+        # entiende "el segundo 12" en el reloj del original y apunta a otro
+        # sitio, sin un solo error por pantalla.
+        _atomic_write(edl_path, json.dumps({"segments": edl}, indent=1))
         kept = sum(s["end"] - s["start"] for s in edl)
         detail = f"{len(edl)} tramos, {kept:.0f}s conservados de {transcript['duration']:.0f}s"
         if report.get("fillers") or report.get("takes"):
