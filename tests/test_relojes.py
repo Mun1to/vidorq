@@ -355,6 +355,54 @@ def casos():
     yield ("quieto: no le da la vuelta a ningun tramo",
            [p for p in vecinos if float(p["end"]) <= float(p["start"])], [])
 
+    # --- cortar sobre el movimiento -----------------------------------------
+    # Parte un plano por dentro cuando la imagen hace algo (un salto, un
+    # barrido). Partir es justo donde se pierde material si el reparto de los
+    # trozos no cuadra, asi que eso es lo que mas se mira aqui.
+    largo = [{"start": 0.0, "end": 20.0, "zoom": 1.0, "note": ""}]
+    trozos, hechos = server.cut_on_beats([dict(p) for p in largo],
+                                         pista([5.0, 10.0, 15.0]))
+    yield ("latidos: tres movimientos parten el plano en cuatro", hechos, 3)
+    yield ("latidos: salen cuatro trozos", len(trozos), 4)
+
+    # Lo que de verdad importa: los trozos cubren el plano entero, sin huecos
+    # y sin pisarse. Un fallo aqui borra segundos de video sin avisar.
+    yield ("latidos: los trozos empiezan donde empezaba el plano",
+           float(trozos[0]["start"]), 0.0)
+    yield ("latidos: y acaban donde acababa", float(trozos[-1]["end"]), 20.0)
+    yield ("latidos: no queda ni un hueco ni un solape entre trozos",
+           [(trozos[i]["end"], trozos[i + 1]["start"])
+            for i in range(len(trozos) - 1)
+            if abs(float(trozos[i]["end"]) - float(trozos[i + 1]["start"])) > 1e-9],
+           [])
+
+    # El golpe alterna: sin alternar los cuatro trozos salen con el mismo
+    # encuadre y el corte no se lee como corte, solo como un salto raro.
+    enc = [round(float(p.get("zoom", 1.0)), 3) for p in trozos]
+    yield ("latidos: el encuadre alterna trozo a trozo",
+           [i for i in range(1, len(enc)) if enc[i] == enc[i - 1]], [])
+
+    # Un movimiento pegado al borde del plano no parte nada: dejaria un
+    # destello de dos decimas, que no es un plano.
+    corto = [{"start": 0.0, "end": 3.0, "zoom": 1.0, "note": ""}]
+    _, nada = server.cut_on_beats(corto, pista([0.5, 2.7]))
+    yield ("latidos: un movimiento pegado al borde no parte nada", nada, 0)
+
+    # Sin haber mirado el video, y sin movimiento ninguno, no se toca nada.
+    quieto1 = [{"start": 0.0, "end": 20.0, "zoom": 1.0, "note": ""}]
+    yield ("latidos: sin mirar el video no parte nada",
+           server.cut_on_beats(quieto1, None)[1], 0)
+    yield ("latidos: en metraje sin movimiento tampoco",
+           server.cut_on_beats(quieto1, pista([]))[1], 0)
+
+    # Y el temblor solo va en los trozos que EMPIEZAN sobre el movimiento:
+    # el primero empieza donde empezaba el habla, y ahi no paso nada.
+    temblor, _ = server.cut_on_beats([dict(p) for p in largo],
+                                     pista([5.0, 10.0, 15.0]), shake=True)
+    yield ("latidos: el primer trozo no tiembla", temblor[0].get("shake"), False)
+    yield ("latidos: los que empiezan sobre el movimiento si",
+           [bool(p.get("shake")) for p in temblor[1:]], [True, True, True])
+
     # --- esconder los saltos ------------------------------------------------
     # Lo que separa un video cortado de uno editado, y el README lo promete.
     # La huella de un track es una lista de numeros por segundo; iguales a los
