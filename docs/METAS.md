@@ -150,6 +150,20 @@ menos de 30 minutos.
       novedades** con las tres últimas entradas fechadas por sus commits. El titular decía
       "todas las semanas" y se cambió a "esto no está parado", porque entre el 22-jul y el
       10-ago hubo diecinueve días sin un solo commit y el dato es público.
+- [x] **La web, viva** (2026-08-21): la landing de `web/` ya se sirve en
+      **https://mun1to.github.io/vidorq/**. GitHub Pages en modo rama solo sabe servir desde
+      la raíz o desde `docs/`, así que en vez de mover la web se publica con un workflow
+      (`.github/workflows/pages.yml`) que despliega `web/` tal cual y se redispara solo al
+      tocar esa carpeta. Comprobado sirviendo: HTML 200, y `styles.css`, `app.js` y
+      `logo.png` también. Munir la dio por buena tal como está ("es solo por tener una web,
+      aunque sea"), así que no se rediseñó nada.
+- [x] **El render se prueba mirando el resultado** (2026-08-21): `tests/test_render.py`
+      fabrica un vídeo de cuatro colores planos (rojo, verde, azul y amarillo, cinco segundos
+      cada uno), lo edita con el motor de verdad y **abre el MP4 que sale a leer los
+      fotogramas**. Un corte medio segundo desviado enseña otro color, y la prueba lo ve. 18
+      casos en 8,6 s, se salta sola si no hay ffmpeg y borra sus vídeos al terminar. Con esto
+      el camino del **MP4** está probado de punta a punta; el de **Resolve** sigue sin
+      probar, porque hace falta que Munir abra `Workspace > Scripts > Vidorq`.
 - [ ] Vídeo de lanzamiento editado CON Vidorq (dogfooding: la demo es el producto).
 - [x] **Barrido de seguridad** (2026-08-19): ni una clave, ni en el árbol de ahora ni en el
       historial entero (los dos `sk-ant-...` y `AIza...` que saltaron son los *placeholders*
