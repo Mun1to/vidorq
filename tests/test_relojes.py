@@ -795,6 +795,89 @@ def casos():
         yield ("emoji: un hijo %s" % nombre, fin.returncode == 0,
                nombre == "con blindaje")
 
+    # --- el video vertical sin barras negras -------------------------------
+    # Resolve METE un clip que no cuadra dentro del cuadro, asi que un 16:9 en
+    # una linea de tiempo vertical llega con franjas negras arriba y abajo. El
+    # zoom que las tapa es el unico numero que separa "exporta en vertical" de
+    # "exporta en vertical con bandas". Pasarse recorta cara; quedarse corto
+    # deja la banda.
+    for ratio, quiere in (("vertical", (1080, 1920)), ("portrait", (1080, 1350)),
+                          ("square", (1080, 1080)), ("wide", (1920, 1080))):
+        yield ("encuadre: %r sale a su tamano" % ratio,
+               server.out_frame(ratio, 1920, 1080), quiere)
+
+    # Y "no lo cambies" tiene que respetar el tamano del ORIGINAL, sea cual sea.
+    # Sin fuente distinta de 1920x1080 esto se cumple por casualidad: un 4K
+    # exportado a 1080 sin que nadie lo pidiera es perdida de calidad callada.
+    for w, h in ((3840, 2160), (1280, 720), (1080, 1920), (720, 480)):
+        for ratio in ("source", "", None, "loquesea"):
+            yield ("encuadre: %r deja un %dx%d como estaba" % (ratio, w, h),
+                   server.out_frame(ratio, w, h), (w, h))
+
+    # De 1920x1080 a 1080x1920 son 3.16, que es lo que dice el docstring.
+    yield ("encuadre: de apaisado a vertical, 3.16",
+           round(server.fill_zoom(1920, 1080, 1080, 1920), 2), 3.16)
+    # Y al reves lo mismo: el zoom es simetrico, no depende de quien es mas ancho.
+    yield ("encuadre: de vertical a apaisado, lo mismo",
+           round(server.fill_zoom(1080, 1920, 1920, 1080), 2), 3.16)
+
+    # Lo que de verdad tiene que cumplir: con ese zoom, el clip TAPA el cuadro.
+    # Se comprueba con la cuenta de verdad, no repitiendo la formula: se mete el
+    # clip como lo mete Resolve (min) y se mira si al multiplicar por el zoom
+    # cubre los dos lados.
+    for w, h, ow, oh in ((1920, 1080, 1080, 1920), (1920, 1080, 1080, 1080),
+                         (1920, 1080, 1080, 1350), (3840, 2160, 1080, 1920),
+                         (1080, 1920, 1080, 1080), (1440, 1080, 1920, 1080)):
+        z = server.fill_zoom(w, h, ow, oh)
+        mete = min(ow / w, oh / h)          # como lo mete Resolve
+        ancho, alto = w * mete * z, h * mete * z
+        yield ("encuadre: %dx%d en %dx%d no deja banda" % (w, h, ow, oh),
+               (ancho >= ow - 0.5 and alto >= oh - 0.5), True)
+        # Y no recorta mas de lo que el cambio de forma ya obliga: uno de los
+        # dos lados tiene que quedar clavado.
+        yield ("encuadre: %dx%d en %dx%d no recorta de mas" % (w, h, ow, oh),
+               (abs(ancho - ow) < 0.5 or abs(alto - oh) < 0.5), True)
+
+    # Misma forma, otro tamano: no hace falta zoom ninguno, meterlo ya lo llena.
+    yield ("encuadre: de 720p a 1080p no hace falta zoom",
+           server.fill_zoom(1280, 720, 1920, 1080), 1.0)
+    yield ("encuadre: el mismo tamano no se toca",
+           server.fill_zoom(1920, 1080, 1920, 1080), 1.0)
+    # Y sin saber el tamano no se inventa un zoom, que seria recortar a ciegas.
+    yield ("encuadre: sin medidas no se inventa un zoom",
+           [server.fill_zoom(a, b, c, d) for a, b, c, d in
+            ((0, 1080, 1080, 1920), (1920, 0, 1080, 1920),
+             (1920, 1080, 0, 1920), (1920, 1080, 1080, 0))],
+           [1.0, 1.0, 1.0, 1.0])
+
+    # --- el deslizador de ritmo de "Tu marca" ------------------------------
+    # Viajaba dentro del JSON de la marca hasta el prompt del modelo y ahi se
+    # quedaba: moverlo de 1 a 10 no cambiaba una sola edicion. Ahora sale en
+    # los dos numeros que cortan de verdad, y el 6 tiene que devolver EXACTO lo
+    # de siempre, porque quien no toca el deslizador no debe notar que existe.
+    yield ("ritmo: el 6 es lo de siempre", server.pace_gap(6), (0.6, 0.15))
+    yield ("ritmo: sin poner nada, tambien", server.pace_gap(None), (0.6, 0.15))
+    yield ("ritmo: el 1 aguanta mas silencio y deja mas aire",
+           server.pace_gap(1), (1.1, 0.25))
+    yield ("ritmo: el 10 corta lo que sobra", server.pace_gap(10), (0.2, 0.07))
+    # Fuera de rango no se rompe: se pega al extremo. Ojo con el 0, que NO es
+    # el extremo de abajo sino "sin poner": el deslizador va de 1 a 10, asi que
+    # un 0 solo llega de un `brand.json` editado a mano o a medias, y ahi lo
+    # sano es el valor de siempre y no el corte mas agresivo que existe.
+    yield ("ritmo: el 0 es sin poner, no el minimo", server.pace_gap(0), (0.6, 0.15))
+    yield ("ritmo: por debajo del 1 se queda en el 1",
+           server.pace_gap(-5), (1.1, 0.25))
+    yield ("ritmo: por encima del 10 se queda en el 10",
+           server.pace_gap(99), (0.2, 0.07))
+    # Y siempre va a menos: subir el deslizador nunca puede cortar menos.
+    huecos = [server.pace_gap(p) for p in range(1, 11)]
+    yield ("ritmo: subirlo siempre corta mas y respira menos",
+           [i for i in range(1, 10)
+            if huecos[i][0] >= huecos[i - 1][0] or huecos[i][1] >= huecos[i - 1][1]],
+           [])
+    yield ("ritmo: el aire nunca se va a cero",
+           [g for g in huecos if g[1] <= 0 or g[0] <= 0], [])
+
     # --- saber si el modelo ya esta bajado --------------------------------
     import tempfile as _tmp
     _guardado = os.environ.get("HF_HOME")
