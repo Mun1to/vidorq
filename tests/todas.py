@@ -2,9 +2,14 @@
 """Todas las pruebas de una vez.
 
 Varios archivos y varios comandos es un comando que alguien se salta, y el que
-se salta siempre es el ultimo que se anadio. Ninguna necesita modelo, ni red, ni
-video: son cuentas, palabras y tildes, asi que caben todas en unos segundos y
-se pueden lanzar en cada cambio.
+se salta siempre es el ultimo que se anadio. Ninguna necesita modelo ni red, y
+todas menos una son cuentas, palabras y tildes: caben en unos segundos y se
+pueden lanzar en cada cambio.
+
+La excepcion es `test_render.py`, que SI hace un video y lo renderiza de
+verdad con ffmpeg (unos ocho segundos). Va la ultima a proposito: es la unica
+que puede decir que el producto entrega un archivo correcto, y la unica que se
+salta sola si no hay ffmpeg en el PATH.
 
 Se lanza:  python tests/todas.py
 Devuelve 0 si todo esta bien y 1 en cuanto falla algo, para poder engancharlo a
@@ -19,10 +24,10 @@ from pathlib import Path
 AQUI = Path(__file__).resolve().parent
 # En el orden en que conviene leerlas si algo se rompe: primero las cuentas,
 # luego lo que entiende de una frase, despues como lo escribe (en castellano y
-# en los dos idiomas a la vez), y al final si lo que promete en publico es lo
-# que de verdad tiene.
+# en los dos idiomas a la vez), luego si lo que promete en publico es lo que de
+# verdad tiene, y al final el render de verdad, que es lenta y va sola.
 ARCHIVOS = ["test_relojes.py", "test_understanding.py", "test_castellano.py",
-            "test_idiomas.py", "test_promesas.py"]
+            "test_idiomas.py", "test_promesas.py", "test_render.py"]
 
 
 def main():
