@@ -3560,9 +3560,10 @@ class Handler(BaseHTTPRequestHandler):
     def _ajeno(self):
         """Cierra la puerta a una pagina de fuera antes de hacerle nada.
 
-        No basta con callarse la cabecera: sin ella el navegador impide LEER la
-        respuesta, pero la peticion ya se ha hecho, y  o
-         no necesitan que nadie lea nada para hacer dano.
+        No basta con callarse la cabecera: sin ella el navegador impide LEER
+        la respuesta, pero la peticion ya se ha HECHO, y `/stop` y `/shutdown`
+        no necesitan que nadie lea nada para hacer dano: apagan el motor a
+        mitad de una edicion sin enterarse de lo que contesto.
         """
         if de_casa(self.headers.get("Origin")):
             return False

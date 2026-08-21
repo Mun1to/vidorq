@@ -1062,6 +1062,84 @@ def casos():
     yield ("montaje: con dos frases no se elige nada",
            poco, server.edl_from_speech(CORTO, "es")[0])
 
+    # --- quien puede hablarle al motor -------------------------------------
+    # Escucha en 127.0.0.1, asi que desde fuera del ordenador no se llega. Lo
+    # que SI llega es cualquier PAGINA abierta en el navegador: una web puede
+    # pedirle cosas a localhost. Detras hay cosas del usuario (`/history` lleva
+    # las rutas de sus videos, `/words` la transcripcion entera) y dos botones
+    # que hacen dano sin leer nada (`/stop` y `/shutdown`).
+    for origen in ("", None,                       # curl, el skill, Python
+                   "http://localhost:1420",        # la ventana en desarrollo
+                   "http://localhost",
+                   "https://localhost:5173",
+                   "http://127.0.0.1:9877",
+                   "http://tauri.localhost",       # la aplicacion compilada
+                   "tauri://localhost",
+                   "asset://localhost",
+                   "http://[::1]:1420"):
+        yield ("puerta: %r es de casa" % (origen or "sin Origin"),
+               server.de_casa(origen), True)
+
+    for origen in ("https://evil.com",
+                   "http://evil.com:1420",
+                   # El clasico: un dominio que ACABA pareciendose a localhost.
+                   "http://localhost.evil.com",
+                   "http://127.0.0.1.evil.com",
+                   "https://midominio.localhost.attacker.net",
+                   # Un iframe en caja manda esto, y no es nadie conocido.
+                   "null",
+                   "http://192.168.1.50:1420",
+                   "https://vidorq.com"):
+        yield ("puerta: %r se queda fuera" % origen, server.de_casa(origen), False)
+
+    # Y la puerta se cierra DE VERDAD, no solo en la funcion: se levanta el
+    # motor en un puerto aparte, con un %APPDATA% de pega para no rozar nada
+    # del usuario, y se le llama desde un origen de fuera.
+    import json as _js, threading as _th, urllib.error as _ue
+    import urllib.request as _ur
+    from http.server import ThreadingHTTPServer as _THS
+    _ws, _cfg = server.WORKSPACES, server.CONFIG
+    puerta = []
+    try:
+        _raiz = Path(tempfile.mkdtemp())
+        server.WORKSPACES, server.CONFIG = _raiz / "workspaces", _raiz / "config.json"
+        srv = _THS(("127.0.0.1", 0), server.Handler)
+        puerto = srv.server_address[1]
+        hilo = _th.Thread(target=srv.serve_forever, daemon=True)
+        hilo.start()
+
+        def llamar(ruta, origen=None):
+            pet = _ur.Request("http://127.0.0.1:%d%s" % (puerto, ruta))
+            if origen:
+                pet.add_header("Origin", origen)
+            try:
+                with _ur.urlopen(pet, timeout=6) as r:
+                    return r.status, dict(r.headers).get("Access-Control-Allow-Origin")
+            except _ue.HTTPError as e:
+                return e.code, dict(e.headers).get("Access-Control-Allow-Origin")
+            except Exception as e:
+                return type(e).__name__, None
+
+        for ruta in ("/health", "/history"):
+            puerta.append(("puerta: la ventana entra en %s" % ruta,
+                           llamar(ruta, "http://localhost:1420")[0], 200))
+            puerta.append(("puerta: una web de fuera no entra en %s" % ruta,
+                           llamar(ruta, "https://evil.com")[0], 403))
+            # Y sin la cabecera de permiso, que es lo que impide LEER lo que
+            # conteste. Las dos cosas, porque el 403 sin esto sigue siendo
+            # legible desde la web que pregunto.
+            puerta.append(("puerta: ni le deja leer la respuesta de %s" % ruta,
+                           llamar(ruta, "https://evil.com")[1], None))
+        # curl y el skill de un agente no mandan Origin, y tienen que seguir
+        # entrando: por ahi es por donde se usa Vidorq sin la ventana.
+        puerta.append(("puerta: sin Origin se entra como siempre",
+                       llamar("/health")[0], 200))
+        srv.shutdown()
+    finally:
+        server.WORKSPACES, server.CONFIG = _ws, _cfg
+    for caso in puerta:
+        yield caso
+
     # --- saber si el modelo ya esta bajado --------------------------------
     import tempfile as _tmp
     _guardado = os.environ.get("HF_HOME")
