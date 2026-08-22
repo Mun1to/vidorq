@@ -195,6 +195,15 @@ const es = {
 
   "nav.learn": "Copiar un estilo",
 
+   "learn.start": "En los primeros 3 segundos",
+  "learn.start.cuts": "corta",
+  "learn.start.cuts.none": "no corta ni una vez",
+  "learn.start.first": "y el primer plano dura",
+  "learn.beat": "cortes caen justo en un golpe de imagen",
+  "learn.shots.of": "de sus",
+  "learn.still": "Imagen quieta en",
+  "learn.still.of": "de sus",
+  "learn.shots.word": "planos",
   "learn.title": "Copiar el estilo de un vídeo",
   "learn.sub": "Dale un vídeo que te haya gustado. Vidorq lo mira, te dice cómo está hecho y te ofrece lo que sabe reconstruir. Tú eliges qué te quedas.",
   "learn.video": "El vídeo que te gustó",
@@ -468,6 +477,15 @@ const en: Record<keyof typeof es, string> = {
 
   "nav.learn": "Copy a style",
 
+   "learn.start": "In the first 3 seconds",
+  "learn.start.cuts": "it cuts",
+  "learn.start.cuts.none": "it never cuts",
+  "learn.start.first": "and the first shot lasts",
+  "learn.beat": "cuts land right on a hit in the picture",
+  "learn.shots.of": "of its",
+  "learn.still": "Picture still in",
+  "learn.still.of": "of its",
+  "learn.shots.word": "shots",
   "learn.title": "Copy the style of a video",
   "learn.sub": "Give it a video you liked. Vidorq looks at it, tells you how it is made and offers what it can rebuild. You pick what you keep.",
   "learn.video": "The video you liked",

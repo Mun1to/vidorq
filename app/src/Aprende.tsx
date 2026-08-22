@@ -16,6 +16,14 @@ interface Ritmo {
   plano_tipico_s: number;
   mas_corto_s: number;
   mas_largo_s: number;
+  cortes: number;
+  cortes_en_golpe: number;
+  planos_quietos: number;
+}
+interface Arranque {
+  segundos: number;
+  cortes: number;
+  primer_plano_s: number;
 }
 export interface Ficha {
   ok?: boolean;
@@ -26,6 +34,7 @@ export interface Ficha {
   vertical: boolean;
   subtitulo: Sub | null;
   ritmo: Ritmo | null;
+  arranque: Arranque | null;
   parecidos?: { id: string; distancia: number }[];
 }
 
@@ -125,6 +134,28 @@ export default function Aprende({ onClose, styles, video }:
                   <p className="hint">
                     <strong>{t("learn.cuts")} {f.ritmo.plano_tipico_s} {t("learn.seconds")}</strong>
                     {" · "}{f.ritmo.planos} {t("learn.shots")}
+                  </p>
+                )}
+                {f.arranque && (
+                  <p className="hint">
+                    {t("learn.start")}{" "}
+                    {f.arranque.cortes > 0
+                      ? <><strong>{t("learn.start.cuts")} {f.arranque.cortes}</strong>
+                          {" · "}{t("learn.start.first")}{" "}
+                          <strong>{f.arranque.primer_plano_s} s</strong></>
+                      : <strong>{t("learn.start.cuts.none")}</strong>}
+                  </p>
+                )}
+                {f.ritmo && f.ritmo.cortes > 0 && f.ritmo.cortes_en_golpe > 0 && (
+                  <p className="hint">
+                    <strong>{f.ritmo.cortes_en_golpe} {t("learn.shots.of")}{" "}
+                    {f.ritmo.cortes}</strong>{" "}{t("learn.beat")}
+                  </p>
+                )}
+                {f.ritmo && f.ritmo.planos_quietos > 0 && (
+                  <p className="hint">
+                    {t("learn.still")} <strong>{f.ritmo.planos_quietos}</strong>{" "}
+                    {t("learn.still.of")} {f.ritmo.planos} {t("learn.shots.word")}
                   </p>
                 )}
                 {!cap && <p className="hint">{t("learn.nocaption")}</p>}

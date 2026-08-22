@@ -110,8 +110,12 @@ def casos(casa, fuente):
     # Doce planos de 1,5 s clavados. Es el otro numero que pide quien pega un
     # video ajeno: "quiero que vaya asi de rapido".
     cortes = casa / "cortes.mp4"
-    cols = ("red", "green", "blue", "yellow", "magenta", "cyan",
-            "orange", "purple", "brown", "pink", "olive", "teal")
+    # Doce GRISES separados, no doce colores. vision.shots() mira en escala de
+    # gris, y de una paleta de colores normales el rojo, el azul, el morado, el
+    # oliva y el teal dan los cinco 85: planos seguidos que para el detector
+    # son el mismo. Con colores esta prueba acusaba al codigo de un fallo que
+    # estaba en el video.
+    cols = tuple("0x%02x%02x%02x" % (v, v, v) for v in range(20, 20 + 12 * 19, 19))
     trozos = []
     for c in cols:
         trozos += ["-f", "lavfi", "-i", "color=c=%s:s=480x270:r=25:d=1.5" % c]
@@ -129,11 +133,23 @@ def casos(casa, fuente):
             error = abs(float(r["plano_tipico_s"]) - 1.5)
             yield ("aprende: acierta el plano tipico (error %.2f s)" % error,
                    error < 0.2, True)
-            # No se pide la cuenta exacta: se le funden algunos planos
-            # seguidos y esta medido en el docstring de ritmo(). Se pide que
-            # no se invente planos que no existen ni pierda la mitad.
-            yield ("aprende: cuenta planos de forma razonable (%d de 12)"
-                   % r["planos"], 8 <= r["planos"] <= 12, True)
+            # Los doce, exactos. Con el video bien fabricado no hay excusa
+            # para perder ninguno, y aflojar aqui es dejar de enterarse.
+            yield ("aprende: cuenta los doce planos", r["planos"], 12)
+            yield ("aprende: cuenta los once cortes", r["cortes"], 11)
+            # Ritmo constante: la segunda mitad dura como la primera.
+            yield ("aprende: no se inventa que acelera (%s)" % r["acelera"],
+                   0.85 <= float(r["acelera"]) <= 1.15, True)
+            yield ("aprende: sabe que los planos estan quietos",
+                   r["planos_quietos"], 12)
+            # Y el arranque, que se cuenta aparte porque un video puede tener
+            # ritmo tranquilo y principio disparado.
+            a = aprende.arranque(cortes)
+            yield ("aprende: mira el arranque aparte", a is not None, True)
+            if a:
+                yield ("aprende: el primer plano dura lo que dura (%s s)"
+                       % a["primer_plano_s"],
+                       abs(float(a["primer_plano_s"]) - 1.5) < 0.25, True)
 
     # --- el falso positivo que si costo encontrar --------------------------
     # Un video liso se descarta facil. El que se colaba era este: una franja
@@ -202,12 +218,91 @@ def casos(casa, fuente):
     yield ("aprende: el estilo esta entre los tres propuestos (%d de %d)"
            % (en_tres, len(ESTILOS)), en_tres >= 3, True)
 
+    # --- el circulo entero: de un video ajeno al video del usuario ---------
+    # Esto es lo que promete la pantalla, y hasta aqui todo eran piezas
+    # sueltas. Se mira un video de un desconocido, se guarda el estilo que
+    # propone, y se edita un video PROPIO sin decir nada del estilo: el
+    # resultado tiene que salir con la letra del primero.
+    for caso in _circulo(casa, fuente):
+        yield caso
+
     # --- la puerta del motor ----------------------------------------------
     # En un motor de PRUEBA, en el puerto 0 para que lo elija el sistema.
     # Nunca contra el 9877: ese es el que tiene Munir abierto, y una peticion
     # de prueba ahi le toca sus datos de verdad.
     for caso in _puerta(casa):
         yield caso
+
+
+def _circulo(casa, fuente):
+    """El viaje completo del estilo, con el %APPDATA% desviado a temp.
+
+    Las constantes del motor (WORKSPACES, CONFIG) se calculan AL IMPORTAR desde
+    el %APPDATA% de verdad, asi que se desvian aqui y se devuelven en el
+    finally. Sin esto, una prueba le pisa a Munir su perfil de marca: ya paso
+    una vez y no habia copia de seguridad.
+    """
+    import aprende
+    sys.path.insert(0, str(RAIZ / "engine"))
+    try:
+        import server
+    except Exception as e:
+        yield ("aprende: el motor se puede importar", str(e)[:60], "")
+        return
+
+    _ws, _cfg = server.WORKSPACES, server.CONFIG
+    casos = []
+    try:
+        raiz = Path(tempfile.mkdtemp(prefix="vidorq_circ_"))
+        server.WORKSPACES = raiz / "workspaces"
+        server.CONFIG = raiz / "config.json"
+
+        # 1. mirar el video del desconocido, hecho con punch
+        ajeno = _render(casa, fuente, "ajeno.mp4", "--preset", "punch",
+                        "--no-zoom")
+        f = aprende.ficha(ajeno)
+        propuesto = (aprende.parecidos(f) or [(None, 0)])[0][0]
+        casos.append(("circulo: del video ajeno sale un estilo",
+                      propuesto, "punch"))
+
+        # 2. el usuario lo aprueba: entra en su marca
+        server.profile_save({"captionPreset": propuesto,
+                             "captionPresetName": "el del video que me gusto"})
+        guardado = server.profile_load()
+        casos.append(("circulo: queda guardado en la marca",
+                      guardado.get("captionPreset"), "punch"))
+        casos.append(("circulo: con el nombre que le puso",
+                      guardado.get("captionPresetName"),
+                      "el del video que me gusto"))
+
+        # 3. y es lo que la edicion coge cuando nadie dice nada. Es la misma
+        #    linea que usa el motor en /edit: lo pedido manda, y si no hay nada
+        #    pedido manda la marca.
+        pedido = {}
+        sale = pedido.get("captionPreset") or guardado.get("captionPreset")
+        casos.append(("circulo: la edicion sin instrucciones coge el de la marca",
+                      sale, "punch"))
+
+        # 4. y el video PROPIO sale con esa letra. Se comprueba mirandolo, no
+        #    confiando en el parametro: se renderiza y se vuelve a analizar.
+        mio = _render(casa, fuente, "mio.mp4", "--preset", sale, "--no-zoom")
+        casos.append(("circulo: el video propio se renderiza", mio.exists(), True))
+        if mio.exists():
+            g = aprende.ficha(mio)
+            sub_a = (f.get("subtitulo") or {}).get("fill")
+            sub_b = (g.get("subtitulo") or {}).get("fill")
+            casos.append(("circulo: el video propio lleva subtitulo",
+                          sub_b is not None, True))
+            if sub_a and sub_b:
+                lejos = max(abs(x - y) for x, y in zip(sub_a, sub_b))
+                casos.append(
+                    ("circulo: y es la MISMA letra que la del ajeno (lejos %.2f)"
+                     % lejos, lejos < 0.05, True))
+    finally:
+        server.WORKSPACES, server.CONFIG = _ws, _cfg
+        shutil.rmtree(raiz, ignore_errors=True)
+    for c in casos:
+        yield c
 
 
 def _puerta(casa):

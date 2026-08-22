@@ -8,7 +8,7 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1541%20checks-00b359.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1562%20checks-00b359.svg)](tests/)
 
 **[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
 
@@ -316,11 +316,11 @@ python tests/todas.py
 ```
 test_relojes.py          409 cases          the two clocks, the cut engine, the safety nets
 test_understanding.py    533 cases          what a sentence means, and what a button does
-test_castellano.py       510 strings        every accent in the Spanish the app shows
+test_castellano.py       519 strings        every accent in the Spanish the app shows
 test_idiomas.py           22 checks         Spanish and English say the same things
 test_promesas.py          20 promises       this README matches the code
 test_render.py            18 cases          a real video in, a real MP4 out
-test_aprende.py           29 cases          reads a video back and names its style
+test_aprende.py           41 cases          reads a video back and names its style
 ```
 
 Eleven seconds, no model, no network, no API key.
@@ -337,7 +337,9 @@ half a second off shows a different colour, and the test sees it.
 a known style, then hands that MP4 back to the analyser as if it came from a
 stranger. The analyser never sees the style name, only pixels. It recovers the
 caption position to within 0.01 of the frame height on every preset tried,
-and the cut rhythm of a twelve-shot video to the exact second.
+and the cut rhythm of a twelve-shot video to the exact second. It also
+closes the loop the product is for: a style read off a stranger's video is
+saved to your brand, and the next edit comes out wearing it.
 
 Every rule in there was checked by deliberately breaking the code to watch the
 test fail. A check that cannot fail is worse than no check, and one of them was

@@ -254,7 +254,7 @@ def hay_panel(frames, banda):
     return False, None
 
 
-def ritmo(video):
+def ritmo(video, planos=None, track=None):
     """Cada cuanto corta, y si acelera. Devuelve None si no se pudo mirar.
 
     El corte es lo primero que se nota de un montaje ajeno y lo primero que
@@ -266,25 +266,31 @@ def ritmo(video):
     despedida, un cartel) arrastra la media y no cambia como se siente el
     video. La mediana dice el plano tipico, que es lo que se quiere copiar.
 
-    Medido con doce planos de 1,50 s clavados: `plano_tipico_s` devolvio 1,50 y
-    `planos` devolvio diez, porque dos pares de planos seguidos se le fundieron
-    en uno. Esa es justo la razon de la mediana, que aguanto el fallo sin
-    moverse mientras la media se iba a 1,80.
+    Medido con doce planos de 1,50 s clavados: devuelve los doce, con
+    `plano_tipico_s` 1,50 y `acelera` 0,96, que en un video de ritmo constante
+    es lo que tiene que salir.
 
-    `acelera` hereda ese fallo y NO es de fiar: en ese mismo video, que va a
-    ritmo constante de principio a fin, dijo 0,69 como si acelerara, solo
-    porque los planos que se perdieron no cayeron repartidos. Se devuelve
-    porque orienta, pero no se le enseña al usuario como un dato ni se decide
-    nada con el hasta que la cuenta de planos sea exacta.
+    Esa medida costo dos intentos y la primera vez acuso al codigo por error.
+    Con un video de prueba de doce COLORES daba diez planos y `acelera` 0,69,
+    como si acelerase; parecia que se fundian planos seguidos. Lo que pasaba es
+    que vision.shots() mira en ESCALA DE GRIS, y de aquellos doce colores el
+    rojo, el azul, el morado, el oliva y el teal daban los cinco 85: planos
+    consecutivos identicos para el detector. El video era imposible, no el
+    detector. Si vuelves a fabricar un video de prueba aqui, separalo por
+    LUMINANCIA y no por color.
+
+    La mediana se queda de todas formas, porque un plano largo al final sigue
+    arrastrando la media aunque los cortes se cuenten bien.
     """
     try:
         import vision
     except ImportError:
         return None
-    try:
-        planos, track = vision.shots(video)
-    except Exception:
-        return None
+    if planos is None or track is None:
+        try:
+            planos, track = vision.shots(video)
+        except Exception:
+            return None
     if len(planos) < 2:
         return None
     largos = sorted(float(p["end"]) - float(p["start"]) for p in planos)
@@ -296,6 +302,16 @@ def ritmo(video):
     mitad = len(en_orden) // 2
     antes = sum(en_orden[:mitad]) / max(1, mitad)
     despues = sum(en_orden[mitad:]) / max(1, len(en_orden) - mitad)
+    golpes = vision.beats(track) if track else []
+    # Los cortes que caen ENCIMA de un golpe de imagen. Es la diferencia entre
+    # un montaje que va al ritmo y uno que corta donde toca por reloj, y es lo
+    # que se copia cuando alguien dice "quiero que vaya asi". Medio segundo de
+    # margen: mas cerca es el mismo instante para un ojo, mas lejos ya no se
+    # lee como sincronizado.
+    bordes = [float(p["start"]) for p in planos[1:]]
+    en_golpe = sum(1 for b in bordes
+                   if any(abs(b - g) <= 0.5 for g in golpes))
+    quietos = sum(1 for p in planos if p.get("still"))
     return {
         "planos": n,
         "plano_tipico_s": round(mediana, 2),
@@ -304,7 +320,48 @@ def ritmo(video):
         "mas_largo_s": round(largos[-1], 2),
         # Menos de 1 = los planos se acortan hacia el final.
         "acelera": round(despues / antes, 2) if antes > 0 else None,
-        "golpes": len(vision.beats(track)) if track else 0,
+        "golpes": len(golpes),
+        "cortes_en_golpe": en_golpe,
+        "cortes": len(bordes),
+        # Cuantos planos estan casi parados. Un video de camara en mano y uno
+        # de tripode se distinguen aqui y en ningun otro numero de esta ficha.
+        "planos_quietos": quietos,
+        "movimiento": round(sum(float(p.get("motion") or 0)
+                                for p in planos) / n, 2),
+    }
+
+
+def arranque(video, planos=None, track=None, segundos=3.0):
+    """Que pasa en los primeros segundos. None si no se pudo mirar.
+
+    Los tres primeros segundos son donde se decide si alguien sigue viendo, y
+    quien pega un video de referencia casi siempre viene por eso aunque lo diga
+    de otra manera. Se cuenta aparte del resto porque un video puede tener un
+    ritmo tranquilo y un arranque disparado, y promediarlos esconde justo lo
+    que se queria copiar.
+    """
+    try:
+        import vision
+    except ImportError:
+        return None
+    if planos is None or track is None:
+        try:
+            planos, track = vision.shots(video)
+        except Exception:
+            return None
+    if not planos:
+        return None
+    dentro = [p for p in planos if float(p["start"]) < segundos]
+    if not dentro:
+        return None
+    pronto = [t for t in (track or []) if float(t["t"]) <= segundos]
+    return {
+        "segundos": segundos,
+        "cortes": max(0, len(dentro) - 1),
+        "primer_plano_s": round(float(dentro[0]["end"])
+                                - float(dentro[0]["start"]), 2),
+        "movimiento": round(sum(float(t.get("diff") or 0) for t in pronto)
+                            / len(pronto), 2) if pronto else None,
     }
 
 
@@ -312,9 +369,19 @@ def ficha(video):
     """Como esta editado este video. Numeros, nunca adjetivos."""
     frames, dur = fotogramas(video)
     w, h, _ = medidas(video)
+    # Una sola pasada de vision.shots() para todo lo que se cuenta del
+    # montaje. Cuesta 3,5 s por cada 40 s de video, asi que pedirla dos veces
+    # se nota en la espera del usuario y no aporta nada.
+    planos = track = None
+    try:
+        import vision
+        planos, track = vision.shots(video)
+    except Exception:
+        pass
     out = {"ancho": w, "alto": h, "duracion": round(dur, 2),
            "vertical": bool(h and w and h > w), "subtitulo": None,
-           "ritmo": ritmo(video)}
+           "ritmo": ritmo(video, planos, track),
+           "arranque": arranque(video, planos, track)}
     if not frames:
         return out
     banda = banda_de_texto(frames)
