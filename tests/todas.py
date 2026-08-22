@@ -28,7 +28,8 @@ AQUI = Path(__file__).resolve().parent
 # en los dos idiomas a la vez), luego si lo que promete en publico es lo que de
 # verdad tiene, y al final el render de verdad, que es lenta y va sola.
 ARCHIVOS = ["test_relojes.py", "test_understanding.py", "test_castellano.py",
-            "test_idiomas.py", "test_promesas.py", "test_render.py"]
+            "test_idiomas.py", "test_promesas.py", "test_render.py",
+            "test_aprende.py"]
 
 
 def cuadra_el_readme(cuentas):
