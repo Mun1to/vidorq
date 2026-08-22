@@ -1973,6 +1973,29 @@ def words_of(video):
             "duration": round(float(data.get("duration", 0)), 2)}
 
 
+def preset_de(req, marca):
+    """Que estilo de subtitulo lleva esta edicion.
+
+    Lo pedido manda; si no se pide nada, manda la marca; y si la marca no dice
+    nada, el de la casa. Un nombre que no existe cae al de la casa en vez de
+    tumbar una edicion que ya ha costado una transcripcion.
+
+    Esta fuera de /edit para que se pueda LLAMAR desde una prueba. Estaba
+    escrita a mano dentro del handler, y la prueba del circulo la copiaba en
+    vez de usarla: era una comprobacion que no podia fallar, porque afirmaba un
+    `or` que el propio test acababa de escribir.
+    """
+    nombre = (req or {}).get("captionPreset") or (marca or {}).get("captionPreset")
+    return nombre if nombre in cap.PRESETS else cap.DEFAULT_PRESET
+
+
+def anim_de(req, marca):
+    """La entrada del subtitulo. Vacio significa "la que traiga el estilo",
+    que no es lo mismo que la de la casa."""
+    nombre = (req or {}).get("captionAnim") or (marca or {}).get("captionAnim") or ""
+    return nombre if nombre in cap.ANIMS else ""
+
+
 def aprende_de(video):
     """Como esta editado un video de referencia, y que estilos se le parecen.
 
@@ -1986,7 +2009,18 @@ def aprende_de(video):
     if os.path.splitext(video)[1].lower() not in VIDEO_EXT:
         return {"ok": False, "why": "no_video"}
     import aprende
-    f = aprende.ficha(video)
+    try:
+        f = aprende.ficha(video)
+    except aprende.SinFFmpeg:
+        # Se dice por su nombre. Antes esto salia como un fallo generico y la
+        # ventana lo traducia a "en esa ruta no hay ningun video", que manda a
+        # revisar una ruta que estaba bien.
+        return {"ok": False, "why": "sin_ffmpeg"}
+    except Exception as e:
+        # Sin traceback: un archivo roto que trae el usuario es un caso
+        # previsto, no un fallo del programa, y llenar el log de pilas por algo
+        # que se contesta bien esconde los fallos que si importan.
+        return {"ok": False, "why": "ilegible", "error": str(e)[:200]}
     f["ok"] = True
     # Los estilos que se ofrecen, con su nombre para enseñar. Varios y no uno,
     # porque cuatro de los del catalogo son texto blanco abajo y ninguna cuenta
@@ -2735,17 +2769,9 @@ def run_job(req):
         # Los numeros del color automatico, si es que se ha pedido. Se calculan
         # una vez, mas abajo, cuando ya se sabe que el video existe.
         auto_cdl, auto_did = None, []
-        # The look of the captions. An unknown name falls back to the default
-        # instead of failing an edit that has already been transcribed.
-        caption_preset = req.get("captionPreset") or profile_load().get(
-            "captionPreset") or cap.DEFAULT_PRESET
-        if caption_preset not in cap.PRESETS:
-            caption_preset = cap.DEFAULT_PRESET
-        # The movement is a separate choice from the look. Empty means "whatever
-        # this look ships with", which is not the same as the global default.
-        caption_anim = req.get("captionAnim") or profile_load().get("captionAnim") or ""
-        if caption_anim not in cap.ANIMS:
-            caption_anim = ""
+        marca = profile_load()
+        caption_preset = preset_de(req, marca)
+        caption_anim = anim_de(req, marca)
 
         if not Path(video).is_file():
             raise ValueError(tr("no_video", video))
@@ -3723,6 +3749,9 @@ class Handler(BaseHTTPRequestHandler):
                     self._send({"error": "no_video"}, 404)
                     return
                 import aprende
+                if not aprende._hay_ffmpeg():
+                    self._send({"error": "sin_ffmpeg"}, 503)
+                    return
                 solo = (q.get("banda") or ["0"])[0] == "1"
                 previews.CACHE.mkdir(parents=True, exist_ok=True)
                 dest = previews.CACHE / ("ref_%s%s.png" % (
