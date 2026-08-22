@@ -173,6 +173,17 @@ export default function Aprende({ onClose, styles, video }:
                         }} />
                       </>
                     )}
+                    {/* El color de detras se enseña sin ponerle nombre: puede
+                        ser una plancha o un contorno grueso y no se puede
+                        saber cual (medido, en color_de_fondo). El color si es
+                        de fiar, y viendolo se decide igual. */}
+                    {cap.fondo && (
+                      <>
+                        {" · "}{t("learn.behind")}{" "}
+                        <span className="muestra"
+                              style={{ background: rgb(cap.fondo) }} />
+                      </>
+                    )}
                   </p>
                 )}
               </section>
