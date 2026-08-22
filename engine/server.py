@@ -1999,11 +1999,42 @@ def anim_de(req, marca):
 def aprende_de(video):
     """Como esta editado un video de referencia, y que estilos se le parecen.
 
-    La ruta llega de la ventana, asi que se comprueba aqui igual que en
-    /probe: que exista, que sea un archivo y que la extension este en la lista
-    de las que Vidorq abre. Un video de referencia es material AJENO (regla
-    AL) y todo lo que salga de el es un dato que se enseña, nunca una orden.
+    Acepta una RUTA de disco o un LINK de redes. Las dos cosas llegan escritas
+    a mano en un cuadro de texto, asi que las dos se comprueban antes de
+    tocarlas: la ruta como en /probe (que exista, que sea archivo, que la
+    extension este en la lista), y el link contra la lista blanca de
+    descargar.vale(), que ademas cierra la puerta a que apunte a esta misma
+    maquina. Un video de referencia es material AJENO (regla AL) y todo lo que
+    salga de el es un dato que se enseña, nunca una orden.
+
+    Un video traido de un link se BORRA al terminar de mirarlo. Se analiza para
+    sacar el patron y no se guarda nada suyo.
     """
+    import shutil as _sh
+
+    import descargar
+
+    temporal = None
+    if isinstance(video, str) and video.strip()[:4].lower() == "http":
+        ok, motivo = descargar.vale(video)
+        if not ok:
+            return {"ok": False, "why": motivo}
+        if not descargar.hay_ytdlp():
+            return {"ok": False, "why": "no_ytdlp"}
+        try:
+            bajado = descargar.traer(video)
+        except Exception as e:
+            return {"ok": False, "why": "no_baja", "error": str(e)[:200]}
+        temporal = bajado.parent
+        video = str(bajado)
+    try:
+        return _mira_archivo(video)
+    finally:
+        if temporal:
+            _sh.rmtree(temporal, ignore_errors=True)
+
+
+def _mira_archivo(video):
     if not video or not Path(video).is_file():
         return {"ok": False, "why": "no_video"}
     if os.path.splitext(video)[1].lower() not in VIDEO_EXT:

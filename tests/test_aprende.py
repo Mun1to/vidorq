@@ -221,6 +221,10 @@ def casos(casa, fuente):
     yield ("aprende: el estilo esta entre los tres propuestos (%d de %d)"
            % (en_tres, len(ESTILOS)), en_tres >= 3, True)
 
+    # --- el link, que es entrada escrita a mano ----------------------------
+    for caso in _links():
+        yield caso
+
     # --- y en HORIZONTAL, que es donde estaba el punto ciego ---------------
     # Todo lo de arriba renderiza 720x1280, y ahi captions.line_ref(w,h) vale
     # exactamente el ancho, asi que medir el tamaño contra uno o contra otro da
@@ -254,6 +258,75 @@ def casos(casa, fuente):
     # de prueba ahi le toca sus datos de verdad.
     for caso in _puerta(casa):
         yield caso
+
+
+def _links():
+    """Que URLs se aceptan y cuales no.
+
+    Una URL la escribe una persona en un cuadro de texto, asi que es entrada no
+    confiable. Lo que se comprueba aqui no es que funcione la descarga (eso
+    necesita yt-dlp instalado), sino que la puerta este cerrada: sin esto,
+    pegar un link seria una forma de que Vidorq pida cosas a maquinas de la red
+    de casa en nombre de quien lo usa.
+    """
+    import descargar
+
+    buenos = [
+        "https://www.tiktok.com/@alguien/video/123",
+        "https://vm.tiktok.com/ABC/",
+        "https://www.instagram.com/reel/xyz/",
+        "https://youtu.be/abc123",
+        "https://www.youtube.com/shorts/abc",
+    ]
+    for u in buenos:
+        yield ("link: se acepta %s" % u[:38], descargar.vale(u)[0], True)
+
+    # Lo de casa. El primero es el caso que mas duele: es el propio motor de
+    # Vidorq, y su ruta /shutdown lo apaga.
+    de_casa = [
+        "http://127.0.0.1:9877/shutdown",
+        "http://localhost/x",
+        "https://[::1]/x",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://192.168.1.10/admin",
+        "http://10.0.0.5/",
+        "http://servidor/interno",
+        "http://nas.local/videos",
+    ]
+    for u in de_casa:
+        ok, motivo = descargar.vale(u)
+        yield ("link: se rechaza por ser de casa %s" % u[:34],
+               (ok, motivo), (False, "de_casa"))
+
+    # El clasico: un dominio que ACABA pareciendose a uno de la lista.
+    parecidos = [
+        "https://tiktok.com.malo.example/x",
+        "https://www.youtube.com.attacker.net/x",
+        "https://evil.example/video.mp4",
+        "https://notyoutube.com/x",
+    ]
+    for u in parecidos:
+        ok, motivo = descargar.vale(u)
+        yield ("link: no se cuela %s" % u[:38], (ok, motivo), (False, "sitio_no"))
+
+    # Y lo que ni siquiera es http.
+    for u in ("file:///C:/Windows/System32/config/SAM", "javascript:alert(1)",
+              "data:text/html,<script>", "", "no es una url", "x" * 3000):
+        ok, motivo = descargar.vale(u)
+        yield ("link: se rechaza %s" % (u[:30] or "(vacio)"),
+               (ok, motivo), (False, "no_link"))
+    yield ("link: None tampoco pasa", descargar.vale(None), (False, "no_link"))
+
+    # Y sin la herramienta, se dice: no se intenta y se falla en silencio.
+    if not descargar.hay_ytdlp():
+        fallo = ""
+        try:
+            descargar.traer("https://www.tiktok.com/@a/video/1")
+        except RuntimeError as e:
+            fallo = str(e)
+        except Exception as e:
+            fallo = "otro: %s" % type(e).__name__
+        yield ("link: sin yt-dlp lo dice por su nombre", fallo, "no_ytdlp")
 
 
 def _en_horizontal(casa):

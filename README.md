@@ -8,7 +8,7 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1584%20checks-00b359.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1614%20checks-00b359.svg)](tests/)
 
 **[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
 
@@ -316,11 +316,11 @@ python tests/todas.py
 ```
 test_relojes.py          409 cases          the two clocks, the cut engine, the safety nets
 test_understanding.py    533 cases          what a sentence means, and what a button does
-test_castellano.py       522 strings        every accent in the Spanish the app shows
+test_castellano.py       527 strings        every accent in the Spanish the app shows
 test_idiomas.py           22 checks         Spanish and English say the same things
 test_promesas.py          20 promises       this README matches the code
 test_render.py            18 cases          a real video in, a real MP4 out
-test_aprende.py           60 cases          reads a video back and names its style
+test_aprende.py           85 cases          reads a video back and names its style
 ```
 
 Eleven seconds, no model, no network, no API key.
