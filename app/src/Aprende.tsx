@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { apiGet, apiPost, BrandProfile, CaptionStyle, ENGINE } from "./api";
-import { useLang } from "./i18n";
+import { useLang, Key } from "./i18n";
 import { IconCheck } from "./Icons";
 
 // Lo que contesta GET /aprende. Los numeros vienen medidos del video ajeno.
@@ -40,12 +40,25 @@ export interface Ficha {
   parecidos?: { id: string; distancia: number }[];
 }
 
+// Lo que contesta el motor cuando dice que no, y que se le enseña por cada
+// caso. La clave vacia cae al mensaje de la ruta, que es el caso comun.
+const MOTIVOS: Record<string, Key> = {
+  de_casa: "learn.link.decasa",
+  sitio_no: "learn.link.sitio",
+  no_link: "learn.link.malo",
+  no_ytdlp: "learn.link.noytdlp",
+  no_baja: "learn.link.nobaja",
+  sin_ffmpeg: "learn.noffmpeg",
+  ilegible: "learn.nofile",
+  no_video: "learn.nofile",
+};
+
 const rgb = (c: [number, number, number] | null) =>
   c ? `rgb(${c.map((v) => Math.round(v * 255)).join(",")})` : "transparent";
 
 export default function Aprende({ onClose, styles, video, onSaved }:
   { onClose: () => void; styles: CaptionStyle[]; video?: string;
-    onSaved?: (preset: string) => void }) {
+    onSaved?: (preset: string, alias?: string) => void }) {
   const { t, lang } = useLang();
   const [ruta, setRuta] = useState(video ?? "");
   // La ruta que se MIRO, congelada. Las imagenes salen de esta y no de `ruta`,
@@ -71,8 +84,10 @@ export default function Aprende({ onClose, styles, video, onSaved }:
     setNombre("");
     try {
       const r = await apiGet<Ficha>(`/aprende?video=${encodeURIComponent(ruta.trim())}`);
-      if (!r?.ok) setError(r?.why === "sin_ffmpeg" ? t("learn.noffmpeg")
-                                                   : t("learn.nofile"));
+      // Cada negativa por su nombre. Mandar a alguien a revisar una ruta
+      // cuando lo que pasa es que el link apunta a su propio ordenador, o que
+      // falta una herramienta, es hacerle perder el rato.
+      if (!r?.ok) setError(t(MOTIVOS[r?.why ?? ""] ?? "learn.nofile"));
       else {
         setF(r);
         setMirada(ruta.trim());
@@ -103,7 +118,7 @@ export default function Aprende({ onClose, styles, video, onSaved }:
     // marca y no llegaba a ninguna edicion: el panel manda SIEMPRE el suyo en
     // la peticion, y lo pedido gana sobre la marca. Se guardaba de verdad y no
     // servia para nada, que es la peor version de un fallo.
-    onSaved?.(elegido);
+    onSaved?.(elegido, nombre.trim() || undefined);
     setGuardado(true);
   }
 

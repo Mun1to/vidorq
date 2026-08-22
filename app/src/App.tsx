@@ -68,6 +68,10 @@ function App() {
   // asi anadir uno no obliga a tocar la interfaz.
   const [capStyles, setCapStyles] = useState<CaptionStyle[]>([]);
   const [capStyle, setCapStyle] = useState("pop");
+  // El nombre que le puso el usuario al copiarlo de un video suyo. Se
+  // enseña en el selector, porque pedir un nombre y no volver a
+  // enseñarlo nunca es prometer algo que no se cumple.
+  const [capAlias, setCapAlias] = useState("");
   // El look y el movimiento son dos elecciones, como en CapCut. Vacio = la
   // animacion con la que viene ese estilo.
   const [capAnims, setCapAnims] = useState<CaptionStyle[]>([]);
@@ -226,11 +230,13 @@ function App() {
   // workspace, que es cuando cambia la marca; despues manda lo que toques.
   useEffect(() => {
     let alive = true;
-    apiGet<{ captionPreset?: string; captionAnim?: string }>("/profile")
+    apiGet<{ captionPreset?: string; captionAnim?: string;
+             captionPresetName?: string }>("/profile")
       .then((p) => {
         if (!alive || !p) return;
         if (p.captionPreset) setCapStyle(p.captionPreset);
         if (typeof p.captionAnim === "string") setCapAnim(p.captionAnim);
+        setCapAlias(p.captionPresetName ?? "");
       })
       .catch(() => { /* motor apagado: el panel se queda con lo suyo */ });
     return () => { alive = false; };
@@ -908,13 +914,18 @@ function App() {
                 <button
                   key={s.id}
                   className={`capstyle ${capStyle === s.id ? "sel" : ""}`}
-                  onClick={() => setCapStyle(s.id)}
+                  onClick={() => { setCapStyle(s.id); setCapAlias(""); }}
                   title={s.note}
                 >
-                  {s.label}
+                  {capAlias && capStyle === s.id ? capAlias : s.label}
                 </button>
               ))}
-              <small className="capnote">{capStyles.find((s) => s.id === capStyle)?.note}</small>
+              <small className="capnote">
+                {capAlias
+                  ? `${capStyles.find((s) => s.id === capStyle)?.label} · ${
+                      capStyles.find((s) => s.id === capStyle)?.note}`
+                  : capStyles.find((s) => s.id === capStyle)?.note}
+              </small>
             </div>
           )}
 
@@ -1096,7 +1107,10 @@ function App() {
       {brandOpen && <Brand onClose={() => setBrandOpen(false)} styles={capStyles} />}
       {learnOpen && <Aprende onClose={() => setLearnOpen(false)}
                              styles={capStyles} video={video}
-                             onSaved={setCapStyle} />}
+                             onSaved={(preset, alias) => {
+                               setCapStyle(preset);
+                               setCapAlias(alias ?? "");
+                             }} />}
       {guiaOpen && (
         <Guia onClose={() => { localStorage.setItem("vidorq.guiaVista", "1"); setGuiaOpen(false); }} />
       )}
