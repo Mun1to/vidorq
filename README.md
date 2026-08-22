@@ -8,7 +8,7 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1508%20checks-00b359.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1511%20checks-00b359.svg)](tests/)
 
 **[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
 
@@ -320,7 +320,7 @@ test_castellano.py       485 strings        every accent in the Spanish the app 
 test_idiomas.py           22 checks         Spanish and English say the same things
 test_promesas.py          20 promises       this README matches the code
 test_render.py            18 cases          a real video in, a real MP4 out
-test_aprende.py           21 cases          reads a video back and names its style
+test_aprende.py           24 cases          reads a video back and names its style
 ```
 
 Eleven seconds, no model, no network, no API key.
@@ -336,7 +336,8 @@ half a second off shows a different colour, and the test sees it.
 **`test_aprende.py`** closes a circle: it asks Vidorq to burn in captions with
 a known style, then hands that MP4 back to the analyser as if it came from a
 stranger. The analyser never sees the style name, only pixels. It recovers the
-caption position to within 0.01 of the frame height on every preset tried.
+caption position to within 0.01 of the frame height on every preset tried,
+and the cut rhythm of a twelve-shot video to the exact second.
 
 Every rule in there was checked by deliberately breaking the code to watch the
 test fail. A check that cannot fail is worse than no check, and one of them was

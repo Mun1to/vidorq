@@ -106,6 +106,35 @@ def casos(casa, fuente):
                (f["ancho"], f["alto"]), (720, 1280))
         yield ("aprende: sabe que es vertical", f.get("vertical"), True)
 
+    # --- el ritmo de corte -------------------------------------------------
+    # Doce planos de 1,5 s clavados. Es el otro numero que pide quien pega un
+    # video ajeno: "quiero que vaya asi de rapido".
+    cortes = casa / "cortes.mp4"
+    cols = ("red", "green", "blue", "yellow", "magenta", "cyan",
+            "orange", "purple", "brown", "pink", "olive", "teal")
+    trozos = []
+    for c in cols:
+        trozos += ["-f", "lavfi", "-i", "color=c=%s:s=480x270:r=25:d=1.5" % c]
+    subprocess.run(["ffmpeg", "-y", "-v", "error"] + trozos + [
+        "-filter_complex",
+        "".join("[%d:v]" % i for i in range(len(cols)))
+        + "concat=n=%d:v=1:a=0[v]" % len(cols),
+        "-map", "[v]", "-c:v", "libx264", "-preset", "ultrafast",
+        "-pix_fmt", "yuv420p", str(cortes)], capture_output=True)
+    if cortes.exists():
+        r = aprende.ritmo(cortes)
+        yield ("aprende: saca el ritmo de un video con cortes",
+               r is not None, True)
+        if r:
+            error = abs(float(r["plano_tipico_s"]) - 1.5)
+            yield ("aprende: acierta el plano tipico (error %.2f s)" % error,
+                   error < 0.2, True)
+            # No se pide la cuenta exacta: se le funden algunos planos
+            # seguidos y esta medido en el docstring de ritmo(). Se pide que
+            # no se invente planos que no existen ni pierda la mitad.
+            yield ("aprende: cuenta planos de forma razonable (%d de 12)"
+                   % r["planos"], 8 <= r["planos"] <= 12, True)
+
     # --- el falso positivo que si costo encontrar --------------------------
     # Un video liso se descarta facil. El que se colaba era este: una franja
     # con detalle en MITAD del cuadro, que aparece y desaparece. Cumple las dos

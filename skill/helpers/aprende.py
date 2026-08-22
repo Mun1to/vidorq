@@ -254,12 +254,67 @@ def hay_panel(frames, banda):
     return False, None
 
 
+def ritmo(video):
+    """Cada cuanto corta, y si acelera. Devuelve None si no se pudo mirar.
+
+    El corte es lo primero que se nota de un montaje ajeno y lo primero que
+    pide quien pega un video: "quiero que vaya asi de rapido". Se apoya en
+    vision.shots(), que ya sabe encontrar los limites de plano y esta probado,
+    en vez de escribir otro detector al lado.
+
+    La MEDIANA manda sobre la media a proposito: un plano largo al final (una
+    despedida, un cartel) arrastra la media y no cambia como se siente el
+    video. La mediana dice el plano tipico, que es lo que se quiere copiar.
+
+    Medido con doce planos de 1,50 s clavados: `plano_tipico_s` devolvio 1,50 y
+    `planos` devolvio diez, porque dos pares de planos seguidos se le fundieron
+    en uno. Esa es justo la razon de la mediana, que aguanto el fallo sin
+    moverse mientras la media se iba a 1,80.
+
+    `acelera` hereda ese fallo y NO es de fiar: en ese mismo video, que va a
+    ritmo constante de principio a fin, dijo 0,69 como si acelerara, solo
+    porque los planos que se perdieron no cayeron repartidos. Se devuelve
+    porque orienta, pero no se le enseña al usuario como un dato ni se decide
+    nada con el hasta que la cuenta de planos sea exacta.
+    """
+    try:
+        import vision
+    except ImportError:
+        return None
+    try:
+        planos, track = vision.shots(video)
+    except Exception:
+        return None
+    if len(planos) < 2:
+        return None
+    largos = sorted(float(p["end"]) - float(p["start"]) for p in planos)
+    n = len(largos)
+    mediana = largos[n // 2] if n % 2 else (largos[n // 2 - 1] + largos[n // 2]) / 2.0
+    # Acelera? Se compara la primera mitad del video con la segunda, en el
+    # orden en que ocurren y no ordenados por duracion.
+    en_orden = [float(p["end"]) - float(p["start"]) for p in planos]
+    mitad = len(en_orden) // 2
+    antes = sum(en_orden[:mitad]) / max(1, mitad)
+    despues = sum(en_orden[mitad:]) / max(1, len(en_orden) - mitad)
+    return {
+        "planos": n,
+        "plano_tipico_s": round(mediana, 2),
+        "plano_medio_s": round(sum(largos) / n, 2),
+        "mas_corto_s": round(largos[0], 2),
+        "mas_largo_s": round(largos[-1], 2),
+        # Menos de 1 = los planos se acortan hacia el final.
+        "acelera": round(despues / antes, 2) if antes > 0 else None,
+        "golpes": len(vision.beats(track)) if track else 0,
+    }
+
+
 def ficha(video):
     """Como esta editado este video. Numeros, nunca adjetivos."""
     frames, dur = fotogramas(video)
     w, h, _ = medidas(video)
     out = {"ancho": w, "alto": h, "duracion": round(dur, 2),
-           "vertical": bool(h and w and h > w), "subtitulo": None}
+           "vertical": bool(h and w and h > w), "subtitulo": None,
+           "ritmo": ritmo(video)}
     if not frames:
         return out
     banda = banda_de_texto(frames)
