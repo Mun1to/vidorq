@@ -26,10 +26,12 @@ Se lanza:  python tests/test_aprende.py
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -250,6 +252,10 @@ def casos(casa, fuente):
     # propone, y se edita un video PROPIO sin decir nada del estilo: el
     # resultado tiene que salir con la letra del primero.
     for caso in _circulo(casa, fuente):
+        yield caso
+
+    # --- y hasta Resolve, contra un puente de MENTIRA ---------------------
+    for caso in _hasta_resolve(casa):
         yield caso
 
     # --- la puerta del motor ----------------------------------------------
@@ -506,6 +512,191 @@ def _circulo(casa, fuente):
     finally:
         server.WORKSPACES, server.CONFIG = _ws, _cfg
         shutil.rmtree(raiz, ignore_errors=True)
+    for c in casos:
+        yield c
+
+
+class _PuenteFalso(BaseHTTPRequestHandler):
+    """Habla como el puente de Resolve, sin Resolve.
+
+    El puente de verdad es HTTP en el 127.0.0.1:9876 y el motor lo llama por
+    dos constantes de modulo, asi que se puede desviar igual que se desvia el
+    %APPDATA%. Lleva la cuenta de los timelines y de lo que le insertan, porque
+    Vidorq vuelve a MIRAR la pista despues de insertar en vez de fiarse de que
+    la API diga que si: un puente que siempre conteste "vacio" no pasa de ahi.
+
+    Nunca contra el 9876, que ese le tocaria su Resolve de verdad.
+    """
+
+    timelines = []
+    dentro = {}
+    actual = [""]
+    pedido = []
+
+    def log_message(self, *a):
+        pass
+
+    def _di(self, obj):
+        crudo = json.dumps(obj).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(crudo)))
+        self.end_headers()
+        self.wfile.write(crudo)
+
+    def do_GET(self):
+        C = _PuenteFalso
+        C.pedido.append(("GET", self.path, None))
+        p = self.path.split("?")[0]
+        if p == "/status":
+            return self._di({"product": "DaVinci Resolve", "version": "21.0",
+                             "connected": True})
+        if p == "/project":
+            return self._di({"name": "Prueba", "timelineCount": len(C.timelines),
+                             "timelines": list(C.timelines)})
+        if p == "/timeline":
+            return self._di({"name": C.actual[0], "fps": 25, "width": 720,
+                             "height": 1280,
+                             "trackCount": {"video": 2, "audio": 1}})
+        if p.startswith("/timeline/clips"):
+            return self._di({"clips": list(C.dentro.get(C.actual[0], []))})
+        return self._di({})
+
+    def do_POST(self):
+        C = _PuenteFalso
+        n = int(self.headers.get("Content-Length") or 0)
+        crudo = self.rfile.read(n).decode("utf-8") if n else ""
+        try:
+            cuerpo = json.loads(crudo) if crudo else {}
+        except ValueError:
+            cuerpo = {}
+        C.pedido.append(("POST", self.path, cuerpo))
+        ruta = self.path.split("?")[0]
+        if ruta == "/timeline/create":
+            nombre = cuerpo.get("name", "?")
+            C.timelines.append(nombre)
+            C.actual[0] = nombre
+            C.dentro.setdefault(nombre, [])
+            return self._di({"success": True, "timeline": nombre})
+        if ruta == "/timeline/switch":
+            i = int(cuerpo.get("index", 0)) - 1
+            if 0 <= i < len(C.timelines):
+                C.actual[0] = C.timelines[i]
+            return self._di({"success": True, "timeline": C.actual[0]})
+        if ruta == "/media/insert":
+            C.dentro.setdefault(C.actual[0], []).append(
+                {"name": cuerpo.get("clipName", "?"),
+                 "track": cuerpo.get("trackIndex", 1)})
+        return self._di({"success": True})
+
+
+def _hasta_resolve(casa):
+    """El ultimo tramo del viaje: de la marca al timeline.
+
+    Lo que se comprueba no es que Resolve pinte (eso es de Resolve), sino que
+    Vidorq le entrega lo correcto: los dos timelines, los cortes en su sitio, y
+    el estilo APRENDIDO dentro de los comps. El estilo no viaja como un nombre
+    por el puente: viaja dentro del archivo de composicion, con sus colores y
+    su tipografia ya puestos.
+    """
+    import threading
+    from http.server import ThreadingHTTPServer
+
+    sys.path.insert(0, str(RAIZ / "engine"))
+    try:
+        import captions
+        import server
+    except Exception:
+        return
+
+    C = _PuenteFalso
+    C.timelines, C.dentro, C.actual, C.pedido = [], {}, [""], []
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), _PuenteFalso)
+    puerto = srv.server_address[1]
+    if puerto == 9876:                       # el de verdad; no se toca
+        srv.server_close()
+        return
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+
+    viejo = (server.BRIDGE_HOST, server.BRIDGE_PORT)
+    casos = []
+    try:
+        server.BRIDGE_HOST, server.BRIDGE_PORT = "127.0.0.1", puerto
+        casos.append(("resolve: el motor ve el puente",
+                      bool(server.bridge_status().get("bridge")), True))
+
+        video = casa / "para_resolve.mp4"
+        r = subprocess.run([
+            "ffmpeg", "-y", "-v", "error",
+            "-f", "lavfi", "-i", "color=c=gray:s=720x1280:r=25:d=12",
+            "-f", "lavfi", "-i",
+            "sine=frequency=440:duration=12:sample_rate=48000",
+            "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-shortest", str(video)], capture_output=True)
+        if r.returncode != 0 or not video.exists():
+            return
+
+        edl = [{"start": 0.5, "end": 5.0, "zoom": 1.0, "note": ""},
+               {"start": 6.0, "end": 11.0, "zoom": 1.0, "note": ""}]
+        def pal(txt, d):
+            return [{"w": w, "s": d + i * 0.4, "e": d + i * 0.4 + 0.3}
+                    for i, w in enumerate(txt.split())]
+        tr = {"duration": 12.0, "language": "es", "segments": [
+            {"text": "hola mundo esto va bien", "start": 1.0, "end": 3.0,
+             "words": pal("hola mundo esto va bien", 1.0)},
+            {"text": "mira lo que hace", "start": 6.5, "end": 8.5,
+             "words": pal("mira lo que hace", 6.5)}]}
+
+        # `punch` es el estilo que la pantalla habria guardado en la marca.
+        resultado, nombres = server.output_resolve(
+            str(video), edl, tr, captions=True, preset="punch",
+            workdir=casa, anim="", ratio="vertical")
+        casos.append(("resolve: monta el timeline y el de subtitulos",
+                      len(nombres) >= 2, True))
+        casos.append(("resolve: dice lo que hizo", bool(resultado), True))
+        casos.append(("resolve: los dos cortes caen en la pista",
+                      len([c for c in C.dentro.get(nombres[0], [])
+                           if c["name"].endswith(".mp4")]), 2))
+        subs = [c for tl, cs in C.dentro.items() for c in cs
+                if tl.endswith("_Subs")]
+        casos.append(("resolve: hay subtitulos en su propio timeline",
+                      len(subs) > 0, True))
+
+        # Y el estilo, que es lo que se aprendio del video ajeno.
+        comps = [c for m, ru, c in C.pedido
+                 if ru.split("?")[0] == "/clip/fusion/import" and c]
+        casos.append(("resolve: cada subtitulo va como una composicion",
+                      len(comps) > 0, True))
+        if comps:
+            uno = Path(comps[0].get("path", ""))
+            casos.append(("resolve: la composicion existe en disco",
+                          uno.is_file(), True))
+            if uno.is_file():
+                dentro = uno.read_text(encoding="utf-8", errors="replace")
+                p = captions.PRESETS["punch"]
+                def val(clave):
+                    m = re.search(clave + r'\s*=\s*(?:Input\s*\{\s*'
+                                  r'Value\s*=\s*)?([^,\n}]+)', dentro)
+                    return m.group(1).strip().strip('"') if m else ""
+                casos.append(("resolve: el comp lleva la tipografia del estilo",
+                              val("Font"), p["font"].split()[0]))
+                casos.append(("resolve: y su peso", val("Style"), p["style"]))
+                try:
+                    col = (float(val("Red1")), float(val("Green1")),
+                           float(val("Blue1")))
+                    lejos = max(abs(a - b) for a, b in zip(col, p["fill"]))
+                except ValueError:
+                    lejos = 9.9
+                casos.append(("resolve: y su color exacto (lejos %.3f)" % lejos,
+                              lejos < 0.02, True))
+                casos.append(("resolve: y las curvas de animacion dentro",
+                              "BezierSpline" in dentro, True))
+    except Exception as e:
+        casos.append(("resolve: el camino entero corre sin reventar",
+                      "%s: %s" % (type(e).__name__, str(e)[:90]), ""))
+    finally:
+        server.BRIDGE_HOST, server.BRIDGE_PORT = viejo
+        srv.shutdown()
     for c in casos:
         yield c
 
