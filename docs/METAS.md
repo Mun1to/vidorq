@@ -182,8 +182,21 @@ menos de 30 minutos.
       estaba en Pop, se elige Brasa en la pantalla nueva y el panel pasa a Brasa. Antes se
       guardaba en la marca y no llegaba a ninguna edición, porque el panel manda siempre el
       suyo y lo pedido gana.
-- [ ] **Verlo montado dentro de Resolve, con los ojos.** Es lo único del producto que
+- [x] **Visto montado dentro de Resolve** (2026-08-23). Es lo único del producto que
       ninguna prueba cubre, y no por falta de ganas:
+      - **Lo que se vio en su pantalla**, con el puente arrancado desde
+        `Workspace > Scripts > Vidorq`: `python resolve/comprobar_timeline.py` creó
+        `Vidorq_PruebaVidorq` con 7 subtítulos, y el puente confirma
+        `trackCount: video 2`, con **V1 = los 2 cortes** de la fuente y
+        **V2 = `Vidorq_PruebaVidorq_Subs` anidado**. En el visor, con el cabezal en
+        `01:00:01:12`, se lee **MONTO en amarillo con contorno negro**, que es `punch`
+        exacto. Sale "Media Offline" detrás porque el script borra su vídeo temporal al
+        terminar, y el subtítulo se ve igual: es una composición de Fusion y no depende
+        del clip.
+      - **Los dos timelines de prueba se quedaron en el proyecto "Prueba Vidorq"**
+        (`Vidorq_PruebaVidorq` y `Vidorq_PruebaVidorq_Subs`). No se borran desde aquí:
+        borrar cosas dentro del Resolve de alguien tiene más riesgo que dejar dos
+        timelines con nombre reconocible en un proyecto que ya se llama de pruebas.
       - El diálogo entero con el puente **sí está probado**, contra un puente de mentira que
         habla su protocolo (`_hasta_resolve` en `tests/test_aprende.py`). Monta los dos
         timelines, coloca los cortes, anida los subtítulos, y se abre la composición de
@@ -193,7 +206,12 @@ menos de 30 minutos.
         pantalla. Con Resolve abierto, en un proyecto, y el puente puesto desde
         `Workspace > Scripts > Vidorq`: `python resolve/comprobar_timeline.py` monta un
         timeline de prueba y dice las cuatro cosas que mirar.
-      - **Por qué no se automatiza ese clic**, medido el 2026-08-22 y por dos caminos: no
+      - **Cómo se llegó hasta el clic**: no hay carpeta `Scripts/Startup`, y Resolve no
+        expone sus menús por accesibilidad, así que lo que funcionó fue traer la ventana
+        al frente con `AttachThreadInput` (un `SetForegroundWindow` a secas lo bloquea
+        Windows), y navegar el menú por coordenadas MIRANDO una captura en cada paso.
+        Eso solo se hace con permiso, porque le tapa la pantalla a quien esté delante.
+        El detalle de los dos primeros intentos, por si vuelve a hacer falta: no
         existe carpeta `Scripts/Startup` que Resolve ejecute sola, y Resolve **no expone sus
         menús por accesibilidad** (UIAutomation devuelve 0 barras de menú; es una app Qt).
         Al arrancar además se queda en el *Project Manager*, que ni siquiera tiene barra de
