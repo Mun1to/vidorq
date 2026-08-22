@@ -221,6 +221,25 @@ def casos(casa, fuente):
     yield ("aprende: el estilo esta entre los tres propuestos (%d de %d)"
            % (en_tres, len(ESTILOS)), en_tres >= 3, True)
 
+    # --- y en HORIZONTAL, que es donde estaba el punto ciego ---------------
+    # Todo lo de arriba renderiza 720x1280, y ahi captions.line_ref(w,h) vale
+    # exactamente el ancho, asi que medir el tamaño contra uno o contra otro da
+    # el mismo numero. En 16:9 line_ref vale 0,562 del ancho: medir contra el
+    # ancho dejaba cada video horizontal emparejado con estilos de letra mas
+    # pequeña que la suya, y ninguna prueba lo veia.
+    for caso in _en_horizontal(casa):
+        yield caso
+
+    # --- el subtitulo donde lo pone TikTok --------------------------------
+    # Ningun preset de la casa pone el subtitulo a media altura, y TikTok y
+    # Reels si: es la entrada principal del producto. Hubo un guard que
+    # descartaba todo lo que cayera entre el 33% y el 67% del cuadro, para
+    # tapar un falso positivo de laboratorio, y con el puesto la pantalla decia
+    # "este video no lleva subtitulos" sobre un video que los lleva. Este caso
+    # existe para que no vuelva.
+    for caso in _a_media_altura(casa):
+        yield caso
+
     # --- el circulo entero: de un video ajeno al video del usuario ---------
     # Esto es lo que promete la pantalla, y hasta aqui todo eran piezas
     # sueltas. Se mira un video de un desconocido, se guarda el estilo que
@@ -235,6 +254,110 @@ def casos(casa, fuente):
     # de prueba ahi le toca sus datos de verdad.
     for caso in _puerta(casa):
         yield caso
+
+
+def _en_horizontal(casa):
+    """La misma ida y vuelta, pero con un video 1920x1080."""
+    import aprende
+    import captions
+
+    ancho = casa / "ancho.mp4"
+    trozos = []
+    for c in ("gray", "darkgreen", "navy", "maroon"):
+        trozos += ["-f", "lavfi", "-i", "color=c=%s:s=1920x1080:r=25:d=5" % c]
+    trozos += ["-f", "lavfi", "-i",
+               "sine=frequency=440:duration=20:sample_rate=48000"]
+    r = subprocess.run(["ffmpeg", "-y", "-v", "error"] + trozos + [
+        "-filter_complex", "[0:v][1:v][2:v][3:v]concat=n=4:v=1:a=0[v]",
+        "-map", "[v]", "-map", "4:a", "-c:v", "libx264", "-preset",
+        "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
+        str(ancho)], capture_output=True)
+    if r.returncode != 0 or not ancho.exists():
+        return
+
+    en_tres = 0
+    for pid in ("pop", "punch", "minimal"):
+        v = _render(casa, ancho, "h_%s.mp4" % pid, "--preset", pid, "--no-zoom")
+        if not v.exists():
+            continue
+        f = aprende.ficha(v)
+        sub = f.get("subtitulo")
+        yield ("aprende: %s en horizontal deja subtitulo" % pid,
+               sub is not None, True)
+        if not sub:
+            continue
+        yield ("aprende: %s en horizontal no sale vertical" % pid,
+               f.get("vertical"), False)
+        # El tamaño medido tiene que quedarse cerca del que declara el estilo.
+        # Contra el ancho salia casi la mitad, y por eso el emparejamiento se
+        # iba a estilos de letra mas pequeña.
+        lejos = abs(float(sub["size"]) - float(captions.PRESETS[pid]["size"]))
+        yield ("aprende: %s en horizontal mide su tamaño (lejos %.3f)"
+               % (pid, lejos), lejos < 0.035, True)
+        en_tres += pid in [i for i, _ in aprende.parecidos(f)]
+    yield ("aprende: en horizontal el estilo sale entre los tres (%d de 3)"
+           % en_tres, en_tres >= 3, True)
+
+
+def _a_media_altura(casa):
+    """Un video con el texto al 47% del alto, dibujado a mano.
+
+    A mano y no con el render de la casa porque el render solo sabe poner el
+    subtitulo donde diga su preset, y ninguno de los diez lo pone ahi.
+    """
+    import aprende
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+    except ImportError:
+        return
+    cara = None
+    for c in ("C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/arial.ttf"):
+        if Path(c).is_file():
+            cara = c
+            break
+    if not cara:
+        return
+
+    w, h, fps = 720, 1280, 25
+    fuente = ImageFont.truetype(cara, 64)
+    frases = ["HOLA MUNDO", "MIRA ESTO", "QUE TAL", "YA ESTA"]
+    fondos = [(40, 60, 90), (90, 50, 40), (40, 90, 60), (80, 80, 40)]
+    casos = []
+    for alt in (0.47, 0.20):
+        crudo = casa / ("medio_%d" % int(alt * 100))
+        crudo.mkdir(exist_ok=True)
+        for i in range(int(6.0 * fps)):
+            t = i / fps
+            plano = int(t // 1.5)
+            im = Image.new("RGB", (w, h), fondos[plano % 4])
+            d = ImageDraw.Draw(im)
+            # una textura de fondo, para que encontrar el texto cueste algo
+            for k in range(0, h, 70):
+                d.line([(0, k), (w, k)],
+                       fill=tuple(max(0, c - 18) for c in fondos[plano % 4]),
+                       width=14)
+            if (t % 1.5) < 1.0:
+                d.text((w // 2, h - int(alt * h)), frases[plano % 4],
+                       font=fuente, fill=(255, 255, 255), stroke_width=7,
+                       stroke_fill=(0, 0, 0), anchor="ms")
+            im.save(crudo / ("%05d.png" % i))
+        dest = casa / ("medio_%d.mp4" % int(alt * 100))
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate",
+                        str(fps), "-i", str(crudo / "%05d.png"), "-c:v",
+                        "libx264", "-pix_fmt", "yuv420p", "-crf", "20",
+                        str(dest)], capture_output=True)
+        shutil.rmtree(crudo, ignore_errors=True)
+        if not dest.exists():
+            continue
+        sub = (aprende.ficha(dest) or {}).get("subtitulo")
+        casos.append(("aprende: ve el subtitulo puesto al %d%% del cuadro"
+                      % int(alt * 100), sub is not None, True))
+        if sub:
+            error = abs(float(sub["y"]) - alt)
+            casos.append(("aprende: y lo situa donde esta (error %.2f)" % error,
+                          error < 0.08, True))
+    for c in casos:
+        yield c
 
 
 def _circulo(casa, fuente):
@@ -278,13 +401,19 @@ def _circulo(casa, fuente):
                       guardado.get("captionPresetName"),
                       "el del video que me gusto"))
 
-        # 3. y es lo que la edicion coge cuando nadie dice nada. Es la misma
-        #    linea que usa el motor en /edit: lo pedido manda, y si no hay nada
-        #    pedido manda la marca.
-        pedido = {}
-        sale = pedido.get("captionPreset") or guardado.get("captionPreset")
+        # 3. y es lo que la edicion coge cuando nadie dice nada. Se LLAMA a la
+        #    funcion del motor, no se copia: antes esta comprobacion escribia
+        #    el `or` aqui mismo y luego lo comprobaba, asi que no podia fallar
+        #    aunque se invirtiera la regla en el motor.
+        sale = server.preset_de({}, guardado)
         casos.append(("circulo: la edicion sin instrucciones coge el de la marca",
                       sale, "punch"))
+        casos.append(("circulo: pero lo que se pide a mano sigue mandando",
+                      server.preset_de({"captionPreset": "neon"}, guardado),
+                      "neon"))
+        casos.append(("circulo: y un estilo que no existe no tumba la edicion",
+                      server.preset_de({"captionPreset": "no_existe"}, {}),
+                      "pop"))
 
         # 4. y el video PROPIO sale con esa letra. Se comprueba mirandolo, no
         #    confiando en el parametro: se renderiza y se vuelve a analizar.
@@ -340,6 +469,13 @@ def _puerta(casa):
         # extensiones es la misma que ya usa /probe.
         casos.append(("aprende: la puerta rechaza lo que no es un video",
                       pide(casa / "edl.json").get("why"), "no_video"))
+        # Y un archivo con extension de video que NO se puede decodificar se
+        # dice por su nombre. Antes salia como "no lleva subtitulos": la
+        # pantalla contaba con aplomo un video que nunca llego a leer.
+        roto = casa / "roto.mp4"
+        roto.write_bytes(b"esto no es un mp4, pero lo parece por el nombre")
+        casos.append(("aprende: un video ilegible no pasa por bueno",
+                      pide(roto).get("why"), "ilegible"))
         ref = casa / "punch.mp4"
         if ref.exists():
             f = pide(ref)

@@ -23,11 +23,25 @@ nada de su contenido.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+# Lo que tarda como mucho una llamada a ffmpeg. Sin esto, un archivo que le
+# hace dar vueltas deja la pantalla en "Mirando el video..." para siempre, y
+# el hilo del motor y su proceso hijo colgados con ella.
+TIMEOUT = 120
+
+
+class SinFFmpeg(RuntimeError):
+    """No estan ffmpeg y ffprobe. Se dice con esas palabras en vez de dejar
+    que el fallo salga disfrazado de "ese video no existe"."""
+
+
+def _hay_ffmpeg():
+    return bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 
 # Cuantos fotogramas se miran. 40 reparte bien sin que la espera se note: por
 # debajo de ~25 un subtitulo corto puede caer entre dos muestras y no salir.
@@ -51,10 +65,13 @@ BORDE_ALTO = 0.014
 
 
 def _ffprobe(video, campos):
+    if not _hay_ffmpeg():
+        raise SinFFmpeg("ffmpeg no esta instalado")
     r = subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "v:0",
          "-show_entries", campos, "-of", "csv=p=0:s=x", str(video)],
-        capture_output=True, text=True, creationflags=NO_WINDOW)
+        capture_output=True, text=True, creationflags=NO_WINDOW,
+        timeout=TIMEOUT)
     return r.stdout.strip()
 
 
@@ -64,7 +81,8 @@ def medidas(video):
     r = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
          "-of", "default=nw=1:nk=1", str(video)],
-        capture_output=True, text=True, creationflags=NO_WINDOW)
+        capture_output=True, text=True, creationflags=NO_WINDOW,
+        timeout=TIMEOUT)
     try:
         w, h = [int(v) for v in forma.split("x")[:2]]
         return w, h, float(r.stdout.strip())
@@ -82,14 +100,26 @@ def fotogramas(video, n=MUESTRAS, alto=ALTO):
 
     w0, h0, dur = medidas(video)
     if not (w0 and h0 and dur > 0):
-        return [], 0.0
+        # Se lanza en vez de devolver una lista vacia. Vacia se lee mas arriba
+        # como "este video no lleva subtitulos", y no es lo mismo no encontrar
+        # texto que no haber podido abrir el archivo: lo segundo hay que
+        # decirlo. Medido con un .mp4 que por dentro es texto plano.
+        raise RuntimeError("ffprobe no pudo medir el video")
     ancho = int(round(w0 * alto / h0))
     ancho -= ancho % 2
+    if ancho < 2:
+        return [], dur
     r = subprocess.run(
         ["ffmpeg", "-v", "error", "-i", str(video),
          "-vf", "fps=%.6f,scale=%d:%d" % (n / dur, ancho, alto),
          "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-        capture_output=True, creationflags=NO_WINDOW)
+        capture_output=True, creationflags=NO_WINDOW, timeout=TIMEOUT)
+    # Si ffmpeg no supo abrirlo, se dice. Sin esto salia una lista vacia, y una
+    # lista vacia se lee mas arriba como "este video no lleva subtitulos": la
+    # pantalla contaba con aplomo un video que no habia llegado a leer.
+    if r.returncode != 0 or not r.stdout:
+        raise RuntimeError("ffmpeg no pudo leer el video: %s"
+                           % r.stderr.decode("utf-8", "replace")[-160:])
     paso = ancho * alto * 3
     return ([np.frombuffer(r.stdout[i * paso:(i + 1) * paso],
                            dtype="uint8").reshape(alto, ancho, 3)
@@ -142,22 +172,37 @@ def banda_de_texto(frames):
         return None                              # pegada a un borde
     if (a1 - a0) < alto * 0.008:
         return None                              # mas fina que una letra
-    # Y el tercero, que es de sitio y no de forma: un subtitulo vive abajo, y
-    # un rotulo arriba. Ninguno de los dos cruza el centro del cuadro.
+    # Y el tercero, que mira el PATRON y no el sitio: en una franja de rayas
+    # todas las filas son la misma fila repetida, y en un texto no, porque la
+    # parte alta de las letras no se parece a la baja.
     #
-    # Medido con un video sin texto y una banda de rayas en mitad de la
-    # imagen: cumplia las dos firmas de arriba, no tocaba bordes, no era fina,
-    # contrastaba de sobra, y se colaba como subtitulo en y=0.467. Lo unico
-    # que la delataba era estar donde no vive ningun subtitulo. Los diez
-    # presets del catalogo caen por debajo de 0.22, asi que el tercio central
-    # sobra por los dos lados.
+    # Aqui hubo antes un guard por SITIO, que descartaba lo que cayera entre el
+    # 33% y el 67% del cuadro. Tapaba el mismo falso positivo y estaba mal:
+    # TikTok y Reels ponen sus subtitulos justo ahi por defecto, asi que el
+    # producto le decia "este video no lleva subtitulos" a la clase de video
+    # para la que existe. Los dos errores no cuestan igual. Un falso positivo
+    # se ve: el usuario mira la captura de "El suyo" y ahi no hay ningun
+    # subtitulo. Un falso negativo es una pantalla que se planta.
     #
-    # Se probo antes a exigir que el texto dejara margen a los lados, y NO
+    # Medido sobre la franja de rayas y tres estilos de la casa: la franja da
+    # 1,000 y los textos 0,961 / 0,893 / 0,788. El margen es ESTRECHO, y por
+    # eso el umbral esta pegado al 1: si algun dia falla, que falle enseñando
+    # de mas y no plantandose.
+    #
+    # Se probo antes a exigir que el texto dejara margen a los lados y no
     # sirve: `pop` es tan gordo que llega de borde a borde igual que la franja.
-    centro = 1.0 - ((a0 + a1) / 2.0) / alto      # fraccion desde abajo
-    if 0.33 < centro < 0.67:
-        return None                              # en mitad del cuadro no hay
-    return a0, a1                                # subtitulos que valgan
+    mejor = max((a for a in (fr[a0:a1 + 1].mean(axis=2) for fr in frames)),
+                key=lambda m: float(m.std()), default=None)
+    if mejor is not None and mejor.shape[0] >= 3:
+        cors = []
+        for i in range(mejor.shape[0] - 1):
+            u, v = mejor[i], mejor[i + 1]
+            if u.std() < 1e-6 or v.std() < 1e-6:
+                continue
+            cors.append(float(np.corrcoef(u, v)[0, 1]))
+        if cors and float(np.mean(cors)) > 0.99:
+            return None                          # el mismo patron repetido
+    return a0, a1
 
 
 def colores_del_texto(frames, banda):
@@ -406,8 +451,18 @@ def ficha(video):
     # Alignment 8 (arriba-centro) y coloca con y = h * (1 - p["y"]), asi que el
     # numero del preset es el borde de ARRIBA. Medirlo por la base daba un
     # desfase de 0.016 constante, que resulto ser la sombra cayendo por debajo.
-    # `size` en fraccion del ANCHO, que es como lo miden captions y overlays.
-    ancho_px = frames[0].shape[1]
+    # `size` contra la MISMA referencia que usa el catalogo, que es
+    # captions.line_ref(w, h) y no el ancho a secas. Solo coinciden en 9:16;
+    # en 16:9 line_ref vale 0,562 del ancho, asi que medir contra el ancho
+    # dejaba todo video horizontal emparejado con estilos de letra mas
+    # pequeña de la que tiene. Las pruebas no lo veian porque solo renderizan
+    # 720x1280, donde los dos numeros son el mismo.
+    try:
+        import captions as _cap
+        ref_px = _cap.line_ref(w, h) * frames[0].shape[0] / float(h or 1)
+    except Exception:
+        ref_px = frames[0].shape[1]
+    ancho_px = ref_px or frames[0].shape[1]
     fondo = color_de_fondo(frames, banda)
     out["subtitulo"] = {
         "y": round(1.0 - (a0 / float(alto_px)) + BORDE_ALTO, 3),
