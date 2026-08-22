@@ -199,59 +199,63 @@ def colores_del_texto(frames, banda):
     return r, c
 
 
-def hay_panel(frames, banda):
-    """Si detras del texto hay una plancha de color solido, y de que color.
+def color_de_fondo(frames, banda):
+    """De que color es lo que hay DETRAS de las letras, en 0-1, o None.
 
-    Distingue dos estilos que por color y posicion son el mismo: uno lleva el
-    texto blanco con contorno negro sobre el video, y el otro el mismo texto
-    blanco sobre una tarjeta. Mirando solo el relleno son identicos; mirando lo
-    que hay DETRAS no se parecen en nada.
+    Detras de un subtitulo puede haber una plancha de color, un contorno grueso
+    o el video pelado, y saber cual de las tres es serviria para elegir estilo.
+    NO se puede con lo que hay aqui, y esta medido: se intento por dos caminos
+    distintos, comparando el color contra lo que hay encima de la banda y
+    contra lo que hay a los lados, y ninguno separa. Sobre los seis estilos del
+    catalogo que valia la pena mirar, la distancia salio 33,9 / 12,5 / 36,0 en
+    los que LLEVAN plancha y 8,0 / 34,3 / 49,4 en los que NO. Se solapan de
+    lado a lado: `punch`, sin plancha, da la distancia mas alta de las seis
+    porque su contorno negro grueso se comporta igual que una plancha negra, y
+    `glass`, con plancha, da la mas baja porque la suya es semitransparente.
 
-    La prueba: dentro de la banda, los pixeles que no son texto forman un color
-    uniforme y distinto del que hay justo encima de la banda. Un contorno no lo
-    consigue, porque solo pinta el reborde de cada letra y deja ver el video
-    entre palabra y palabra.
+    Asi que esta funcion deja de decidir y devuelve el DATO, que ese si sale
+    bien: `marker` da (0.167, 0.573, 0.384) y su plancha real es
+    (0.13, 0.8, 0.45); `bar` da (0.744, 0.224, 0.168) sobre una real de
+    (0.86, 0.16, 0.1). Un color que se puede enseñar vale mas que una etiqueta
+    que acierta la mitad de las veces.
 
-    NO PROBADO que acierte, y la causa esta medida: hoy devuelve False para
-    `marker`, que si lleva plancha. La plancha cubre solo el ancho de las
-    palabras y la banda que se analiza es tan ancha como el cuadro, asi que al
-    promediar la banda entera gana el video de fondo y la plancha desaparece en
-    la media. El arreglo pasa por acotar la zona antes de promediar, no por
-    mover los umbrales de aqui, y hasta que eso este hecho un False de esta
-    funcion significa "no lo se", no "no hay plancha". Por eso quien la usa
-    solo se fia del True.
+    El truco que si hizo falta: mirar solo la ventana de columnas donde estan
+    las palabras, y encontrarla dentro de UN fotograma. Buscarla a lo largo del
+    tiempo no sirve, porque el fondo cambia de plano y mueve todas las columnas
+    por igual: la ventana salia siendo el cuadro entero.
     """
     import numpy as np
 
     if not banda:
-        return False, None
+        return None
     a0, a1 = banda
-    alto_px = frames[0].shape[0]
-    fuera_a = max(0, a0 - (a1 - a0) - 4)
-    if fuera_a >= a0 - 1:
-        return False, None
-    dentro = [a[a0:a1 + 1] for a in frames]
+    trozos = [a[a0:a1 + 1].mean(axis=2) for a in frames]
+    if not trozos:
+        return None
+    mejor = trozos[int(np.argmax([t.std() for t in trozos]))]
+    # gradiente vertical: el borde de arriba y abajo de cada letra
+    col = np.abs(np.diff(mejor, axis=0)).mean(axis=0)
+    if col.max() <= 0:
+        return None
+    vivas = np.where(col > col.max() * 0.25)[0]
+    if len(vivas) < 4:
+        return None
+    x0, x1 = int(vivas[0]), int(vivas[-1])
+
+    dentro = [a[a0:a1 + 1, x0:x1 + 1] for a in frames]
     fuerza = [float(t.mean(axis=2).std()) for t in dentro]
     if not fuerza or max(fuerza) <= 0:
-        return False, None
+        return None
     corte = max(fuerza) * 0.6
     vivos = [i for i, f in enumerate(fuerza) if f >= corte]
     if not vivos:
-        return False, None
+        return None
     px = np.concatenate([dentro[i].reshape(-1, 3) for i in vivos])
     lum = px.mean(axis=1)
-    fondo_sub = px[lum <= np.percentile(lum, 55)]
-    if len(fondo_sub) < 10:
-        return False, None
-    color = fondo_sub.mean(axis=0)
-    # Uniforme? Una plancha lo es; el video que se ve entre letras, no.
-    uniforme = float(fondo_sub.std(axis=0).mean()) < 26.0
-    fuera = np.concatenate([a[fuera_a:a0 - 1].reshape(-1, 3) for a in
-                            [frames[i] for i in vivos]])
-    distinto = float(np.abs(color - fuera.mean(axis=0)).mean()) > 28.0
-    if uniforme and distinto:
-        return True, tuple(round(float(v) / 255.0, 3) for v in color)
-    return False, None
+    fondo = px[lum <= np.percentile(lum, 60)]
+    if len(fondo) < 10:
+        return None
+    return tuple(round(float(v) / 255.0, 3) for v in fondo.mean(axis=0))
 
 
 def ritmo(video, planos=None, track=None):
@@ -404,13 +408,13 @@ def ficha(video):
     # desfase de 0.016 constante, que resulto ser la sombra cayendo por debajo.
     # `size` en fraccion del ANCHO, que es como lo miden captions y overlays.
     ancho_px = frames[0].shape[1]
-    panel, color_panel = hay_panel(frames, banda)
+    fondo = color_de_fondo(frames, banda)
     out["subtitulo"] = {
         "y": round(1.0 - (a0 / float(alto_px)) + BORDE_ALTO, 3),
         "size": round((a1 - a0) / float(ancho_px), 3),
         "fill": relleno,
-        "outline": None if panel else contorno,
-        "panel": color_panel,
+        "outline": contorno,
+        "fondo": fondo,
         "banda_px": [a0, a1, alto_px],
     }
     return out
@@ -507,17 +511,10 @@ def parecidos(f, catalogo=None, cuantos=3):
         d = (_rgb_cerca(sub.get("fill"), p.get("fill")) * 2.0
              + abs(float(sub.get("y", 0)) - float(p.get("y", 0))) * 1.5
              + abs(float(sub.get("size", 0)) - float(p.get("size", 0))) * 1.0)
-        # Llevar plancha separa dos estilos que por color y sitio son gemelos,
-        # asi que pesa mas que afinar el tamaño: el tamaño que se mide es el
-        # alto de la mayuscula y el del preset es el cuerpo nominal de la
-        # fuente, que no son el mismo numero.
-        #
-        # Solo se penaliza en un sentido, y es a proposito: hay_panel acierta
-        # cuando dice que SI y todavia se equivoca cuando dice que no (esta
-        # explicado alli). Castigar por un "no" que no es de fiar apartaria los
-        # estilos con plancha en todos los videos, que es peor que no mirarlo.
-        if sub.get("panel") and not p.get("panel"):
-            d += 0.35
+        # Lo que hay detras de las letras NO entra en la cuenta, y es a
+        # proposito: color_de_fondo devuelve un color de fiar pero no sabe si
+        # ese color es una plancha o un contorno grueso, y esta medido que no
+        # se puede saber. Meterlo aqui seria decidir con un dato ambiguo.
         puntos.append((d, pid))
     puntos.sort()
     return [(pid, round(d, 3)) for d, pid in puntos[:cuantos]]

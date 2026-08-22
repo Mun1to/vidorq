@@ -9,7 +9,9 @@ interface Sub {
   size: number;
   fill: [number, number, number] | null;
   outline: [number, number, number] | null;
-  panel: [number, number, number] | null;
+  // Lo que hay detras de las letras. Es un COLOR, no una etiqueta: no se
+  // puede saber si es una plancha o un contorno grueso, y esta medido.
+  fondo: [number, number, number] | null;
 }
 interface Ritmo {
   planos: number;

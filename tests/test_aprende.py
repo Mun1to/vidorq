@@ -200,14 +200,17 @@ def casos(casa, fuente):
             yield ("aprende: %s recupera su color (lejos %.2f)" % (pid, lejos),
                    lejos < 0.15, True)
 
-        # La plancha. Solo se comprueba que no se la INVENTE donde no la hay,
-        # que es el error que costaria caro: una propuesta con una tarjeta de
-        # color detras que el video nunca tuvo. Detectarla cuando si esta
-        # todavia no funciona (`marker` da False) y la causa esta escrita en
-        # hay_panel; ponerlo aqui como si pasara seria mentir en verde.
-        if pid != "marker":
-            yield ("aprende: %s no se inventa una plancha" % pid,
-                   bool(sub.get("panel")), False)
+        # Lo que hay detras de las letras. No se comprueba si es una plancha
+        # o un contorno, porque esta medido que no se puede saber y esta
+        # explicado en color_de_fondo. Se comprueba lo que SI se sostiene: que
+        # sale un color, y que en `marker`, que lleva una plancha verde, ese
+        # color es verde de verdad y no el gris del video de detras.
+        yield ("aprende: %s dice de que color es el fondo del texto" % pid,
+               sub.get("fondo") is not None, True)
+        if pid == "marker" and sub.get("fondo"):
+            r, g, b = sub["fondo"]
+            yield ("aprende: y en marker ese fondo es verde (%.2f,%.2f,%.2f)"
+                   % (r, g, b), g > r + 0.15 and g > b + 0.1, True)
 
         en_tres += pid in [i for i, _ in aprende.parecidos(f)]
 
