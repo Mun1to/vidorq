@@ -136,6 +136,23 @@ menos de 30 minutos.
 - [x] **README público al día** (2026-08-19): ya cuenta la instalación de un clic
       (`resolve\instalar.ps1` + `Workspace > Scripts > Vidorq`), no la vieja de tres scripts,
       y lleva editar leyendo, reordenar, deshacer e historial con sus medidas.
+- [x] **Copiar el estilo de un vídeo que te gustó** (2026-08-22): pantalla nueva al lado de
+      "Tu marca". Le das un vídeo, lo mira y te dice cada cuánto corta y cómo son sus
+      subtítulos, te enseña el subtítulo RECORTADO de su propio fotograma, y te ofrece los
+      tres estilos de la casa que más se le parecen para que elijas mirando. Piezas:
+      `skill/helpers/aprende.py`, `GET /aprende` y `GET /aprende/captura` en el motor, y
+      `app/src/Aprende.tsx`. La ficha que sale tiene la MISMA forma que una entrada de
+      `captions.PRESETS`, y esa es la decisión que lo sostiene todo: extraer y reconstruir
+      son la misma estructura, sin traducir nada por el camino.
+      **Medido, probándolo en el navegador de verdad**: un vídeo de seis planos de 2,5 s se
+      lee como "corta cada 2.5 segundos, 6 planos"; uno hecho con `punch` propone Punch el
+      primero; elegir el segundo guarda `ember` con su nombre; cero errores de consola. La
+      posición del subtítulo se recupera con error menor de 0,006 en los diez estilos.
+      **Lo que NO hace todavía**, y está escrito en el código con su causa: acierta el
+      estilo exacto 4 de 10 veces (7 de 10 entre los tres que ofrece), porque cuatro de los
+      diez son letra blanca abajo y ninguna cuenta los separa; no detecta la plancha de
+      color detrás del texto; y el nombre que le pones se guarda pero aún no sale en el
+      selector de editar.
 - [ ] Firmar los instaladores para que Windows no los marque como origen desconocido.
 - [ ] GIF del flujo real en el README (el texto en inglés ya está; falta la imagen que
       enseña el timeline montándose solo dentro de Resolve, que es lo que no se puede contar).
