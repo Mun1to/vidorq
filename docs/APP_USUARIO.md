@@ -56,6 +56,7 @@ vidorq_render.py         → mp4 directo (GPU)
 | `GET /session` | la conversación de ese vídeo en ese proyecto, sus ajustes y si hay algo que deshacer |
 | `GET /words` | cada palabra con su segundo, para editar leyendo |
 | `GET /aprende` | mira un vídeo de referencia y dice cómo está editado, con los estilos de la casa que más se le parecen |
+| `GET /aprende/captura` | un fotograma de ese vídeo de referencia, para poder enseñar lo que se ha visto en vez de contarlo |
 | `GET /tramos` | el montaje partido en tramos, con lo que se dice en cada uno |
 | `GET /history` | todas las ediciones hechas, la última primero |
 | `GET /preview` | una foto de lo que hace una elección, sobre tu propio metraje |

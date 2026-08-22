@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost, CaptionStyle, ENGINE, Workspaces } from "./api";
 import { useLang, Key } from "./i18n";
 import Brand from "./Brand";
+import Aprende from "./Aprende";
 import Settings from "./Settings";
 import Guia from "./Guia";
 import Gallery from "./Gallery";
@@ -130,6 +131,7 @@ function App() {
   const sayRef = useRef<HTMLTextAreaElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
+  const [learnOpen, setLearnOpen] = useState(false);
   // La guia se abre sola la primera vez, para que nadie tenga que adivinar los pasos de Resolve.
   const [guiaOpen, setGuiaOpen] = useState(() => !localStorage.getItem("vidorq.guiaVista"));
   const [phase, setPhase] = useState<Phase>("idle");
@@ -574,6 +576,9 @@ function App() {
           </button>
           <button onClick={() => setBrandOpen(true)}>
             <IconBrand className="icon" />{t("nav.brand")}
+          </button>
+          <button onClick={() => setLearnOpen(true)}>
+            <IconDrop className="icon" />{t("nav.learn")}
           </button>
           <button className={view === "history" ? "sel" : ""} onClick={() => setView("history")}>
             <IconClock className="icon" />{t("nav.history")}
@@ -1089,6 +1094,8 @@ function App() {
       )}
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       {brandOpen && <Brand onClose={() => setBrandOpen(false)} styles={capStyles} />}
+      {learnOpen && <Aprende onClose={() => setLearnOpen(false)}
+                             styles={capStyles} video={video} />}
       {guiaOpen && (
         <Guia onClose={() => { localStorage.setItem("vidorq.guiaVista", "1"); setGuiaOpen(false); }} />
       )}

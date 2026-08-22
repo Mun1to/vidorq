@@ -3711,6 +3711,30 @@ class Handler(BaseHTTPRequestHandler):
                     else "That file is not a video Vidorq can open.")})
             else:
                 self._send({"ok": True, "why": "", "name": os.path.basename(video)})
+        elif self.path.startswith("/aprende/captura"):
+            # Un fotograma del video de referencia, para poder enseñar lo que
+            # se ha visto en vez de contarlo. Misma comprobacion de ruta.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            video = ((q.get("video") or [""])[0] or "").strip().strip('"')
+            try:
+                if (not video or not Path(video).is_file()
+                        or os.path.splitext(video)[1].lower() not in VIDEO_EXT):
+                    self._send({"error": "no_video"}, 404)
+                    return
+                import aprende
+                solo = (q.get("banda") or ["0"])[0] == "1"
+                previews.CACHE.mkdir(parents=True, exist_ok=True)
+                dest = previews.CACHE / ("ref_%s%s.png" % (
+                    _safe_name(Path(video).stem)[:24], "_banda" if solo else ""))
+                path = aprende.captura(video, dest, solo_banda=solo)
+                if not path:
+                    self._send({"error": "sin_captura"}, 500)
+                    return
+                self._send_bytes(Path(path).read_bytes(), "image/png")
+            except Exception as e:
+                traceback.print_exc()
+                self._send({"error": str(e)[:200]}, 500)
         elif self.path.startswith("/aprende"):
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)

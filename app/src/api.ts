@@ -29,6 +29,8 @@ export interface BrandProfile {
   antiReference?: string;
   pace?: number;
   captionPreset?: string;
+  // El nombre que el usuario le puso al copiarlo de un video suyo.
+  captionPresetName?: string;
   captionAnim?: string;
   hardRules?: string;
 }

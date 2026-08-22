@@ -1045,3 +1045,13 @@ select:focus-visible,
   text-align: left;
 }
 .path-bad .icon { color: #c0453f; flex: none; margin-top: 1px; }
+
+/* La pantalla de copiar un estilo. El subtitulo ajeno arriba y las tres
+   propuestas debajo: se comparan mirando, que es lo unico que desempata cuatro
+   estilos de letra blanca que por numeros son casi el mismo. */
+.suyo { display: flex; flex-direction: column; gap: 7px; margin-bottom: 14px; }
+.suyo .tile-shot { height: auto; padding: 8px; }
+.muestra {
+  display: inline-block; width: 15px; height: 15px; border-radius: 4px;
+  border: 2px solid var(--line); vertical-align: -3px;
+}

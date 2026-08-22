@@ -349,6 +349,61 @@ def ficha(video):
     return out
 
 
+def momento_con_texto(video, f=None):
+    """El segundo del video donde el subtitulo se ve mejor, o None.
+
+    Para poder ENSEÑAR lo que se ha visto en vez de contarlo. Un numero en una
+    tabla no le dice nada a quien nunca edito un video; el fotograma con su
+    subtitulo dentro se entiende sin leer.
+    """
+    import numpy as np
+
+    frames, dur = fotogramas(video)
+    if not frames or dur <= 0:
+        return None
+    banda = banda_de_texto(frames)
+    if not banda:
+        return None
+    a0, a1 = banda
+    # El fotograma con mas contraste dentro de la banda es el que tiene el
+    # texto mas entero: los de la entrada y la salida lo tienen a medias.
+    fuerza = [float(a[a0:a1 + 1].mean(axis=2).std()) for a in frames]
+    mejor = int(np.argmax(fuerza))
+    return round(dur * (mejor + 0.5) / len(frames), 2)
+
+
+def captura(video, destino, solo_banda=False, ancho=520):
+    """Un fotograma del video de referencia, en `destino`. Devuelve la ruta.
+
+    Con `solo_banda` recorta a la franja del subtitulo con un poco de aire:
+    es el primer plano que hace falta para comparar el subtitulo ajeno con el
+    que Vidorq sabe hacer, uno al lado del otro.
+    """
+    at = momento_con_texto(video)
+    w, h, dur = medidas(video)
+    if at is None:
+        at = round((dur or 2.0) / 3.0, 2)
+    corte = "scale=%d:-2" % ancho
+    if solo_banda and w and h:
+        frames, _ = fotogramas(video)
+        banda = banda_de_texto(frames) if frames else None
+        if banda:
+            alto_px = frames[0].shape[0]
+            aire = max(6, (banda[1] - banda[0]) // 2)
+            y0 = max(0, int((banda[0] - aire) * h / alto_px))
+            alto = min(h - y0, int((banda[1] - banda[0] + 2 * aire) * h / alto_px))
+            alto -= alto % 2
+            if alto > 8:
+                corte = "crop=%d:%d:0:%d,scale=%d:-2" % (w, alto, y0, ancho)
+    destino = Path(destino)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["ffmpeg", "-y", "-v", "error", "-ss", str(at), "-i", str(video),
+         "-frames:v", "1", "-vf", corte, str(destino)],
+        capture_output=True, creationflags=NO_WINDOW)
+    return destino if destino.exists() else None
+
+
 def _rgb_cerca(uno, otro):
     """Distancia entre dos colores 0-1, 0 = iguales."""
     if not uno or not otro:
