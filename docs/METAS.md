@@ -169,10 +169,41 @@ menos de 30 minutos.
       estilo exacto 4 de 10 veces (7 de 10 entre los tres que ofrece), porque cuatro de los
       diez son letra blanca abajo y ninguna cuenta los separa; no detecta la plancha de
       color detrás del texto; el nombre que le pones se guarda pero aún no sale en el
-      selector de editar; **no acepta links todavía** (falta decidir yt-dlp, con su
-      licencia y sus términos de servicio); y **la reconstrucción va por el camino del
-      MP4**: montarla en un timeline de Resolve sigue sin probarse porque el puente está
-      caído y solo se levanta desde `Workspace > Scripts > Vidorq`.
+      selector de editar (esto último ya SÍ funciona, ver abajo).
+- [x] **El estilo copiado llega hasta el final** (2026-08-22): tres cosas que estaban a
+      medias y se cerraron. **El link** ya entra: `skill/helpers/descargar.py` acepta
+      TikTok, Reels, Shorts, Vimeo, X, Facebook y Twitch, con lista blanca que rechaza
+      cualquier URL que apunte a la propia máquina; el caso que más importa es
+      `http://127.0.0.1:9877/shutdown`, que es el interruptor de apagado del propio motor,
+      y está probado en la ventana. yt-dlp NO entra en `requirements.txt`: su rueda de PyPI
+      es Unlicense y vale, pero sus ejecutables llevan GPLv3+ (medido, en
+      `docs/RECURSOS.md`). **El nombre** que le pones al estilo ya sustituye a la etiqueta
+      de la casa en el selector de editar. Y **el círculo se cierra en la app**: el panel
+      estaba en Pop, se elige Brasa en la pantalla nueva y el panel pasa a Brasa. Antes se
+      guardaba en la marca y no llegaba a ninguna edición, porque el panel manda siempre el
+      suyo y lo pedido gana.
+- [ ] **Verlo montado dentro de Resolve, con los ojos.** Es lo único del producto que
+      ninguna prueba cubre, y no por falta de ganas:
+      - El diálogo entero con el puente **sí está probado**, contra un puente de mentira que
+        habla su protocolo (`_hasta_resolve` en `tests/test_aprende.py`). Monta los dos
+        timelines, coloca los cortes, anida los subtítulos, y se abre la composición de
+        Fusion para comprobar que lleva dentro el estilo aprendido: Arial, Black y
+        `(1.0000, 0.8400, 0.0000)`, que es `punch` exacto.
+      - Lo que falta es que **Resolve dibuje** lo que se le entrega, y eso solo se ve en su
+        pantalla. Con Resolve abierto, en un proyecto, y el puente puesto desde
+        `Workspace > Scripts > Vidorq`: `python resolve/comprobar_timeline.py` monta un
+        timeline de prueba y dice las cuatro cosas que mirar.
+      - **Por qué no se automatiza ese clic**, medido el 2026-08-22 y por dos caminos: no
+        existe carpeta `Scripts/Startup` que Resolve ejecute sola, y Resolve **no expone sus
+        menús por accesibilidad** (UIAutomation devuelve 0 barras de menú; es una app Qt).
+        Al arrancar además se queda en el *Project Manager*, que ni siquiera tiene barra de
+        menús. Lo único que quedaría es hacer clics por coordenadas a ciegas, y eso no se
+        hace en la máquina de Munir mientras la está usando.
+      - **Trampa que costó una afirmación falsa:** Resolve 21.0.4.5 está en
+        `C:\Apps\Random APPS\Davinci\`, **no** en `C:\Program Files\Blackmagic Design\`,
+        donde solo quedan restos de una instalación vieja. Buscar por las rutas habituales
+        lleva a concluir que no está instalado. La forma fiable es leer el destino del
+        acceso directo del escritorio.
 - [ ] Firmar los instaladores para que Windows no los marque como origen desconocido.
 - [ ] GIF del flujo real en el README (el texto en inglés ya está; falta la imagen que
       enseña el timeline montándose solo dentro de Resolve, que es lo que no se puede contar).
