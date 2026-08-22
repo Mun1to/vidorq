@@ -1095,7 +1095,8 @@ function App() {
       {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
       {brandOpen && <Brand onClose={() => setBrandOpen(false)} styles={capStyles} />}
       {learnOpen && <Aprende onClose={() => setLearnOpen(false)}
-                             styles={capStyles} video={video} />}
+                             styles={capStyles} video={video}
+                             onSaved={setCapStyle} />}
       {guiaOpen && (
         <Guia onClose={() => { localStorage.setItem("vidorq.guiaVista", "1"); setGuiaOpen(false); }} />
       )}

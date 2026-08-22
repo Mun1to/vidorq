@@ -43,10 +43,14 @@ export interface Ficha {
 const rgb = (c: [number, number, number] | null) =>
   c ? `rgb(${c.map((v) => Math.round(v * 255)).join(",")})` : "transparent";
 
-export default function Aprende({ onClose, styles, video }:
-  { onClose: () => void; styles: CaptionStyle[]; video?: string }) {
+export default function Aprende({ onClose, styles, video, onSaved }:
+  { onClose: () => void; styles: CaptionStyle[]; video?: string;
+    onSaved?: (preset: string) => void }) {
   const { t, lang } = useLang();
   const [ruta, setRuta] = useState(video ?? "");
+  // La ruta que se MIRO, congelada. Las imagenes salen de esta y no de `ruta`,
+  // que cambia con cada tecla.
+  const [mirada, setMirada] = useState("");
   const [mirando, setMirando] = useState(false);
   const [f, setF] = useState<Ficha | null>(null);
   const [error, setError] = useState("");
@@ -61,11 +65,17 @@ export default function Aprende({ onClose, styles, video }:
     setF(null);
     setElegido("");
     setGuardado(false);
+    // Tambien el nombre: si no, el que se escribio para un video se queda
+    // puesto al mirar el siguiente y se guarda el estilo de B con el nombre
+    // de A, sin que nada lo enseñe nunca.
+    setNombre("");
     try {
       const r = await apiGet<Ficha>(`/aprende?video=${encodeURIComponent(ruta.trim())}`);
-      if (!r?.ok) setError(t("learn.nofile"));
+      if (!r?.ok) setError(r?.why === "sin_ffmpeg" ? t("learn.noffmpeg")
+                                                   : t("learn.nofile"));
       else {
         setF(r);
+        setMirada(ruta.trim());
         setElegido(r.parecidos?.[0]?.id ?? "");
       }
     } catch {
@@ -89,11 +99,29 @@ export default function Aprende({ onClose, styles, video }:
       captionPreset: elegido,
       captionPresetName: nombre.trim() || undefined,
     });
+    // Y se le dice al panel de editar. Sin esto el estilo se guardaba en la
+    // marca y no llegaba a ninguna edicion: el panel manda SIEMPRE el suyo en
+    // la peticion, y lo pedido gana sobre la marca. Se guardaba de verdad y no
+    // servia para nada, que es la peor version de un fallo.
+    onSaved?.(elegido);
     setGuardado(true);
   }
 
+  // Con su red: apiPost resuelve con cualquier codigo HTTP, asi que un 500
+  // tambien encendia el "Guardado en tu marca"; y con el motor apagado el
+  // fetch reventaba, el boton no hacia nada y no salia ningun aviso.
+  async function guardarConRed() {
+    setError("");
+    try {
+      await guardar();
+    } catch {
+      setError(t("learn.nosave"));
+      setGuardado(false);
+    }
+  }
+
   const cap = f?.subtitulo ?? null;
-  const q = encodeURIComponent(ruta.trim());
+  const q = encodeURIComponent(mirada);
   const nombreDe = (id: string) => styles.find((s) => s.id === id)?.label ?? id;
 
   return (
@@ -113,19 +141,13 @@ export default function Aprende({ onClose, styles, video }:
                 placeholder={t("learn.video.ph")}
                 onChange={(e) => setRuta(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") mirar(); }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const file = e.dataTransfer.files?.[0] as (File & { path?: string });
-                  if (file?.path) setRuta(file.path);
-                }}
-                onDragOver={(e) => e.preventDefault()}
               />
               <button className="primary" onClick={mirar} disabled={mirando || !ruta.trim()}>
                 {mirando ? t("learn.looking") : t("learn.look")}
               </button>
             </div>
             <p className="hint">{t("learn.ajeno")}</p>
-            {error && <p className="hint warn">{error}</p>}
+            {error && <p className="warn-line">{error}</p>}
           </section>
 
           {f && (
@@ -237,7 +259,7 @@ export default function Aprende({ onClose, styles, video }:
                   <div className="row">
                     <input value={nombre} placeholder={t("learn.name.ph")}
                            onChange={(e) => setNombre(e.target.value)} />
-                    <button className="primary" onClick={guardar} disabled={guardado}>
+                    <button className="primary" onClick={guardarConRed} disabled={guardado}>
                       {guardado
                         ? <><IconCheck className="icon" />{t("learn.kept")}</>
                         : t("learn.keep")}
