@@ -55,6 +55,7 @@ vidorq_render.py         → mp4 directo (GPU)
 | `POST /profile` | guarda tu perfil de marca, dejando la versión anterior en `brand.anterior.json` por si el guardado fue un accidente |
 | `GET /session` | la conversación de ese vídeo en ese proyecto, sus ajustes y si hay algo que deshacer |
 | `GET /words` | cada palabra con su segundo, para editar leyendo |
+| `GET /aprende` | mira un vídeo de referencia y dice cómo está editado, con los estilos de la casa que más se le parecen |
 | `GET /tramos` | el montaje partido en tramos, con lo que se dice en cada uno |
 | `GET /history` | todas las ediciones hechas, la última primero |
 | `GET /preview` | una foto de lo que hace una elección, sobre tu propio metraje |

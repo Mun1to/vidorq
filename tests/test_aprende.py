@@ -202,6 +202,60 @@ def casos(casa, fuente):
     yield ("aprende: el estilo esta entre los tres propuestos (%d de %d)"
            % (en_tres, len(ESTILOS)), en_tres >= 3, True)
 
+    # --- la puerta del motor ----------------------------------------------
+    # En un motor de PRUEBA, en el puerto 0 para que lo elija el sistema.
+    # Nunca contra el 9877: ese es el que tiene Munir abierto, y una peticion
+    # de prueba ahi le toca sus datos de verdad.
+    for caso in _puerta(casa):
+        yield caso
+
+
+def _puerta(casa):
+    import threading
+    import urllib.parse
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    sys.path.insert(0, str(RAIZ / "engine"))
+    try:
+        import server
+    except Exception as e:
+        yield ("aprende: el motor se puede importar", str(e)[:60], "")
+        return
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+    puerto = srv.server_address[1]
+    hilo = threading.Thread(target=srv.serve_forever, daemon=True)
+    hilo.start()
+    casos = []
+    try:
+        def pide(ruta):
+            url = "http://127.0.0.1:%d/aprende?video=%s" % (
+                puerto, urllib.parse.quote(str(ruta)))
+            with urllib.request.urlopen(url, timeout=180) as r:
+                return json.loads(r.read().decode("utf-8"))
+
+        # Una ruta que no existe no puede tumbar el motor ni colarse.
+        casos.append(("aprende: la puerta rechaza una ruta que no existe",
+                      pide(r"C:\no\existe\ninguno.mp4").get("why"), "no_video"))
+        # Ni un archivo que no es un video, aunque exista. La lista de
+        # extensiones es la misma que ya usa /probe.
+        casos.append(("aprende: la puerta rechaza lo que no es un video",
+                      pide(casa / "edl.json").get("why"), "no_video"))
+        ref = casa / "punch.mp4"
+        if ref.exists():
+            f = pide(ref)
+            casos.append(("aprende: la puerta contesta con la ficha",
+                          f.get("ok"), True))
+            casos.append(("aprende: la puerta trae estilos que ofrecer",
+                          len(f.get("parecidos") or []) > 0, True))
+            casos.append(("aprende: la puerta reconoce el estilo con que se hizo",
+                          (f.get("parecidos") or [{}])[0].get("id"), "punch"))
+    finally:
+        srv.shutdown()
+    for c in casos:
+        yield c
+
 
 def main():
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):

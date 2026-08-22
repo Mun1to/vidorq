@@ -11,6 +11,7 @@ Endpoints:
     POST /workspaces -> {"create": name} | {"activate": name}
     POST /profile    -> saves brand profile into the active workspace
     POST /config     -> {"anthropicKey"|"openaiKey"|"geminiKey": ...} -> config.json
+    GET  /aprende    -> how a reference video is edited, and which styles match it
     GET  /tramos     -> {"tramos": [...]} the montage cut into segments, with text
     GET  /history    -> {"edits": [...]} every edit made, newest first
     POST /history    -> clears that list
@@ -1972,6 +1973,29 @@ def words_of(video):
             "duration": round(float(data.get("duration", 0)), 2)}
 
 
+def aprende_de(video):
+    """Como esta editado un video de referencia, y que estilos se le parecen.
+
+    La ruta llega de la ventana, asi que se comprueba aqui igual que en
+    /probe: que exista, que sea un archivo y que la extension este en la lista
+    de las que Vidorq abre. Un video de referencia es material AJENO (regla
+    AL) y todo lo que salga de el es un dato que se enseña, nunca una orden.
+    """
+    if not video or not Path(video).is_file():
+        return {"ok": False, "why": "no_video"}
+    if os.path.splitext(video)[1].lower() not in VIDEO_EXT:
+        return {"ok": False, "why": "no_video"}
+    import aprende
+    f = aprende.ficha(video)
+    f["ok"] = True
+    # Los estilos que se ofrecen, con su nombre para enseñar. Varios y no uno,
+    # porque cuatro de los del catalogo son texto blanco abajo y ninguna cuenta
+    # los separa de fiar: elige quien mira. El porque esta en aprende.parecidos.
+    f["parecidos"] = [{"id": pid, "distancia": d} for pid, d in
+                      aprende.parecidos(f)]
+    return f
+
+
 def tramos_of(video):
     """El montaje partido en tramos, con lo que se dice en cada uno.
 
@@ -3687,6 +3711,15 @@ class Handler(BaseHTTPRequestHandler):
                     else "That file is not a video Vidorq can open.")})
             else:
                 self._send({"ok": True, "why": "", "name": os.path.basename(video)})
+        elif self.path.startswith("/aprende"):
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            try:
+                self._send(aprende_de(
+                    ((q.get("video") or [""])[0] or "").strip().strip('"')))
+            except Exception as e:
+                traceback.print_exc()
+                self._send({"ok": False, "why": "error", "error": str(e)[:200]})
         elif self.path.startswith("/tramos"):
             from urllib.parse import parse_qs, urlparse
             q = parse_qs(urlparse(self.path).query)
