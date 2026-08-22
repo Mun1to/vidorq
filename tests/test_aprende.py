@@ -38,9 +38,13 @@ RAIZ = Path(__file__).resolve().parent.parent
 HELP = RAIZ / "skill" / "helpers"
 sys.path.insert(0, str(HELP))
 
-# Los estilos con los que se hace la ida y vuelta. Los cuatro cubren los casos
-# que importan: blanco con contorno, color, plancha detras y el mas discreto.
-ESTILOS = ("pop", "punch", "marker", "minimal")
+# Los estilos con los que se hace la ida y vuelta: TODOS.
+#
+# Antes eran cuatro elegidos "porque cubren los casos que importan", y eso
+# costo una regresion: el guard que separa un subtitulo de una franja de rayas
+# se calibro con esos cuatro, y `neon` cayo del otro lado y dejo de verse. Un
+# subconjunto elegido a mano es un punto ciego elegido a mano.
+ESTILOS = tuple(__import__("captions").PRESETS)
 
 FRASES = [("hola mundo esto va bien", 1.0), ("mira lo que hace", 6.0),
           ("otra frase mas larga aqui", 11.0), ("y la ultima de todas", 16.0)]
@@ -193,11 +197,18 @@ def casos(casa, fuente):
         yield ("aprende: %s cae donde dice el estilo (error %.3f)" % (pid, error),
                error < 0.01, True)
 
-        # El color, en los que no llevan nada tapandolo. `marker` lleva una
-        # plancha detras y el color medido sale mezclado con ella: eso esta
-        # medido y por eso queda fuera de esta comprobacion en vez de
-        # disimulado con un margen ancho que no probaria nada.
-        if pid != "marker":
+        # El color, en los que no llevan nada tapandolo. Dos se quedan fuera,
+        # cada uno con su causa medida, en vez de disimularlos con un margen
+        # ancho que no probaria nada:
+        #
+        #   marker  lleva una plancha detras y el color sale mezclado con ella
+        #   neon    tiene el glow mas fuerte del catalogo (tamaño 20, ganancia
+        #           2,1) y hay mas pixeles de halo cian que de letra blanca,
+        #           asi que lo que se mide es el halo: da (0.17, 0.08, 0.22)
+        #           sobre un relleno real que es blanco
+        #
+        # Los otros ocho si tienen que acertar.
+        if pid not in ("marker", "neon"):
             lejos = max(abs(a - b) for a, b in zip(sub["fill"], p["fill"]))
             yield ("aprende: %s recupera su color (lejos %.2f)" % (pid, lejos),
                    lejos < 0.15, True)

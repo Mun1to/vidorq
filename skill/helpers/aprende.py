@@ -184,10 +184,22 @@ def banda_de_texto(frames):
     # se ve: el usuario mira la captura de "El suyo" y ahi no hay ningun
     # subtitulo. Un falso negativo es una pantalla que se planta.
     #
-    # Medido sobre la franja de rayas y tres estilos de la casa: la franja da
-    # 1,000 y los textos 0,961 / 0,893 / 0,788. El margen es ESTRECHO, y por
-    # eso el umbral esta pegado al 1: si algun dia falla, que falle enseñando
-    # de mas y no plantandose.
+    # Medido sobre la franja de rayas y LOS DIEZ estilos de la casa. Ese "los
+    # diez" costo una regresion: la primera vez se midio con cuatro, el umbral
+    # quedo en 0,99, y `neon` da 0,9938, asi que el analizador dejo de ver sus
+    # subtitulos. Probar un subconjunto es no probar.
+    #
+    #   mono 0,749   minimal 0,788   glass 0,825   pop 0,893   halo 0,933
+    #   bar  0,938   marker  0,960   punch 0,961   ember  0,982   neon 0,994
+    #   -----------------------------------------------------------------
+    #   rayas 1,000  <- no es texto
+    #
+    # El margen entre el texto mas plano y las rayas es de 0,006, o sea que
+    # esta medida NO separa las dos cosas con holgura. Por eso el umbral esta
+    # en 0,999: ahi solo cae un patron PERFECTO, que es lo que genera un
+    # sintetico y no lo que sale de un h264 comprimido. Si algun dia falla, que
+    # falle enseñando de mas, porque un falso positivo se ve en la captura y un
+    # falso negativo es una pantalla que se planta.
     #
     # Se probo antes a exigir que el texto dejara margen a los lados y no
     # sirve: `pop` es tan gordo que llega de borde a borde igual que la franja.
@@ -200,7 +212,7 @@ def banda_de_texto(frames):
             if u.std() < 1e-6 or v.std() < 1e-6:
                 continue
             cors.append(float(np.corrcoef(u, v)[0, 1]))
-        if cors and float(np.mean(cors)) > 0.99:
+        if cors and float(np.mean(cors)) > 0.999:
             return None                          # el mismo patron repetido
     return a0, a1
 
