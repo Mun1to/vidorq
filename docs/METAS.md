@@ -148,11 +148,31 @@ menos de 30 minutos.
       lee como "corta cada 2.5 segundos, 6 planos"; uno hecho con `punch` propone Punch el
       primero; elegir el segundo guarda `ember` con su nombre; cero errores de consola. La
       posición del subtítulo se recupera con error menor de 0,006 en los diez estilos.
+      La pantalla cuenta además **el arranque aparte** (qué pasa en los 3 primeros
+      segundos, que es donde se decide si alguien sigue viendo), **cuántos cortes caen
+      justo en un golpe de imagen** (la diferencia entre un montaje al ritmo y uno que
+      corta por reloj) y **cuántos planos están quietos**.
+      **El círculo entero está probado**: se mira el vídeo de un desconocido, se guarda el
+      estilo que propone, la siguiente edición lo coge sin que nadie le diga nada, y el
+      resultado se vuelve a analizar para comprobar que lleva la misma letra. Es
+      `_circulo()` en `tests/test_aprende.py`, con las constantes del motor desviadas a
+      temp y devueltas en un `finally`.
+      **Dos cosas que se aprendieron midiendo, y las dos empezaron culpando al código:**
+      un vídeo de prueba de doce COLORES perdía planos y parecía un fallo del detector;
+      lo que pasa es que `vision.shots()` mira en **escala de gris**, y rojo, azul,
+      morado, oliva y teal dan los cinco 85. Con los planos separados por **luminancia**
+      salen los doce y `acelera` da 0,96 en vez de 0,69. Y la pantalla decía "Cámara
+      quieta en 1 de sus 9 planos" con la cámara clavada, porque un subtítulo quemado que
+      aparece y desaparece ya es movimiento en la imagen: el número estaba bien y la
+      etiqueta mal, así que ahora dice "Imagen quieta".
       **Lo que NO hace todavía**, y está escrito en el código con su causa: acierta el
       estilo exacto 4 de 10 veces (7 de 10 entre los tres que ofrece), porque cuatro de los
       diez son letra blanca abajo y ninguna cuenta los separa; no detecta la plancha de
-      color detrás del texto; y el nombre que le pones se guarda pero aún no sale en el
-      selector de editar.
+      color detrás del texto; el nombre que le pones se guarda pero aún no sale en el
+      selector de editar; **no acepta links todavía** (falta decidir yt-dlp, con su
+      licencia y sus términos de servicio); y **la reconstrucción va por el camino del
+      MP4**: montarla en un timeline de Resolve sigue sin probarse porque el puente está
+      caído y solo se levanta desde `Workspace > Scripts > Vidorq`.
 - [ ] Firmar los instaladores para que Windows no los marque como origen desconocido.
 - [ ] GIF del flujo real en el README (el texto en inglés ya está; falta la imagen que
       enseña el timeline montándose solo dentro de Resolve, que es lo que no se puede contar).
