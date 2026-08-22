@@ -341,6 +341,13 @@ and the cut rhythm of a twelve-shot video to the exact second. It also
 closes the loop the product is for: a style read off a stranger's video is
 saved to your brand, and the next edit comes out wearing it.
 
+One thing the suite cannot check is the last leg: that Vidorq builds a real
+timeline inside DaVinci Resolve. The conversation with Resolve's bridge is
+tested against a stand-in, but whether Resolve draws what it is handed can only
+be seen on screen. With Resolve open and its bridge started from
+`Workspace > Scripts > Vidorq`, run `python resolve/comprobar_timeline.py`: it
+builds a throwaway timeline and tells you the four things to look for.
+
 Every rule in there was checked by deliberately breaking the code to watch the
 test fail. A check that cannot fail is worse than no check, and one of them was
 thrown out for exactly that: it asserted the vertical export leaves no black
