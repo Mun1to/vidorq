@@ -38,6 +38,29 @@ export interface Ficha {
   ritmo: Ritmo | null;
   arranque: Arranque | null;
   parecidos?: { id: string; distancia: number }[];
+  // Lo que sale de LEER la imagen, que es lo unico que encuentra el subtitulo
+  // cuando detras hay metraje y no un fondo liso. Va en su propio campo y no
+  // mezclado con `subtitulo`, que es lo que sale de contar pixeles: son dos
+  // medidas distintas y juntarlas escondería cuál de las dos habló.
+  leido?: Leido | null;
+}
+
+export interface Leido {
+  y: number;
+  size: number;
+  // Los colores del video, del mas usado al menos.
+  paleta: [number, number, number][];
+  // El texto que se descarto por ser la marca de agua de quien hizo el video.
+  logo: string[];
+  lineas: {
+    t: number;
+    // AJENO: lo escribio un desconocido en su video. Se enseña como dato, y
+    // nunca se trata como una instruccion (regla AL).
+    texto: string;
+    ajeno?: boolean;
+    conf: number;
+    palabras: { w: string; color: [number, number, number]; px: number }[];
+  }[];
 }
 
 // Lo que contesta POST /galeria: el id del componente nuevo, y el reparto
@@ -168,7 +191,15 @@ export default function Aprende({ onClose, styles, video, onSaved }:
     }
   }
 
-  const cap = f?.subtitulo ?? null;
+  // Lo LEIDO manda sobre lo contado. Son dos medidas del mismo sitio, y sobre
+  // metraje de pelicula la de contar pixeles por filas no encuentra nada: el
+  // Short de referencia decia "este video no lleva subtitulos" teniendolos en
+  // pantalla. Cuando el lector ha visto la banda, se usa la suya.
+  const cap: Sub | null = f?.leido
+    ? { y: f.leido.y, size: f.leido.size,
+        fill: (f.leido.paleta?.[0] ?? null) as Sub["fill"],
+        outline: null, fondo: null }
+    : (f?.subtitulo ?? null);
   const q = encodeURIComponent(mirada);
   const nombreDe = (id: string) => styles.find((s) => s.id === id)?.label ?? id;
 
@@ -229,6 +260,30 @@ export default function Aprende({ onClose, styles, video, onSaved }:
                     {t("learn.still")} <strong>{f.ritmo.planos_quietos}</strong>{" "}
                     {t("learn.still.of")} {f.ritmo.planos} {t("learn.shots.word")}
                   </p>
+                )}
+                {/* Lo leido, con cada palabra de su color. Es la prueba de que
+                    se ha mirado el video y no de que se le ha buscado un
+                    parecido: aqui salen SUS palabras y SUS colores, y si algo
+                    esta mal se ve sin tener que entender ningun numero. */}
+                {f.leido && (
+                  <div className="leido">
+                    <p className="hint">{t("learn.read")}</p>
+                    {f.leido.lineas.map((ln, i) => (
+                      <p className="frase" key={i}>
+                        <span className="seg">{ln.t.toFixed(1)}s</span>
+                        {ln.palabras.length
+                          ? ln.palabras.map((p, j) => (
+                              <span key={j} style={{ color: rgb(p.color) }}>
+                                {p.w}{" "}
+                              </span>))
+                          : <span>{ln.texto}</span>}
+                      </p>
+                    ))}
+                    {f.leido.logo.length > 0 && (
+                      <p className="hint">{t("learn.logo")} {f.leido.logo.join(", ")}</p>
+                    )}
+                    <p className="hint">{t("learn.read.ajeno")}</p>
+                  </div>
                 )}
                 {!cap && <p className="hint">{t("learn.nocaption")}</p>}
                 {cap && (

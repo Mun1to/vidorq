@@ -257,6 +257,34 @@ def caption_de(sub, base, nombre, video="", cuando=""):
         else:
             comp[campo] = valor
         medido.append(campo)
+    # Lo que rodea a la letra, cuando se ha llegado a medir. Es lo que mas se
+    # nota de todo: un subtitulo sin contorno reconstruido con el contorno
+    # negro gordo de la plantilla se ve mal a un metro de la pantalla, por muy
+    # clavado que este el color de cada palabra.
+    borde = (sub or {}).get("borde")
+    if isinstance(borde, dict) and borde.get("de"):
+        caida = [c for c in (borde.get("caida") or []) if c is not None]
+        duro = bool(caida) and min(caida[1:] or caida) < 0.12
+        if not borde.get("contorno"):
+            comp["outline"] = None              # no lleva, y se respeta
+            medido.append("outline")
+        elif not duro:
+            # Hay algo oscuro alrededor pero baja despacio: es una sombra
+            # difusa, no un contorno duro. Un contorno duro salta a 0,00 y se
+            # queda ahi (`pop` da 0.33 y luego 0.00); una sombra baja poco a
+            # poco (el video de referencia da 0.56, 0.41, 0.37, 0.32).
+            comp["outline"] = None
+            comp["shadow"] = (0.0, 0.0, 0.0, 0.55, 0.0, 0.0)
+            medido.extend(["outline", "shadow"])
+        if borde.get("halo"):
+            # El halo se tiñe del color del relleno, que es de donde sale: un
+            # halo es la propia letra desbordada, no una luz de otro color.
+            r, g, b = comp.get("fill") or (1.0, 1.0, 1.0)
+            comp["glow"] = (r, g, b, float(borde["halo"]), 1.4)
+            medido.append("glow")
+        elif comp.get("glow"):
+            comp["glow"] = None                 # la plantilla lo traia, el video no
+            medido.append("glow")
     etiqueta = (nombre or "").strip()[:40] or "Copiado"
     comp.update({
         "id": id_para(etiqueta),

@@ -2122,6 +2122,21 @@ def guarda_estilo(body):
     fondo = _color(sub.get("fondo"))
     if fondo:
         limpio["fondo"] = fondo
+    # Lo que rodea a la letra: cuantos anillos de contorno y de halo se
+    # midieron, y el perfil de luz. Se vuelve a acotar aunque venga del propio
+    # lector, porque llega por HTTP igual que todo lo demas.
+    borde = sub.get("borde")
+    if isinstance(borde, dict):
+        cuantos = _numero(borde.get("de"), 0, 10000)
+        if cuantos:
+            caida = [c for c in (borde.get("caida") or [])[:8]
+                     if _numero(c, 0.0, 1.0) is not None]
+            limpio["borde"] = {
+                "contorno": int(_numero(borde.get("contorno"), 0, 64) or 0),
+                "halo": int(_numero(borde.get("halo"), 0, 64) or 0),
+                "caida": [round(float(c), 3) for c in caida],
+                "de": int(cuantos),
+            }
 
     base = body.get("base")
     if not isinstance(base, str) or base not in cap.PRESETS:

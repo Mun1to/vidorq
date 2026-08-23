@@ -637,6 +637,29 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .warn-line { color: var(--muted); }
 .warn-line .icon { color: #e0a33a; flex: none; margin-top: 2px; }
 
+/* Lo que se ha leido del video ajeno. Fondo oscuro fijo en los dos temas, y a
+   proposito: dentro van las palabras con SU color, y los colores de un
+   subtitulo estan pensados contra el video, asi que sobre un fondo claro el
+   blanco desaparece y el amarillo se apaga. Aqui se juzga el color, y para eso
+   tiene que verse igual que se ve en el video. */
+.leido {
+  margin-top: 10px; padding: 11px 13px;
+  border: 1px solid var(--line); border-radius: 10px; background: #14131a;
+}
+.leido .hint { margin: 0 0 7px; }
+.leido .hint:last-child { margin: 8px 0 0; font-size: 11.5px; }
+.leido .frase {
+  margin: 0 0 5px; font-weight: 700; font-size: 15px; line-height: 1.4;
+  /* Se parte por palabras y no se sale de la caja: una frase larga leida de un
+     video no cabe en el ancho del panel. */
+  overflow-wrap: anywhere;
+}
+.leido .seg {
+  display: inline-block; min-width: 46px; margin-right: 8px;
+  font: 11px ui-monospace, Consolas, monospace; font-weight: 400;
+  color: var(--faint);
+}
+
 /* El reparto de lo que se acaba de guardar: cuanto salio del video y cuanto de
    la plantilla. Va en su caja y no suelto entre los demas parrafos porque es
    la respuesta al boton, no una nota mas de la pantalla. */

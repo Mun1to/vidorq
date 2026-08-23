@@ -160,6 +160,88 @@ def _color(linea, a, b):
             int(len(dentro)))
 
 
+# Hasta que anillo alrededor de la letra se mira. Un halo de verdad llega
+# lejos: `neon` sigue encendido en el anillo 12.
+ANILLOS = 14
+
+
+def _borde(caja, fill):
+    """Que lleva la letra ALREDEDOR: contorno, halo, o nada.
+
+    Es lo que de verdad separa un subtitulo reconstruido de su original, y no
+    se estaba mirando: el color de cada palabra puede estar clavado y aun asi
+    verse mal, porque la plantilla heredada trae un contorno negro gordo y el
+    video no lleva ninguno. Se ve a un metro de la pantalla.
+
+    Como: se toma la mancha de la letra, se dilata de uno en uno, y se mira el
+    ANILLO que se añade en cada paso. El perfil cuenta la historia:
+
+      contorno   anillos mucho mas oscuros que el fondo lejano, y de golpe
+      halo       anillos que se parecen al color de la letra y se apagan poco
+                 a poco durante muchos pixeles
+      nada       el perfil baja suave hacia el fondo, sin salto ni halo
+
+    Devuelve (contorno_px, halo_px, caida, alto, grosor) o None. `caida` es el
+    perfil de luz, que distingue un contorno duro (salta a 0,00 y se queda) de
+    una sombra difusa (baja despacio), y esa diferencia no cabe en un numero.
+    `alto` es el de la LETRA y no el de la caja del detector, que viene con
+    aire y con el halo dentro: medir el tamaño contra la caja lo sobreestimaba
+    y el subtitulo reconstruido salia mas grande que el original.
+
+    Medido contra LOS DIEZ estilos de la casa, con su contorno y su halo
+    conocidos: pop 13 y punch 13 (contorno gordo), mono 6 (fino), marker, bar
+    y minimal 0 (ninguno), neon 12 y halo 5 (halo). Dos no cuadran y se dicen:
+    `glass` cuenta su plancha oscura como contorno, que opticamente lo es, y
+    `ember` no llega a enseñar su halo porque su fondo queda demasiado claro.
+    """
+    import cv2
+    import numpy as np
+
+    obj = np.array(fill, dtype="float32") * 255.0
+    d = np.abs(caja.astype("float32") - obj).sum(axis=2)
+    # Cerca del color de la letra: 110 sobre los tres canales sumados son unos
+    # 37 por canal, que aguanta la compresion sin tragarse medio fondo.
+    m = (d < 110).astype("uint8")
+    if m.sum() < 25:
+        return None
+    # Sin agujeros: en una letra hueca el interior es fondo, y sin taparlo se
+    # mide el anillo de dentro como si fuera el de fuera.
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((3, 3), "uint8"))
+    lum = caja.mean(axis=2).astype("float32") / 255.0
+    col = caja.astype("float32") / 255.0
+    fillv = np.array(fill, dtype="float32")
+
+    prof, previo = [], m
+    for _ in range(ANILLOS):
+        crecido = cv2.dilate(previo, np.ones((3, 3), "uint8"))
+        anillo = (crecido - previo).astype(bool)
+        prof.append(None if anillo.sum() < 8 else
+                    (float(lum[anillo].mean()),
+                     float(np.abs(col[anillo] - fillv).sum(axis=1).mean())))
+        previo = crecido
+    fuera = ~previo.astype(bool)
+    if fuera.sum() < 20:
+        return None
+    lejos = float(lum[fuera].mean())
+    # Se empieza a contar en el anillo 2: el 1 todavia es el borde suavizado
+    # de la propia letra, mezcla de la letra y de lo que tenga detras. Contarlo
+    # hacia que ningun contorno se detectara nunca.
+    contorno = sum(1 for a in prof[1:] if a and a[0] < lejos - 0.10)
+    halo = sum(1 for a in prof[1:] if a and a[0] > lejos + 0.06 and a[1] < 1.35)
+    caida = [round(a[0], 3) if a else None for a in prof[:8]]
+    # El alto de la LETRA, de la mancha misma.
+    filas = np.where(m.any(axis=1))[0]
+    alto = int(filas[-1] - filas[0] + 1) if len(filas) else 0
+    # Y su grosor de trazo, por la transformada de distancia: dentro de la
+    # mancha, cada pixel vale lo que dista del borde, asi que el pico dentro de
+    # un trazo es su radio. Se toma la mediana de los picos y no el maximo,
+    # que lo dispara el cruce de dos trazos.
+    dt = cv2.distanceTransform(m, cv2.DIST_L2, 3)
+    picos = dt[dt > dt.max() * 0.45] if dt.max() > 0 else []
+    grosor = float(np.median(picos)) * 2.0 if len(picos) >= 5 else 0.0
+    return contorno, halo, caida, alto, grosor
+
+
 def a_chunks(leido, dur=0.0, cola=1.6):
     """Lo leido, convertido en trozos que el renderizador sabe pintar.
 
@@ -271,11 +353,18 @@ def subtitulos(video, n=MUESTRAS, alto=ALTO):
         return None
 
     lineas, paleta = [], {}
+    contornos, halos, caidas, letras, pesos = [], [], [], [], []
     for d in sorted(dentro, key=lambda d: d["i"]):
         caja = frames[d["i"]][max(0, d["y0"]):d["y1"] + 1,
                               max(0, d["x0"]):d["x1"] + 1]
         if caja.size < 90:
             continue
+        # Con aire alrededor para lo del borde: el halo y el contorno viven
+        # FUERA de la caja del detector, que viene ceñida a las letras. Sin
+        # aire no hay anillos que medir y todo sale "sin contorno".
+        aire = max(6, (d["y1"] - d["y0"]) // 2)
+        ancha = frames[d["i"]][max(0, d["y0"] - aire):d["y1"] + 1 + aire,
+                               max(0, d["x0"] - aire):d["x1"] + 1 + aire]
         palabras = []
         for w, (a, b) in zip(d["texto"].split(), _tramos(caja, d["texto"])):
             c, px = _color(caja, a, b)
@@ -284,6 +373,15 @@ def subtitulos(video, n=MUESTRAS, alto=ALTO):
             palabras.append({"w": w, "color": c, "px": px})
             k = tuple(int(v * 8) for v in c)
             paleta[k] = paleta.get(k, 0) + px
+            anillos = _borde(ancha, c)
+            if anillos:
+                contornos.append(anillos[0])
+                halos.append(anillos[1])
+                caidas.append(anillos[2])
+                if anillos[3] >= 6:
+                    letras.append(anillos[3])
+                    if anillos[4] > 0:
+                        pesos.append(anillos[4] / anillos[3])
         lineas.append({
             "t": round(dur * (d["i"] + 0.5) / len(frames), 2),
             # Marcado, y no de adorno: esto lo escribio un desconocido en su
@@ -318,10 +416,38 @@ def subtitulos(video, n=MUESTRAS, alto=ALTO):
         borde = float(_apr.BORDE_ALTO)
     except Exception:
         borde = 0.014
+    # El tamaño sale del alto de la LETRA cuando se ha podido medir, y solo
+    # cae al de la caja del detector si no. La caja trae aire y el halo dentro,
+    # asi que sobreestima: con ella el subtitulo reconstruido salia mas grande
+    # que el original, y eso se ve al ponerlos uno al lado del otro.
+    alto_letra = float(np.median(letras)) if letras else 0.0
     return {
         "y": round(1.0 - arriba / H + borde, 3),
-        "size": round(alto_px / ref, 3),
+        "size": round((alto_letra or alto_px) / ref, 3),
+        "size_de": "letra" if alto_letra else "caja",
+        # Grosor del trazo entre alto de la letra. Separa una letra fina de una
+        # gorda: medido sobre los diez estilos de la casa, Regular da 0,080 y
+        # todo lo Bold o Black cae entre 0,133 y 0,163. Lo que NO hace es
+        # separar Bold de Black, que se solapan, asi que aqui solo se decide
+        # "fina" o "gorda" y no se finge mas precision de la que hay.
+        "peso": round(float(np.median(pesos)), 4) if pesos else None,
         "lineas": lineas,
         "paleta": [tuple(round(v / 8 + 1 / 16, 3) for v in k) for k, _ in orden[:6]],
         "logo": sorted(logo),
+        # Lo que rodea a la letra. La MEDIANA y no la media: una palabra sobre
+        # un plano oscuro da un contorno que no existe, y con la media una sola
+        # basta para inventarse uno en todo el video.
+        "borde": {
+            "contorno": int(np.median(contornos)) if contornos else 0,
+            "halo": int(np.median(halos)) if halos else 0,
+            # El perfil de luz, para poder distinguir un contorno duro (salta
+            # a 0,00 y se queda) de una sombra difusa (baja despacio). Esa
+            # diferencia no cabe en un solo numero y es justo la que se veia
+            # mal en pantalla.
+            "caida": ([round(float(np.median([c[i] for c in caidas
+                                              if c[i] is not None])), 3)
+                       if any(c[i] is not None for c in caidas) else None
+                       for i in range(8)] if caidas else []),
+            "de": len(contornos),
+        },
     }

@@ -175,6 +175,59 @@ def casos(casa):
                salida.lstrip("\ufeff").startswith("[Script Info]"), True)
         galeria.borrar(c["id"])
 
+    # ------------------------------- lo que rodea a la letra, si se midio
+    # Un video sin contorno reconstruido con el contorno negro gordo de la
+    # plantilla se ve mal a un metro de la pantalla, por muy clavado que este
+    # el color de cada palabra. Asi que cuando el lector ha mirado el borde,
+    # manda el borde y no la plantilla.
+    sin_borde = dict(MEDIDO)
+    sin_borde["borde"] = {"contorno": 0, "halo": 0, "de": 9,
+                          "caida": [0.41, 0.32, 0.31, 0.29, 0.24]}
+    c = galeria.caption_de(sin_borde, "pop", "sin contorno")
+    yield ("un video sin contorno no hereda el de la plantilla",
+           c["outline"], None)
+    yield ("y lo cuenta como medido", "outline" in c["medido"], True)
+    yield ("la plantilla si lo llevaba",
+           cap.PRESETS["pop"]["outline"] is not None, True)
+
+    # Algo oscuro alrededor que baja DESPACIO es una sombra difusa, no un
+    # contorno duro: un contorno duro salta a 0,00 y se queda ahi.
+    suave = dict(MEDIDO)
+    suave["borde"] = {"contorno": 5, "halo": 0, "de": 9,
+                      "caida": [0.42, 0.33, 0.30, 0.27, 0.25]}
+    c = galeria.caption_de(suave, "pop", "sombra suave")
+    yield ("una caida suave no se pinta como contorno", c["outline"], None)
+    yield ("se pinta como sombra centrada", c["shadow"][4:], (0.0, 0.0))
+    duro = dict(MEDIDO)
+    duro["borde"] = {"contorno": 12, "halo": 0, "de": 9,
+                     "caida": [0.33, 0.0, 0.0, 0.0, 0.0]}
+    c = galeria.caption_de(duro, "pop", "contorno duro")
+    yield ("un contorno duro si se conserva", c["outline"] is not None, True)
+
+    # Un halo se tiñe del color del relleno medido, no del de la plantilla:
+    # un halo es la propia letra desbordada, no una luz de otro color.
+    conhalo = dict(MEDIDO)
+    conhalo["borde"] = {"contorno": 0, "halo": 7, "de": 9, "caida": [0.6] * 5}
+    c = galeria.caption_de(conhalo, "pop", "con halo")
+    yield ("el halo sale del color medido", c["glow"][:3], (0.92, 0.85, 0.11))
+    yield ("y con el tamaño medido", c["glow"][3], 7.0)
+    # Y al reves: si la plantilla trae halo y el video no, se quita.
+    c = galeria.caption_de(sin_borde, "neon", "sin halo")
+    yield ("la plantilla trae halo", cap.PRESETS["neon"]["glow"] is not None, True)
+    yield ("pero el video no, asi que se quita", c["glow"], None)
+    # Sin nada medido, no se toca: la plantilla manda, como hasta ahora.
+    c = galeria.caption_de(MEDIDO, "pop", "sin medir el borde")
+    yield ("sin medir el borde se respeta la plantilla",
+           c["outline"][:3], (0.05, 0.04, 0.06))
+    # Y todos los copiados con borde medido tienen que seguir PINTANDO.
+    for base in cap.PRESETS:
+        c = galeria.caption_de(sin_borde, base, "borde " + base)
+        galeria.guardar(c)
+        yield ("base %-8s: sin contorno y sigue pintando" % base,
+               _pinta(c["id"], tmp).lstrip("\ufeff").startswith("[Script Info]"),
+               True)
+        galeria.borrar(c["id"])
+
     # ----------------------------------------------------- ids que chocan
     otro = galeria.caption_de(MEDIDO, "pop", "Mi estilo")
     galeria.guardar(otro)

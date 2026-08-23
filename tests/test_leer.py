@@ -200,6 +200,35 @@ def casos():
             yield ("%s: %s se mide sobre pixeles de verdad" % (nombre, pal),
                    px >= 12, True)
 
+    # Lo que rodea a la letra. Es lo que mas se nota en pantalla y lo que se
+    # estaba heredando de la plantilla: un subtitulo sin contorno reconstruido
+    # con un contorno negro gordo se ve mal aunque el color este clavado.
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFont
+    try:
+        fuente = ImageFont.truetype("arialbd.ttf", 64)
+    except OSError:
+        fuente = None
+    if fuente:
+        for nombre, ancho_borde, espera in (("contorno gordo", 6, True),
+                                            ("sin contorno", 0, False)):
+            img = Image.fromarray(_fondo(420, 150))
+            d = ImageDraw.Draw(img)
+            if ancho_borde:
+                d.text((30, 40), "HOLA", font=fuente, fill=BLANCO,
+                       stroke_width=ancho_borde, stroke_fill=(0, 0, 0))
+            else:
+                d.text((30, 40), "HOLA", font=fuente, fill=BLANCO)
+            r = leer._borde(np.array(img), tuple(c / 255 for c in BLANCO))
+            yield ("%s: se mide algo" % nombre, r is not None, True)
+            if r:
+                yield ("%s: lo dice bien" % nombre, r[0] > 2, espera)
+                # Y el alto de la LETRA, no el de la caja: una mayuscula de 64
+                # puntos mide unos 46 px, nunca los 150 del recorte.
+                yield ("%s: mide el alto de la letra" % nombre,
+                       25 < r[3] < 90, True)
+                yield ("%s: y su grosor de trazo" % nombre, r[4] > 2, True)
+
     # Y el que de verdad importa: que la palabra distinta se DISTINGA de sus
     # vecinas. Un lector que devuelve el mismo color para todas no sirve,
     # aunque cada color por separado caiga dentro del margen.
