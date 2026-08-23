@@ -148,12 +148,25 @@ seria el mismo intento con otra sintaxis.
    con Motion Canvas o Revideo (MIT) y dejarlo en V2. Da color por palabra y cualquier
    animacion, sin pelearse con Fusion. A cambio, el texto deja de ser editable dentro de
    Resolve.
-3. **Que Munir haga UNO a mano y se lea.** Ahora esto significa otra cosa que antes: no se
-   trata de aprender el formato (ya se sabe), sino de ver **que hace la interfaz ademas de
-   escribir esos campos**, porque escribirlos no basta. Es un minuto y cierra la duda del
-   todo. Los pasos: Fusion > Text+ > escribir dos palabras > clic derecho en el campo de texto
-   > Character Level Styling > pintar la segunda de otro color > clic derecho en el nodo >
-   Settings > Save As.
+3. **Que Munir haga UNO a mano y se lea.** Ahora significa otra cosa que antes: no se trata
+   de aprender el formato (ya se sabe), sino de ver **que hace la interfaz ademas de escribir
+   esos campos**, porque escribirlos no basta. Es un minuto, y el lector ya esta escrito:
+   `resolve/leer_cls.py`.
+
+   **Los pasos, exactos:**
+
+   1. Resolve, pestaña **Fusion**.
+   2. Anadir un nodo **Text+** (Shift+Espacio, escribir `Text+`, Enter).
+   3. En el Inspector, escribir en el cuadro de texto: `HOLA MUNDO`
+   4. **Clic derecho encima del cuadro de texto** y elegir **Character Level Styling**.
+   5. Seleccionar con el raton solo la palabra **MUNDO**.
+   6. Cambiarle el color con el selector que sale en el Inspector.
+   7. **Mirar el visor** y comprobar que MUNDO se ve de otro color. Si no se ve, no hay nada
+      que leer y hay que decirlo: querria decir que tampoco funciona a mano.
+   8. **Clic derecho sobre el nodo** > **Settings** > **Save As**, y guardarlo en
+      `%USERPROFILE%\Desktop\cls.setting`.
+   9. Lanzar `python resolve/leer_cls.py`, que dice que nodos hay, que nombres salen que
+      nosotros no escribiamos, y ensena el bloque tal cual.
 
 ### Lo que ya no hay que volver a mirar
 
