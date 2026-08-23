@@ -294,6 +294,33 @@ La capa 4 es la que convierte lo demás en lo que Munir describe. Su pieza clave
 es **`capacidades()`, que dice lo que Vidorq NO sabe hacer**: sin esa lista un agente promete lo
 que no puede cumplir, que es literalmente el fallo que abrió este trabajo.
 
+### Recrear un estilo en Fusion: qué es exactamente (investigado el 2026-08-23)
+
+Munir lo corrigió y la diferencia no es un matiz: **no es copiar la frase del vídeo ajeno y
+pegarla, eso es copiar el TEXTO.** Es recrear el **ESTILO** como una pieza de Fusion que
+después sirve para cualquier frase y cualquier vídeo.
+
+- **Un estilo recreado es un Fusion Title Template**: un archivo `.setting` en la carpeta
+  `Templates/Edit/Titles` que cuelga de `Support/Fusion` dentro del `Blackmagic Design/DaVinci
+  Resolve` de `%APPDATA%`. Ahí Resolve lo enseña en **Effects Library > Titles** como un
+  título más, y se arrastra al timeline con cualquier texto.
+- **MEDIDO**: esa carpeta `Templates` **existe y está completamente vacía**, sin subcarpetas
+  ni ficheros. Hay que crear `Edit/Titles`. Resolve es 21.0.4.5 **Free**.
+- **Los colores por palabra salen de UN SOLO Text+**, con el modificador **Character Level
+  Styling**. No hacen falta varios Text+ ni calcular posiciones a mano, que era el plan caro.
+  Lo que **no está documentado** es cómo se escribe ese modificador dentro de un `.comp` y de
+  un `.setting`: ese es el nudo.
+- **No hace falta ningún plugin de terceros, comprobado**: Text+, Character Level Styling,
+  Glow, Merge, Transform y los Templates son nativos y funcionan en Free. **Reactor NO está
+  instalado** y no se instala.
+- **Los plugins profesionales de terceros son para más tarde**, pero se diseña contando con
+  ellos: cuando un estilo pida algo que los nodos de casa no dan, **se dice cuál es la pieza
+  que falta y se anota**, en vez de aproximarlo en silencio.
+
+**Hecho cuando**: copias el estilo de un vídeo, abres Resolve, y en Effects Library > Titles
+hay un título nuevo con tu nombre. Lo arrastras, escribes CUALQUIER frase, y sale con los
+colores por palabra, el tamaño, la posición y la entrada del original.
+
 **Decisiones abiertas** (se le enseñaron en el navegador el 2026-08-23 y no ha contestado):
 
 1. Por dónde seguir: la capa 4 (recomendada), más percepción, o abrir el puente.
