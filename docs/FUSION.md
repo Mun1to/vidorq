@@ -69,47 +69,109 @@ Cuatro cosas que hay que tener presentes, y las cuatro costaron encontrarlas:
    `Background Reveal Lower Third.setting`, que pone ahí sus `Text_1Alpha` y `Text_1Opacity`.
    Es la única forma de que un keyframe sobreviva, porque la API de Resolve no los pone.
 
-## Character Level Styling: el nudo que sigue sin abrirse
+## Comprobado contra Resolve, no supuesto (2026-08-23, 22:0x)
 
-Un color distinto por palabra dentro de **un solo** `Text+` se hace con el modificador
-**Character Level Styling** (clic derecho sobre el campo de texto).
+Con Resolve 21.0.4.5 Free abierto y el puente puesto. Comandos y salida real:
 
-Lo que se sabe, medido:
+```
+POST /timeline/create  {"name":"Vidorq_ProbaFusion"}
+  -> {"success": true, "timeline": "Vidorq_ProbaFusion"}
 
-- Aparece en el fichero como `["Text1.CharacterLevelStylingBase"]`, con esta forma:
+POST /title/insert     {"titleName":"Vidorq Pop","fusionTitle":true}
+  -> {"success": true, "title": "Vidorq Pop", "clipName": "Vidorq Pop"}
 
-  ```
-  Input { Value = StyledText { Array = { { codigo, inicio, fin, Index = n, Value = v }, ... },
-                               Value = "" } }
-  ```
+GET  /timeline/clips?trackType=video&trackIndex=1
+  -> {"clips":[{"name":"Vidorq Pop","duration":120,...}]}
+```
 
-- Los códigos son numéricos y algunos están **correlacionados y confirmados** cruzando el
-  array con los valores explícitos del mismo nodo: `100` es la fuente, `109` el grosor, `102`
-  el tamaño, `1300` el espaciado entre letras.
-- Los códigos `2000` y `2401`-`2404` llevan `Index = 0/1/2`, que tiene toda la pinta de ser
-  R/G/B, pero **no está confirmado**.
+Tres cosas quedan probadas con eso:
 
-**La pared, y por qué se para aquí.** De las 417 plantillas de fábrica:
+1. **Resolve encuentra la plantilla en Effects Library > Titles.**
+   `InsertFusionTitleIntoTimeline("Vidorq Pop")` la mete por su nombre, que es lo
+   mismo que hace arrastrarla a mano.
+2. **No hizo falta reiniciar Resolve.** Llevaba horas abierto y aun asi vio el `.setting`
+   recien escrito.
+3. **La duracion es la que se escribio** (120 fotogramas, el `dur` por defecto).
 
-- **ninguna** pinta por rango de caracteres: el campo `CharacterLevelStyling` (sin `Base`)
-  llega siempre vacío;
-- las **tres** que tocan `CharacterLevelStylingBase` traen el **mismo bloque de color por
-  defecto**, así que no hay variación de la que deducir qué código es el relleno;
-- la tabla de códigos no está en ningún binario suelto de la instalación.
+Y exportando el comp de ese clip, Resolve devuelve el estilo entero:
 
-O sea que no hay de dónde copiarlo, y adivinarlo produciría un fichero que Resolve no abre y
-que además no avisa: simplemente no aparece en la lista. Por eso no se inventa.
+```
+Center   = Input { Value = { 0.5, 0.2 }, }      <- la altura del preset
+Enabled2 = Input { Value = 1, }                 <- contorno encendido
+Enabled3 = Input { Value = 1, }                 <- sombra encendida
+Thickness2 = Input { Value = 0.22, }            <- su grosor
+Red2     = Input { Value = 0, }                 <- contorno negro
+Alpha3   = Input { Value = 0.7, }               <- alfa de la sombra
+Softness3= Input { Value = 0.35, }
+Offset3  = Input { Value = { 0.048, -0.072 }, }
+Size     = Input { SourceOp = "Text_1Size", }   <- atado al spline
+Text_1Size = BezierSpline { KeyFrames = { ... } }  <- la ENTRADA sobrevivio
+```
 
-**Cómo se abre el nudo** (necesita a Munir, un minuto):
+**Y escribiendole otra frase, sale con ese estilo.** Se cambio el `StyledText` a
+"Y HAY OTRA PERSONA", se volvio a importar y se saco un fotograma de la pagina de Color:
+sale en Arial Black, blanca, con su contorno y su sombra, a la altura del preset.
 
-1. Abrir Resolve, pestaña **Fusion**, y añadir un nodo **Text+**.
-2. Escribir dos palabras, por ejemplo `HOLA MUNDO`.
-3. Clic derecho sobre el campo de texto → **Character Level Styling**.
-4. Seleccionar solo la segunda palabra y ponerle **otro color**.
-5. Clic derecho sobre el nodo → **Settings** → **Save As**, y guardarlo donde sea.
+## Character Level Styling: la pared, ahora MEDIDA
 
-Con ese fichero delante se lee cómo escribe Resolve el rango, y el nudo queda resuelto sin
-adivinar nada.
+Antes aqui ponia que el formato "no esta documentado". Eso era verdad pero se quedaba corto.
+Lo que pasa de verdad es peor y es mas util saberlo:
+
+> **Un Text+ acepta `CharacterLevelStyling` y `CharacterLevelStylingBase`, los conserva
+> enteros al ir y volver del comp, y los IGNORA al renderizar.**
+
+Como se midio, dos intentos y un fotograma cada uno:
+
+1. **Con los rangos en `CharacterLevelStyling`.** Se escribio una frase de seis palabras y se
+   le puso a cada palabra un codigo candidato distinto (2000, 2401, 2402, 2403, 2404) con un
+   color distinto, para que un solo fotograma dijera cual de los cinco es el relleno. Resolve
+   devolvio el array **palabra por palabra, identico**. El fotograma salio **blanco entero**.
+2. **Con los rangos en `CharacterLevelStylingBase`**, precedidos del bloque por defecto
+   copiado de `Simple Two Lines.setting`, que es como lo escribe Blackmagic. Resolve tambien
+   lo conservo (`{ 2000, 4, 6` sigue ahi al exportar). El fotograma, **blanco otra vez**.
+
+Es el mismo caso que `WriteOnStart` / `WriteOnEnd`, que tambien se conservan y tampoco hacen
+nada al renderizar. El modificador lo aplica la interfaz; un comp escrito desde fuera no lo
+enciende.
+
+**Por eso se para aqui** (regla X: dos intentos y se nombra la pared). Un tercer micro-ajuste
+seria el mismo intento con otra sintaxis.
+
+### Los caminos que quedan, que no son micro-ajustes
+
+1. **Un Text+ por palabra, unidos con Merge.** Cada palabra su nodo, su color y su X. Solo usa
+   lo que esta probado que renderiza. Lo que hay que resolver es la posicion, y para eso ya
+   hay un dato medido en `captions.py`: un caracter avanza unos 0.41 del `Size`
+   (`CHAR_ADVANCE`). Es el camino mas corto a "los mismos colores en las mismas palabras"
+   dentro de Resolve.
+2. **El overlay con alfa, que ya estaba decidido en `AGENTS.md`.** Generar el subtitulo fuera
+   con Motion Canvas o Revideo (MIT) y dejarlo en V2. Da color por palabra y cualquier
+   animacion, sin pelearse con Fusion. A cambio, el texto deja de ser editable dentro de
+   Resolve.
+3. **Que Munir haga UNO a mano y se lea.** Ahora esto significa otra cosa que antes: no se
+   trata de aprender el formato (ya se sabe), sino de ver **que hace la interfaz ademas de
+   escribir esos campos**, porque escribirlos no basta. Es un minuto y cierra la duda del
+   todo. Los pasos: Fusion > Text+ > escribir dos palabras > clic derecho en el campo de texto
+   > Character Level Styling > pintar la segunda de otro color > clic derecho en el nodo >
+   Settings > Save As.
+
+### Lo que ya no hay que volver a mirar
+
+- El nombre del campo: es `CharacterLevelStyling` y `CharacterLevelStylingBase`, sin prefijo
+  en un `TextPlus` suelto (con prefijo `Text1.` en un `MultiText`).
+- La forma de cada fila: `{ codigo, primerCaracter, ultimoCaracter, Index = canal, Value = v }`,
+  con `Index` 0/1/2 y el 0 implicito, y los valores 0 omitidos. Resolve la acepta y la devuelve
+  igual, asi que la sintaxis es esa.
+- Los codigos que SI estan confirmados, cruzando el array con los valores explicitos del mismo
+  nodo: `100` fuente, `109` grosor, `102` tamaño, `1300` espaciado entre letras.
+- Los codigos de color siguen sin identificar, y **ya no importa mientras no renderice**.
+
+## Otro limite, tambien medido
+
+**Un Text+ no ajusta el texto.** Una frase larga no se parte en dos lineas: se sale por los dos
+bordes. En un comp eso se tapa encogiendo la letra contra la linea mas larga, pero una
+plantilla no sabe que frase le van a escribir, asi que no puede hacerlo por ti. El mando de
+tamaño esta expuesto en el Inspector, y `faltantes()` lo avisa.
 
 ## Lo que Vidorq NO recrea, y lo dice
 
@@ -140,11 +202,27 @@ Sin Resolve (lo hace la suite, `python tests/test_fusion.py`):
 - que la entrada viaja como `BezierSpline` con sus keyframes;
 - que `desinstalar()` se niega a borrar un `.setting` que no escribimos nosotros.
 
-Con Resolve delante (esto lo tiene que hacer Munir, la Free no admite scripting externo):
+Con Resolve delante, y **esto ya se hizo el 2026-08-23** (la salida real está más arriba).
+No hace falta que lo haga Munir a mano: con Resolve abierto y el puente puesto, el agente
+puede hacerlo entero por el puerto 9876. La receta, para repetirlo:
 
-1. Abrir Resolve.
-2. `Effects Library > Titles`, y buscar el nombre del estilo.
-3. Arrastrarlo al timeline y escribirle **cualquier** frase.
-4. Mirar que salga con el tamaño, la posición, el color y la entrada del vídeo original.
+```
+POST 9876/timeline/create   {"name":"Vidorq_ProbaFusion"}
+POST 9876/title/insert      {"titleName":"<el nombre>","fusionTitle":true}
+POST 9876/clip/fusion/export {"trackType":"video","trackIndex":1,"clipIndex":0,"path":"..."}
+   (clipIndex empieza en 0, no en 1)
+```
 
-Hasta ese paso 4, lo honesto es decir **NO PROBADO EN RESOLVE**, con esas palabras.
+Y para VER el fotograma, que es lo único que cierra la cosa:
+
+```
+POST 9876/playhead              {"timecode":"01:00:03:00"}
+POST 9876/page                  {"page":"color"}      <- GrabStill exige la página de Color
+POST 9876/gallery/grab          {}
+POST 9876/gallery/stills/export {"folderPath":"...","filePrefix":"f","format":"png"}
+POST 9876/page                  {"page":"edit"}       <- y se deja como estaba
+```
+
+**Lo único que sigue necesitando a Munir** es el punto 3 de los caminos de arriba: hacer un
+Character Level Styling a mano en la interfaz y guardar ese `.setting`, para ver qué hace la
+interfaz que no hace escribir el campo.

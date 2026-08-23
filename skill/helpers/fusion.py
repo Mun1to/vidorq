@@ -34,13 +34,19 @@ medidos contra Resolve 21.0.4.5 Free renderizando y mirando el fotograma. Aqui
 solo cambia el envoltorio, asi que un arreglo en el estilo de los subtitulos
 llega solo a las plantillas.
 
-LIMITE CONOCIDO, y se avisa en vez de disimularlo. Un color por palabra sobre
-texto ARBITRARIO necesita el modificador Character Level Styling, y su formato
-por rangos de caracteres no esta documentado: de las 417 plantillas de fabrica,
-ninguna pinta por rango, y las tres que tocan `CharacterLevelStyling` traen el
-mismo bloque de color por defecto, asi que no hay de donde deducirlo. Lo que si
-esta medido es el envoltorio, y esta escrito en `docs/FUSION.md`. Mientras el
-nudo siga sin abrirse, `faltantes()` lo dice por su nombre.
+COMPROBADO CONTRA RESOLVE, no supuesto. El 2026-08-23, con Resolve abierto y el
+puente puesto: la plantilla aparece en Effects Library > Titles y se inserta por
+su nombre, el comp que devuelve Resolve trae el tipo de letra, el encuadre, el
+contorno, la sombra y el spline de la entrada, y escribirle CUALQUIER frase la
+pinta con ese estilo. Los pasos y la salida real estan en `docs/FUSION.md`.
+
+LIMITE MEDIDO, y se avisa en vez de disimularlo. Un color por palabra dentro de
+un solo Text+ NO se puede escribir desde fuera: el nodo acepta
+`CharacterLevelStyling` y `CharacterLevelStylingBase`, los conserva enteros al
+ir y volver del comp, y los IGNORA al renderizar. Se probaron los dos campos y
+la frase salio blanca entera las dos veces, mirando el fotograma. Es el mismo
+caso que `WriteOnStart`, que tambien se conserva y tampoco hace nada. No es
+falta de documentacion: no funciona. `faltantes()` lo dice con esas palabras.
 """
 from __future__ import annotations
 
@@ -336,11 +342,27 @@ def faltantes(estilo=None):
     fuera = []
     if p.get("word_fx") == "karaoke":
         fuera.append({
-            "que": "un color distinto por palabra",
-            "porque": "necesita el modificador Character Level Styling, y su "
-                      "formato por rangos de caracteres no esta documentado: "
-                      "de las 417 plantillas de fabrica ninguna pinta por "
-                      "rango, asi que no hay de donde copiarlo",
+            "que": "un color distinto por palabra dentro de un solo Text+",
+            "porque": "MEDIDO contra Resolve 21.0.4.5 el 2026-08-23: un Text+ "
+                      "acepta `CharacterLevelStyling` y "
+                      "`CharacterLevelStylingBase`, los conserva enteros al "
+                      "importar y exportar el comp, y los IGNORA al "
+                      "renderizar. Se probaron los dos campos y salio la frase "
+                      "entera blanca las dos veces. Es el mismo caso que "
+                      "`WriteOnStart`. No es que falte documentacion: no "
+                      "funciona escrito desde fuera",
             "pieza": None,
         })
+    # Un Text+ NO ajusta el texto: una frase larga se sale por los dos bordes en
+    # vez de partirse en dos lineas. En un comp eso se tapa encogiendo la letra
+    # contra la linea mas larga, pero una plantilla no sabe que frase le van a
+    # escribir, asi que aqui se avisa y ya. El mando de tamaño es publico.
+    fuera.append({
+        "que": "partir una frase larga en dos lineas",
+        "porque": "un Text+ no ajusta el texto: lo que no cabe se sale por los "
+                  "bordes. Una plantilla no sabe de antemano que frase le van a "
+                  "escribir, asi que no puede encoger la letra por ti. El mando "
+                  "de tamaño esta a la vista en el Inspector",
+        "pieza": None,
+    })
     return fuera
