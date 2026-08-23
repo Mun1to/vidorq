@@ -451,8 +451,15 @@ def arranque(video, planos=None, track=None, segundos=3.0):
     }
 
 
-def ficha(video):
-    """Como esta editado este video. Numeros, nunca adjetivos."""
+def ficha(video, leer_texto=False):
+    """Como esta editado este video. Numeros, nunca adjetivos.
+
+    Con `leer_texto` se pasa ademas el detector de texto de `leer.py`, que es
+    lo unico que encuentra el subtitulo cuando detras hay metraje de pelicula
+    y no un fondo liso. Va apagado por defecto porque cuesta un par de
+    segundos por fotograma: lo enciende quien puede esperar, que es la
+    pantalla, y no las pruebas.
+    """
     frames, dur = fotogramas(video)
     w, h, _ = medidas(video)
     # Una sola pasada de vision.shots() para todo lo que se cuenta del
@@ -468,6 +475,19 @@ def ficha(video):
            "vertical": bool(h and w and h > w), "subtitulo": None,
            "ritmo": ritmo(video, planos, track),
            "arranque": arranque(video, planos, track)}
+    # Lo LEIDO va en su propio campo y no se mezcla con `subtitulo`, que es lo
+    # que sale de contar pixeles. Son dos medidas distintas del mismo sitio y
+    # juntarlas escondería cual de las dos hablo: sobre metraje de pelicula la
+    # de pixeles no encuentra nada y esta si.
+    out["leido"] = None
+    if leer_texto:
+        try:
+            import leer
+            out["leido"] = leer.subtitulos(video)
+        except Exception:
+            # Que no se pueda leer el texto no puede tumbar el resto de la
+            # ficha: el ritmo y el arranque valen igual sin el.
+            out["leido"] = None
     if not frames:
         return out
     banda = banda_de_texto(frames)

@@ -307,17 +307,46 @@ para los `Text+` de los subtítulos y de Color solo un CDL básico.
 
 ### La meta, por orden de lo que más se nota
 
-- [ ] **Guardar LO MEDIDO y no un nombre de plantilla.** Es el que bloquea a los otros
-      cuatro: mientras la galería guarde `"ember"`, todo lo que aprenda el analizador se
-      tira al guardar. Un estilo guardado tiene que poder existir sin parecerse a ningún
-      preset. Aburrido y no se ve en pantalla, pero va primero.
-- [ ] **Un color por palabra**, con la paleta sacada del vídeo. Lo más visible y lo más
-      barato. Los tres colores del Short de referencia ya están medidos, arriba.
-      `captions.PRESETS` ya tiene `word_fx` y `accent`, y `marker` ya pinta la palabra que
-      suena; lo que falta es que varias palabras lleven colores FIJOS distintos a la vez,
-      que es lo que hace el vídeo real.
-- [ ] **Leer el texto de la IMAGEN y no del audio.** Hoy transcribe con Whisper, y en ese
-      Short escribió "Charvis" donde el vídeo pone JARVIS, además de comerse las tildes.
+- [x] **Guardar LO MEDIDO y no un nombre de plantilla.** HECHO el 2026-08-23. Un estilo
+      copiado es ahora un componente de la galería (`skill/helpers/galeria.py`): lleva
+      dentro lo medido, hereda de la plantilla base lo que todavía no se sabe medir, y
+      **dice cuál es cuál** (`medido` / `heredado`, y la pantalla lo enseña al guardar).
+      A partir de ahí existe solo: mover la plantilla no mueve el estilo copiado, y hay
+      una prueba que lo comprueba moviéndola. El id viaja por argv hasta otros dos
+      intérpretes (el render de MP4 y el que corre dentro de Resolve), así que el almacén
+      es un archivo que los tres leen. 80 comprobaciones en `tests/test_galeria.py`.
+- [~] **Un color por palabra**, con la paleta sacada del vídeo. **Medido ya, falta
+      reconstruirlo.** `skill/helpers/leer.py` saca el color de cada palabra del vídeo
+      real: en el Short de referencia devuelve `Y`/`HAY`/`PERSONA` en blanco y `OTRA` en
+      amarillo `(0.93, 0.98, 0.07)`. Lo que falta es el otro lado: `captions.PRESETS`
+      todavía no sabe pintar varias palabras con colores FIJOS distintos a la vez (tiene
+      `word_fx` y `accent`, y `marker` pinta la palabra que suena, que no es lo mismo).
+- [x] **Leer el texto de la IMAGEN y no del audio.** HECHO el 2026-08-23, en
+      `skill/helpers/leer.py`. Lee `JARV!` en amarillo donde Whisper escribía "Charvis".
+
+  **Lo que costó y por qué está escrito aquí:** contar píxeles por filas
+  (`aprende.banda_de_texto`) **no puede** encontrar un subtítulo sobre metraje de
+  película, y no es cuestión de umbral. Busca un pico de detalle, y en una película hay
+  detalle en todas partes: sobre el Short devuelve una banda del 71% del cuadro. Se probó
+  además una variante que pesaba la presencia de tinta y la sale **peor** (pone la banda
+  arriba del todo, donde no hay una sola letra). La razón de fondo es que para ver que un
+  texto está quieto hay que comparar fotogramas **seguidos**, y se miran 40 repartidos por
+  todo el vídeo, con casi un segundo entre uno y otro.
+
+  Así que se usa un detector de texto (`rapidocr-onnxruntime`, Apache-2.0, ~55 MB, corre
+  sobre el `onnxruntime` que ya estaba). Es **opcional**: sin él, `leer.py` dice que no
+  puede y el resto sigue igual. Tres cosas más que salieron de mirar las imágenes, no de
+  razonar sobre ellas:
+
+  - La **marca de agua** del creador se separa sola: repite el mismo texto una y otra vez
+    en el mismo sitio, y un subtítulo vuelve al mismo sitio con palabras distintas.
+  - Los cortes entre palabras se reparten **por letras**, no por huecos de contraste. Con
+    contraste, en `UNA DE CADA CINCO` la palabra amarilla tapa a las grises y el corte de
+    `CADA` acababa encima de la E de `DE`, midiendo 14 px en vez de 60. Ninguna fórmula de
+    color arregla un corte mal puesto, y se gastaron tres en intentarlo.
+  - Las letras de ese vídeo están **huecas** (solo contorno, y por dentro se ve el fondo),
+    así que todo lo que mire "el interior de la letra" devuelve el fondo. El color se
+    saca del BORDE, y se coge el que más se repite y no el promedio.
 - [ ] **Detectar la animación de entrada** de las palabras.
 - [ ] **Detectar transiciones y efectos**, que hoy es un campo que no existe.
 

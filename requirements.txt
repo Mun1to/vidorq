@@ -20,3 +20,16 @@ onnxruntime>=1.17       # runs the face detector in skill/models/
 # executables the yt-dlp project ships, built with PyInstaller, do carry GPLv3+
 # code and must NOT be redistributed. Install it, do not bundle their binary.
 yt-dlp>=2026.7          # downloads the reference video behind a link
+
+# Reading the captions that are BURNED INTO a reference video: where they sit,
+# what they say, and what colour each word is. Optional on purpose: without it
+# skill/helpers/leer.py reports that it cannot look, and nothing else changes.
+#
+# It earns its ~55 MB by replacing a method that does not work. Counting pixels
+# per row finds a caption on a flat background and fails on real footage: on a
+# measured Short it returned a band covering 71% of the frame. That is not a
+# threshold to tune, it is the wrong question, so this asks a different one.
+#
+# It runs on the onnxruntime already listed above, and brings opencv with it.
+# Apache-2.0, so it is safe inside a paid product.
+rapidocr-onnxruntime>=1.2   # finds and reads text in a frame

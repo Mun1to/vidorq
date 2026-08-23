@@ -2041,7 +2041,11 @@ def _mira_archivo(video):
         return {"ok": False, "why": "no_video"}
     import aprende
     try:
-        f = aprende.ficha(video)
+        # Con el detector de texto encendido. Aqui SI se puede esperar: la
+        # pantalla ya dice "Mirando el video..." y son unos segundos mas, a
+        # cambio de encontrar el subtitulo en un video con metraje detras,
+        # que es donde contar pixeles por filas no encuentra nada.
+        f = aprende.ficha(video, leer_texto=True)
     except aprende.SinFFmpeg:
         # Se dice por su nombre. Antes esto salia como un fallo generico y la
         # ventana lo traducia a "en esa ruta no hay ningun video", que manda a
