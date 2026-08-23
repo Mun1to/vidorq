@@ -62,6 +62,11 @@ vidorq_render.py         → mp4 directo (GPU)
 | `GET /galeria` | los componentes que has copiado de otros vídeos, con lo que se midió de cada uno |
 | `POST /galeria` | guarda uno nuevo con **los números medidos dentro**, y contesta qué salió del vídeo y qué de la plantilla |
 | `POST /galeria/borrar` | quita uno de la galería |
+| `POST /galeria/exportar` | deja uno en un archivo suelto, para llevártelo a otro ordenador |
+| `POST /galeria/importar` | mete uno que venga de fuera; todo lo que trae se vuelve a comprobar campo a campo |
+| `GET /fusion` | los estilos que Vidorq ha dejado en `Effects Library > Titles` de Resolve, y **qué parte de uno no sabe recrear** |
+| `POST /fusion/instalar` | convierte un estilo en un título de Fusion que puedes arrastrar al timeline y escribirle cualquier frase |
+| `POST /fusion/quitar` | lo quita de ahí, y solo si lo puso Vidorq |
 | `GET /tramos` | el montaje partido en tramos, con lo que se dice en cada uno |
 | `GET /history` | todas las ediciones hechas, la última primero |
 | `GET /preview` | una foto de lo que hace una elección, sobre tu propio metraje |

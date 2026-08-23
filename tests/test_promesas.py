@@ -125,7 +125,9 @@ def casos():
     # todo esto: un boton que ofrecia una transicion y luego la negaba.
     import director
     chat = leer("app/src/Chat.tsx")
-    atajos = re.findall(r'\{\s*key:\s*"([^"]+)",\s*send:\s*"([^"]*)"\s*\}', chat)
+    # Sin exigir el `}` justo detras: desde que los atajos van por familias,
+    # cada uno puede llevar ademas un `puesto:` que dice si ya esta aplicado.
+    atajos = re.findall(r'\{\s*key:\s*"([^"]+)",\s*send:\s*"([^"]*)"', chat)
     yield ("hay atajos en el chat", len(atajos) >= 8, True)
     perdidos = []
     for clave, envia in atajos:
