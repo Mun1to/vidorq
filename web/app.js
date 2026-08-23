@@ -93,7 +93,27 @@
   document
     .querySelectorAll(".demo-preset, .demo-seg button")
     .forEach((btn) => btn.addEventListener("click", () => selectSibling(btn)));
+
+  // las de "Tu marca" son multiselección de verdad en la app: se alternan solas
+  document
+    .querySelectorAll('[data-panel="marca"] .chip')
+    .forEach((chip) => chip.addEventListener("click", () => chip.classList.toggle("sel")));
+
   document.querySelectorAll(".chip").forEach((el) => attachMagnetic(el, 5));
+
+  // ---------- demo del panel: pestañas (las seis secciones del lateral) ----------
+  const demoTabs = document.querySelectorAll(".demo-tab");
+  const demoPanels = document.querySelectorAll(".demo-panel");
+
+  demoTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      demoTabs.forEach((el) => el.classList.remove("sel"));
+      tab.classList.add("sel");
+      demoPanels.forEach((panel) => {
+        panel.hidden = panel.dataset.panel !== tab.dataset.tab;
+      });
+    });
+  });
 
   // ---------- parallax en capas + salida del hero (escalado por --motion-gain) ----------
   const layers = document.querySelectorAll("[data-speed]");

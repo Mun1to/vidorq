@@ -62,53 +62,197 @@
     <!-- Recreado con el mismo CSS de la web, no una captura de la app: una
          captura real mezclaba dos temas visuales distintos y se veia ajena
          a la pagina. Los textos son los reales, tal cual estan hoy en
-         app/src/App.tsx. -->
+         app/src/App.tsx, Brand.tsx, Aprende.tsx, History.tsx, Guia.tsx y
+         Settings.tsx (y su i18n). Las seis pestanas son las seis del lateral
+         de la app de verdad. -->
     <section class="section demo-section">
       <div class="section-inner wide">
         <div class="demo reveal" aria-hidden="true">
-          <div class="demo-head">
-            <div>
-              <h3>Editar un vídeo</h3>
-              <p>Describe la edición. El resto es nuestro.</p>
+          <div class="demo-tabs">
+            <button type="button" class="demo-tab sel" data-tab="editar" tabindex="-1">Editar</button>
+            <button type="button" class="demo-tab" data-tab="marca" tabindex="-1">Tu marca</button>
+            <button type="button" class="demo-tab" data-tab="estilo" tabindex="-1">Copiar un estilo</button>
+            <button type="button" class="demo-tab" data-tab="historial" tabindex="-1">Historial</button>
+            <button type="button" class="demo-tab" data-tab="resolve" tabindex="-1">Empezar con Resolve</button>
+            <button type="button" class="demo-tab" data-tab="ajustes" tabindex="-1">Ajustes</button>
+          </div>
+
+          <!-- ---- Editar un vídeo ---- -->
+          <div class="demo-panel" data-panel="editar">
+            <div class="demo-head">
+              <div>
+                <h3>Editar un vídeo</h3>
+                <p>Describe la edición. El resto es nuestro.</p>
+              </div>
+              <div class="demo-seg">
+                <button type="button" class="sel" tabindex="-1">MP4 directo</button>
+                <button type="button" tabindex="-1">Timeline en Resolve</button>
+              </div>
             </div>
-            <div class="demo-seg">
-              <button type="button" class="sel" tabindex="-1">MP4 directo</button>
-              <button type="button" tabindex="-1">Timeline en Resolve</button>
+
+            <div class="demo-drop">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>
+              <strong>Arrastra tu vídeo aquí</strong>
+              <span>o pega la ruta del archivo y pulsa Enter</span>
+            </div>
+
+            <div class="demo-prompt">Un short vertical con subtítulos grandes</div>
+            <div class="demo-eg">
+              <span>Un short vertical con subtítulos grandes</span>
+              <span>Quita silencios y titubeos, nada más</span>
+              <span>Los mejores momentos, en vertical</span>
+            </div>
+
+            <div class="demo-presets">
+              <button type="button" class="demo-preset sel" tabindex="-1">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.12 15.88"/><path d="M14.47 14.48L20 20"/><path d="M8.12 8.12L12 12"/></svg>
+                <b>Limpieza</b>
+                <small>Corta silencios, titubeos y momentos muertos</small>
+              </button>
+              <button type="button" class="demo-preset" tabindex="-1">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 19v3"/></svg>
+                <b>Podcast</b>
+                <small>Corta y marca cada pregunta</small>
+              </button>
+              <button type="button" class="demo-preset" tabindex="-1">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+                <b>Montaje <em>BETA</em></b>
+                <small>Se queda los momentos de más energía</small>
+              </button>
             </div>
           </div>
 
-          <div class="demo-drop">
-            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>
-            <strong>Arrastra tu vídeo aquí</strong>
-            <span>o pega la ruta del archivo y pulsa Enter</span>
+          <!-- ---- Tu marca ---- -->
+          <div class="demo-panel" data-panel="marca" hidden>
+            <div class="demo-head">
+              <div>
+                <h3>Tu marca, tu estilo</h3>
+                <p>Vidorq usa este perfil para que cada edición sea tuya y de nadie más.</p>
+              </div>
+            </div>
+
+            <div class="demo-field">
+              <label>¿Qué sensación debe dejar tu contenido?</label>
+              <div class="chips">
+                <span class="chip sel">cercano</span>
+                <span class="chip">premium</span>
+                <span class="chip sel">enérgico</span>
+                <span class="chip">calmado</span>
+                <span class="chip">técnico</span>
+                <span class="chip">divertido</span>
+              </div>
+            </div>
+
+            <div class="demo-field">
+              <label>Ritmo de edición</label>
+              <div class="demo-pace">
+                <div class="demo-pace-track"><i style="width: 70%"></i></div>
+                <div class="demo-pace-read"><b>7 / 10</b><span>hype: cortes secos y muy seguidos</span></div>
+              </div>
+            </div>
+
+            <div class="demo-field">
+              <label>Colores de marca</label>
+              <div class="demo-swatches">
+                <span style="background: #6c5ce7"></span>
+                <span style="background: #2b82f0"></span>
+              </div>
+            </div>
           </div>
 
-          <div class="demo-prompt">Un short vertical con subtítulos grandes</div>
-          <div class="demo-eg">
-            <span>Un short vertical con subtítulos grandes</span>
-            <span>Quita silencios y titubeos, nada más</span>
-            <span>Los mejores momentos, en vertical</span>
+          <!-- ---- Copiar un estilo ---- -->
+          <div class="demo-panel" data-panel="estilo" hidden>
+            <div class="demo-head">
+              <div>
+                <h3>Copiar el estilo de un vídeo</h3>
+                <p>Dale un vídeo que te haya gustado. Vidorq lo mira y te dice cómo está hecho.</p>
+              </div>
+            </div>
+
+            <div class="demo-row">
+              <div class="demo-prompt" style="flex: 1">https://tiktok.com/@ejemplo/vídeo</div>
+              <button type="button" class="ghost" tabindex="-1">Mirarlo</button>
+            </div>
+
+            <div class="demo-reparto">
+              <p><strong>De su vídeo he copiado:</strong> dónde cae el texto, el tamaño de la letra, el color del relleno.</p>
+              <p>El resto sale de la plantilla, porque todavía no sé medirlo.</p>
+            </div>
           </div>
 
-          <div class="demo-presets">
-            <button type="button" class="demo-preset sel" tabindex="-1">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.12 15.88"/><path d="M14.47 14.48L20 20"/><path d="M8.12 8.12L12 12"/></svg>
-              <b>Limpieza</b>
-              <small>Corta silencios, titubeos y momentos muertos</small>
-            </button>
-            <button type="button" class="demo-preset" tabindex="-1">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 19v3"/></svg>
-              <b>Podcast</b>
-              <small>Corta y marca cada pregunta</small>
-            </button>
-            <button type="button" class="demo-preset" tabindex="-1">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
-              <b>Montaje <em>BETA</em></b>
-              <small>Se queda los momentos de más energía</small>
-            </button>
+          <!-- ---- Historial ---- -->
+          <div class="demo-panel" data-panel="historial" hidden>
+            <div class="demo-head">
+              <div>
+                <h3>Historial</h3>
+                <p>Cada edición, con lo que le pediste y lo que hizo.</p>
+              </div>
+            </div>
+
+            <div class="demo-hist">
+              <div class="demo-hist-row">
+                <span class="demo-hist-hour">14:22</span>
+                <span class="demo-hist-body">
+                  <b>short_gaming.mp4</b><em>MP4</em>
+                  <span>"quita los silencios y añade zoom"</span>
+                  <small>8 cortes · subtítulos animados · 38 s</small>
+                </span>
+              </div>
+              <div class="demo-hist-row">
+                <span class="demo-hist-hour">11:05</span>
+                <span class="demo-hist-body">
+                  <b>podcast_ep12.mp4</b><em class="resolve">Resolve</em>
+                  <span>"un short vertical con subtítulos grandes"</span>
+                  <small>14 cortes · timeline de 3 pistas · 51 s</small>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ---- Empezar con Resolve ---- -->
+          <div class="demo-panel" data-panel="resolve" hidden>
+            <div class="demo-head">
+              <div>
+                <h3>Empezar con Resolve</h3>
+                <p>Tres cosas y ya editas dentro de DaVinci. Esta pantalla comprueba sola si están hechas.</p>
+              </div>
+            </div>
+
+            <ol class="demo-steps">
+              <li class="ok"><span class="demo-step-mark"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span><b>El motor de Vidorq está encendido</b></li>
+              <li class="ok"><span class="demo-step-mark"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span><b>DaVinci Resolve abierto con un proyecto</b></li>
+              <li class="ok"><span class="demo-step-mark"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"/></svg></span><b>El puente arrancado dentro de Resolve</b></li>
+            </ol>
+
+            <div class="demo-ok">Todo listo. Elige Timeline en Resolve como salida y lo verás montarse en directo.</div>
+          </div>
+
+          <!-- ---- Ajustes ---- -->
+          <div class="demo-panel" data-panel="ajustes" hidden>
+            <div class="demo-head">
+              <div>
+                <h3>Vincular con tu IA</h3>
+                <p>Lee el skill y controla el mismo motor que esta app y el mismo DaVinci Resolve.</p>
+              </div>
+            </div>
+
+            <div class="demo-agents">
+              <div class="demo-agent">
+                <div class="demo-agent-head"><strong>Claude Code</strong><button type="button" class="ghost small" tabindex="-1">Copiar</button></div>
+                <code>mklink /J "%USERPROFILE%\.claude\skills\vidorq" "C:\proyectos\Vidorq\skill"</code>
+              </div>
+              <div class="demo-agent">
+                <div class="demo-agent-head"><strong>Cursor</strong><button type="button" class="ghost small" tabindex="-1">Copiar</button></div>
+                <code>Añade C:\proyectos\Vidorq al workspace y pide: "lee skill/SKILL.md y edita mi vídeo con vidorq"</code>
+              </div>
+              <div class="demo-agent">
+                <div class="demo-agent-head"><strong>Antigravity</strong><button type="button" class="ghost small" tabindex="-1">Copiar</button></div>
+                <code>Abre C:\proyectos\Vidorq como proyecto y apunta al agente a skill/SKILL.md</code>
+              </div>
+            </div>
           </div>
         </div>
-        <p class="demo-caption reveal">El panel de edición, tal cual. Prueba a tocar un preset.</p>
+        <p class="demo-caption reveal">Las seis pantallas de la app, tal cual. Prueba a cambiar de pestaña.</p>
       </div>
     </section>
 

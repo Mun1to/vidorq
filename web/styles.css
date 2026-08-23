@@ -37,6 +37,7 @@
   --faint: #858c96;
   --accent: #1f6fc0;
   --sobre: #ffffff;
+  --ok: #137a52;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -50,6 +51,7 @@
     --faint: #6b727c;
     --accent: #3d8ee0;
     --sobre: #06090c;
+    --ok: #35b37e;
   }
 }
 
@@ -63,6 +65,7 @@
   --faint: #6b727c;
   --accent: #3d8ee0;
   --sobre: #06090c;
+  --ok: #35b37e;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -239,6 +242,7 @@ h2 {
 
 .ghost:hover { border-color: var(--accent); }
 .ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.ghost.small { padding: 6px 13px; font-size: 12px; }
 
 .scroll-hint {
   position: absolute;
@@ -332,6 +336,104 @@ html.motion .scroll-hint span {
 .demo-preset small { font-size: 12px; color: var(--muted); line-height: 1.4; }
 .demo-preset.sel { border-color: var(--accent); background: var(--accent-fill); }
 .demo-preset.sel svg { color: var(--accent); }
+
+/* ---------- pestañas del demo (las seis secciones del lateral) ---------- */
+
+.demo-tabs {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 26px;
+  padding-bottom: 18px; border-bottom: 1px solid var(--line);
+}
+
+.demo-tab {
+  font: inherit; font-size: 13px; font-weight: var(--w-cuerpo); color: var(--muted);
+  background: transparent; border: 1px solid var(--line); border-radius: 999px;
+  padding: 8px 15px; cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+}
+
+.demo-tab:hover { color: var(--text); border-color: var(--accent-soft); }
+.demo-tab.sel { background: var(--accent); border-color: var(--accent); color: var(--sobre); font-weight: var(--w-fuerte); }
+
+/* ---------- Tu marca ---------- */
+
+.demo-field { margin-bottom: 22px; }
+.demo-field:last-child { margin-bottom: 0; }
+.demo-field label { display: block; font-size: 12.5px; font-weight: var(--w-fuerte); color: var(--text-dim); margin-bottom: 10px; }
+
+.demo-pace { display: flex; align-items: center; gap: 16px; }
+.demo-pace-track { flex: 1; height: 8px; border-radius: 4px; background: var(--panel); border: 1px solid var(--line); overflow: hidden; }
+.demo-pace-track i { display: block; height: 100%; background: var(--accent); }
+.demo-pace-read { flex: 0 0 auto; display: flex; flex-direction: column; min-width: 200px; }
+.demo-pace-read b { font-size: 13px; font-weight: var(--w-fuerte); }
+.demo-pace-read span { font-size: 11.5px; color: var(--muted); }
+
+.demo-swatches { display: flex; gap: 10px; }
+.demo-swatches span { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); }
+
+/* ---------- Copiar un estilo ---------- */
+
+.demo-row { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; }
+.demo-row .demo-prompt { margin-bottom: 0; }
+
+.demo-reparto {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 11px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 7px;
+}
+.demo-reparto p { font-size: 13.5px; color: var(--muted); line-height: 1.5; margin: 0; }
+.demo-reparto strong { color: var(--text); font-weight: var(--w-fuerte); }
+
+/* ---------- Historial ---------- */
+
+.demo-hist { display: flex; flex-direction: column; gap: 8px; }
+.demo-hist-row {
+  display: flex; gap: 14px; align-items: flex-start; background: var(--panel2);
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+}
+.demo-hist-hour { flex: 0 0 auto; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; padding-top: 1px; }
+.demo-hist-body { display: flex; flex-direction: column; gap: 3px; }
+.demo-hist-body b { font-size: 13px; font-weight: var(--w-fuerte); color: var(--text); margin-right: 8px; }
+.demo-hist-body em {
+  font-style: normal; font-size: 10.5px; font-weight: var(--w-fuerte); color: var(--muted);
+  background: var(--panel); border: 1px solid var(--line-soft); border-radius: 5px; padding: 1px 6px;
+}
+.demo-hist-body em.resolve { color: var(--accent-soft); border-color: var(--accent); }
+.demo-hist-body span { font-size: 12.5px; color: var(--text-dim); }
+.demo-hist-body small { font-size: 11.5px; color: var(--muted); }
+
+/* ---------- Empezar con Resolve ---------- */
+
+.demo-steps { list-style: none; display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+.demo-steps li {
+  display: flex; align-items: center; gap: 12px; background: var(--panel2);
+  border: 1px solid color-mix(in srgb, var(--ok) 32%, var(--line));
+  border-radius: 10px; padding: 12px 14px; font-size: 13.5px; font-weight: var(--w-fuerte); color: var(--text);
+}
+.demo-step-mark {
+  flex: 0 0 auto; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--ok); color: var(--sobre); display: grid; place-items: center;
+}
+
+.demo-ok {
+  display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--text-dim);
+  background: color-mix(in srgb, var(--ok) 12%, var(--bg)); border: 1px solid color-mix(in srgb, var(--ok) 35%, var(--bg));
+  border-radius: 9px; padding: 11px 14px;
+}
+
+/* ---------- Ajustes / vincular con tu IA ---------- */
+
+.demo-agents { display: flex; flex-direction: column; gap: 10px; }
+.demo-agent { background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.demo-agent-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+.demo-agent-head strong { font-size: 13.5px; font-weight: var(--w-fuerte); }
+.demo-agent code {
+  display: block; font: 11.5px ui-monospace, Consolas, monospace; color: var(--accent-soft);
+  word-break: break-all; line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .demo-pace { flex-direction: column; align-items: stretch; gap: 8px; }
+  .demo-pace-read { min-width: 0; }
+  .demo-row { flex-direction: column; align-items: stretch; }
+}
 
 .demo-caption {
   text-align: center;
