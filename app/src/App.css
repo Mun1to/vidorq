@@ -350,10 +350,16 @@ body {
    partida por la mitad. */
 .cta-suelo {
   position: sticky; bottom: 0; z-index: 3;
-  margin-top: 2px; padding-bottom: 26px;
+  margin-top: 2px;
   display: flex; justify-content: center;
   background: var(--bg);
-  box-shadow: 0 -14px 20px -8px var(--bg);
+  /* Arriba el degradado que separa del contenido, y abajo una banda opaca de
+     26 px. La banda va como SOMBRA y no como relleno a proposito: un relleno
+     ocupa sitio y empuja hacia abajo la fila de "así va a quedar", que se
+     quedaba fuera de la ventana; una sombra pinta y no ocupa. Y al salir del
+     propio elemento, que ya es del ancho del panel, tampoco desborda a los
+     lados, que es lo que pasaba con el `-50vw` de antes. */
+  box-shadow: 0 -14px 20px -8px var(--bg), 0 26px 0 var(--bg);
 }
 .cta-suelo > .cta { max-width: 420px; }
 
