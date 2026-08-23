@@ -91,13 +91,22 @@ export default function Modelo({ onSetup }: { onSetup: () => void }) {
     };
   }, [open]);
 
-  const guarda = (campo: string, valor: string) => {
-    // Optimista: la barra cambia ya y el motor se entera despues. Si falla, la
-    // recarga de abajo devuelve la verdad, que es mejor que un desplegable que
-    // se queda pensando medio segundo cada vez que se toca.
-    setD((v) => (v ? { ...v, [campo === "aiProvider" ? "provider"
-                        : campo === "aiModel" ? "model" : "esfuerzo"]: valor } : v));
-    apiPost("/config", { [campo]: valor }).then(carga).catch(carga);
+  /* Optimista: la barra cambia ya y el motor se entera despues. Si falla, la
+     recarga devuelve la verdad, que es mejor que un desplegable que se queda
+     pensando medio segundo cada vez que se toca. */
+  const guarda = (aqui: Partial<Datos>, alla: Record<string, string>) => {
+    setD((v) => (v ? { ...v, ...aqui } : v));
+    apiPost("/config", alla).then(carga).catch(carga);
+  };
+
+  /* Cambiar de proveedor BORRA el modelo, y no es un extra: un
+     `claude-sonnet-5` no existe en Ollama, asi que arrastrarlo al proveedor
+     siguiente deja la barra diciendo un nombre que ese proveedor no reconoce y
+     la edicion falla en la primera llamada. Vacio significa "sin preferencia" y
+     el motor usa el que trae por defecto. */
+  const ponProveedor = (pid: string) => {
+    setModels([]);
+    guarda({ provider: pid, model: "" }, { aiProvider: pid, aiModel: "" });
   };
 
   if (!d) return null;
@@ -130,7 +139,7 @@ export default function Modelo({ onSetup }: { onSetup: () => void }) {
             className={e.id === d.esfuerzo ? "sel" : ""}
             title={e.note}
             aria-pressed={e.id === d.esfuerzo}
-            onClick={() => guarda("aiEsfuerzo", e.id)}
+            onClick={() => guarda({ esfuerzo: e.id }, { aiEsfuerzo: e.id })}
           >{e.label}</button>
         ))}
       </div>
@@ -145,7 +154,7 @@ export default function Modelo({ onSetup }: { onSetup: () => void }) {
                 key={p.id}
                 className={`modelo-fila ${p.id === d.provider ? "sel" : ""}`}
                 disabled={!p.installed && !falta}
-                onClick={() => { guarda("aiProvider", p.id); setModels([]); }}
+                onClick={() => ponProveedor(p.id)}
               >
                 <span className={`punto ${!p.installed ? "roto"
                                   : falta ? "sin-clave" : "listo"}`} />
@@ -168,7 +177,7 @@ export default function Modelo({ onSetup }: { onSetup: () => void }) {
                   <button
                     key={m}
                     className={`chip ${m === d.model ? "sel" : ""}`}
-                    onClick={() => guarda("aiModel", m)}
+                    onClick={() => guarda({ model: m }, { aiModel: m })}
                   >{m}</button>
                 ))}
               </div>
