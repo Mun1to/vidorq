@@ -47,9 +47,9 @@ type Estado = "listo" | "sin-clave" | "roto";
 
 function estadoDe(d: Datos | null): Estado {
   if (!d) return "roto";
-  const p = d.list.find((x) => x.id === d.provider);
+  const p = (d.list || []).find((x) => x.id === d.provider);
   if (!p) return "roto";
-  if (p.needsKey && !d.hasKey.includes(p.id)) return "sin-clave";
+  if (p.needsKey && !(d.hasKey || []).includes(p.id)) return "sin-clave";
   return p.installed ? "listo" : "roto";
 }
 
@@ -111,8 +111,17 @@ export default function Modelo({ onSetup }: { onSetup: () => void }) {
 
   if (!d) return null;
 
+  /* Un motor mas viejo que la ventana no manda `esfuerzos`, y eso no es
+     hipotetico: el motor es un proceso que lleva horas vivo y no se entera de
+     que se ha tocado su codigo. Sin esta red, `d.esfuerzos.map` revienta y la
+     pantalla de chat entera se queda en blanco por un mando de tres botones.
+     Con ella, la barra sale sin el esfuerzo y todo lo demas funciona. */
+  const esfuerzos = Array.isArray(d.esfuerzos) ? d.esfuerzos : [];
+  const lista = Array.isArray(d.list) ? d.list : [];
+  const conClave = Array.isArray(d.hasKey) ? d.hasKey : [];
+
   const estado = estadoDe(d);
-  const prov = d.list.find((x) => x.id === d.provider);
+  const prov = lista.find((x) => x.id === d.provider);
   const nombre = d.model || prov?.label || d.provider;
 
   return (
@@ -133,7 +142,7 @@ export default function Modelo({ onSetup }: { onSetup: () => void }) {
       {/* El esfuerzo va FUERA del desplegable, a la vista y de un toque: es lo
           que mas se cambia y esconderlo detras de un clic lo mataria. */}
       <div className="esfuerzo" role="group" aria-label={t("modelo.esfuerzo")}>
-        {d.esfuerzos.map((e) => (
+        {esfuerzos.map((e) => (
           <button
             key={e.id}
             className={e.id === d.esfuerzo ? "sel" : ""}
@@ -147,8 +156,8 @@ export default function Modelo({ onSetup }: { onSetup: () => void }) {
       {open && (
         <div className="modelo-menu">
           <p className="modelo-tit">{t("modelo.quien")}</p>
-          {d.list.map((p) => {
-            const falta = p.needsKey && !d.hasKey.includes(p.id);
+          {lista.map((p) => {
+            const falta = p.needsKey && !conClave.includes(p.id);
             return (
               <button
                 key={p.id}
