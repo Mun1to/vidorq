@@ -180,15 +180,16 @@
   <!-- ------------------------------------------------------------------ -->
   <section class="ks-sec" id="botones">
     <h2>Botones</h2>
-    <div class="ks-card ks-flag">
+    <div class="ks-card">
       <header><code>.cta</code><span class="ks-why">el de aplicar</span></header>
       <div class="ks-body ks-col">
         <button class="cta">Aplicar</button>
         <button class="cta" disabled>Aplicar (apagado)</button>
         <div class="ks-mini"><button class="cta inline">Inline, dentro de una fila</button></div>
       </div>
-      <p class="ks-note"><b>Ocupa el ancho entero siempre</b> (<code>width: 100%</code>). En una
-      ventana apaisada eso es un botón de mil píxeles para una palabra.</p>
+      <p class="ks-note">El principal de la pantalla ya no cruza el panel: <code>.main &gt; .cta</code>
+      lleva <code>max-width: 420px</code> y va centrado. Sigue pegado abajo, que es lo que
+      resolvía que hubiera que hacer scroll para encontrarlo.</p>
     </div>
     <div class="ks-card">
       <header><code>.ghost</code> <code>.ghost.small</code> <code>.stop</code></header>
@@ -198,9 +199,20 @@
         <button class="stop">Parar</button>
         <button class="stop small">Parar pequeño</button>
       </div>
-      <p class="ks-note"><b>Falta el nivel de en medio.</b> O es el botón morado que ocupa toda
-      la fila, o es un fantasma casi invisible. No hay un botón normal.</p>
+      <p class="ks-note">El nivel de en medio ya está: es <code>.btn</code>, aquí abajo.</p>
     </div>
+    <div class="ks-card">
+      <header><code>.btn</code><span class="ks-why">el escalón de en medio</span></header>
+      <div class="ks-body">
+        <button class="btn">Botón normal</button>
+        <button class="btn" disabled>Apagado</button>
+        <button class="cta inline">Principal</button>
+        <button class="ghost">Fantasma</button>
+      </div>
+      <p class="ks-note">Los tres juntos, para ver que hay tres alturas y no dos. Una acción de
+      verdad que no es <i>LA</i> acción usa este.</p>
+    </div>
+
     <div class="ks-card">
       <header><code>.more-toggle</code> <code>.pro-toggle</code> <code>.ws-btn</code></header>
       <div class="ks-body">
@@ -214,29 +226,42 @@
   <!-- ------------------------------------------------------------------ -->
   <section class="ks-sec" id="pastillas">
     <h2>Pastillas</h2>
-    <div class="ks-card ks-flag">
-      <header><code>.chips</code> <code>.chip</code><span class="ks-why">los atajos del chat</span></header>
+    <div class="ks-card">
+      <header><code>.chips</code> <code>.chip-grupo</code> <code>.chip-tit</code><span class="ks-why">los atajos del chat</span></header>
       <div class="ks-body ks-col">
         <div class="chips">
-          <button class="chip">Transiciones</button>
-          <button class="chip">Filtro de color</button>
-          <button class="chip">Subtítulos</button>
-          <button class="chip">Animación</button>
-          <button class="chip">Temblor</button>
-          <button class="chip">Vertical</button>
-          <button class="chip">Zoom</button>
-          <button class="chip">Acortar</button>
-          <button class="chip">Rótulo</button>
-          <button class="chip">Chapa</button>
-        </div>
-        <div class="chips">
-          <button class="chip sel">Seleccionada</button>
-          <button class="chip">Sin seleccionar</button>
+          <div class="chip-grupo">
+            <span class="chip-tit">El montaje</span>
+            <button class="ya"><span class="chip-marca"></span>Transiciones</button>
+            <button>Vertical</button>
+            <button>Temblor</button>
+            <button>Zoom</button>
+            <button>Quitar un trozo</button>
+          </div>
+          <div class="chip-grupo">
+            <span class="chip-tit">El aspecto</span>
+            <button>Filtro de color</button>
+            <button class="ya"><span class="chip-marca"></span>Subtítulos</button>
+            <button>Animación</button>
+          </div>
+          <div class="chip-grupo">
+            <span class="chip-tit">Añadir encima</span>
+            <button>Rótulo</button>
+            <button>Chapa</button>
+          </div>
         </div>
       </div>
-      <p class="ks-note"><b>Diez pastillas idénticas y sin jerarquía.</b> No se ve cuál cambia el
-      montaje entero y cuál solo añade un adorno, ni cuáles están puestas ahora mismo. Es la
-      fila que Munir señaló como no intuitiva.</p>
+      <p class="ks-note">Tres familias por lo que le PASA al vídeo, que es como lo piensa quien
+      edita. El punto de acento marca lo que ya está puesto, y no apaga el botón: se puede
+      querer cambiar el filtro que hay. Zoom y "quitar un trozo" no llevan marca porque son
+      acciones de una vez, y ahí un marcador sería mentira.</p>
+    </div>
+    <div class="ks-card">
+      <header><code>.chip</code> <code>.chip.sel</code><span class="ks-why">en las galerías</span></header>
+      <div class="ks-body">
+        <button class="chip sel">Seleccionada</button>
+        <button class="chip">Sin seleccionar</button>
+      </div>
     </div>
     <div class="ks-card">
       <header><code>.tag</code> <code>.opt-tag</code> <code>.hist-tag</code></header>
@@ -342,15 +367,69 @@
   <!-- ------------------------------------------------------------------ -->
   <section class="ks-sec" id="chat">
     <h2>Chat</h2>
-    <div class="ks-card ks-flag">
+    <div class="ks-card">
       <header><code>.chat</code> <code>.bubble</code> <code>.chat-foot</code></header>
       <div class="ks-body ks-col">
         <div class="bubble you">Hazlo vertical y quítale los silencios.</div>
         <div class="bubble them">Hecho: 12 cortes y el encuadre a 9:16 siguiendo la cara.</div>
       </div>
-      <p class="ks-note"><b>Aquí abajo tienen que aparecer el modelo, el proveedor y el
-      esfuerzo.</b> Hoy están enterrados en un modal de Ajustes con tres pestañas, así que
-      cambiar de modelo son cuatro clics y no se ve cuál está puesto sin abrirlo.</p>
+    </div>
+    <div class="ks-card">
+      <header><code>.modelo</code> <code>.punto</code> <code>.esfuerzo</code><span class="ks-why">quién piensa y cuánto</span></header>
+      <div class="ks-body ks-col">
+        <div class="modelo" style="padding: 0">
+          <button class="modelo-btn">
+            <span class="punto listo"></span>
+            <span class="modelo-quien">Ollama</span>
+            <span class="modelo-cual">llama3.1:8b</span>
+            <span class="modelo-flecha"></span>
+          </button>
+          <div class="esfuerzo">
+            <button>Rápido</button>
+            <button class="sel">Normal</button>
+            <button>A fondo</button>
+          </div>
+        </div>
+        <div class="modelo" style="padding: 0">
+          <button class="modelo-btn">
+            <span class="punto sin-clave"></span>
+            <span class="modelo-quien">Anthropic</span>
+            <span class="modelo-cual">claude-sonnet-5-20260514</span>
+            <span class="modelo-flecha"></span>
+          </button>
+          <button class="modelo-btn">
+            <span class="punto roto"></span>
+            <span class="modelo-quien">Gemini CLI</span>
+            <span class="modelo-cual">no instalado</span>
+            <span class="modelo-flecha"></span>
+          </button>
+        </div>
+      </div>
+      <p class="ks-note">El punto dice el estado sin abrir nada: verde listo, ámbar le falta la
+      clave, rojo no se puede usar. El nombre del modelo se recorta con puntos suspensivos
+      porque un <code>claude-sonnet-5-20260514</code> estiraría la barra entera. El esfuerzo va
+      fuera del desplegable, a un toque, porque es lo que más se cambia; y es real, multiplica
+      el presupuesto de tokens (×0,6, ×1, ×3) en los cuatro protocolos.</p>
+    </div>
+    <div class="ks-card">
+      <header><code>.modelo-menu</code><span class="ks-why">el desplegable</span></header>
+      <div class="ks-body ks-col">
+        <div class="modelo-menu" style="position: static; max-width: 340px">
+          <p class="modelo-tit">Quién piensa</p>
+          <button class="modelo-fila sel"><span class="punto listo"></span><span class="modelo-nom">Ollama</span></button>
+          <button class="modelo-fila"><span class="punto sin-clave"></span><span class="modelo-nom">Anthropic</span><span class="modelo-nota">le falta la clave</span></button>
+          <button class="modelo-fila" disabled><span class="punto roto"></span><span class="modelo-nom">Codex CLI</span><span class="modelo-nota">no instalado</span></button>
+          <p class="modelo-tit">Con qué modelo</p>
+          <div class="modelo-modelos">
+            <button class="chip sel">llama3.1:8b</button>
+            <button class="chip">qwen2.5:14b</button>
+            <button class="chip">mistral:7b</button>
+          </div>
+          <button class="btn">Ajustes de proveedor</button>
+        </div>
+      </div>
+      <p class="ks-note">Un proveedor que no se puede usar dice POR QUÉ ahí mismo, en vez de
+      quedarse gris y mudo.</p>
     </div>
   </section>
 
@@ -396,33 +475,38 @@
   <section class="ks-sec" id="falta">
     <h2>Lo que falta</h2>
 
-    <div class="ks-card ks-gone">
-      <header><code>.modelo</code> <span class="ks-why">modelo · proveedor · esfuerzo, en el chat</span></header>
+    <div class="ks-card">
+      <header><code>.acentos</code><span class="ks-why">el acento, elegible</span></header>
       <div class="ks-body ks-col">
-        <p class="hint">Tiene que verse y cambiarse sin abrir ningún modal, pegado a donde se
-        escribe. El punto de color dice si está listo, cargando o roto, como en VoCript.</p>
+        <div class="acentos">
+          <button class="acento sel"><span class="acento-bola" style="background:#3d8ee0"></span><span>Azul</span><span class="acento-num">5.15</span></button>
+          <button class="acento"><span class="acento-bola" style="background:#35b37e"></span><span>Verde</span><span class="acento-num">6.88</span></button>
+          <button class="acento"><span class="acento-bola" style="background:#d7a13a"></span><span>Ámbar</span><span class="acento-num">7.88</span></button>
+          <button class="acento"><span class="acento-bola" style="background:#e05c4e"></span><span>Rojo</span><span class="acento-num">5.06</span></button>
+          <button class="acento"><span class="acento-bola" style="background:#9b7bea"></span><span>Morado</span><span class="acento-num">5.59</span></button>
+          <button class="acento"><span class="acento-bola" style="background:#3fb6c4"></span><span>Cian</span><span class="acento-num">7.58</span></button>
+        </div>
       </div>
-      <p class="ks-note">Referencia directa:
-      <code>vocript-src/src/components/model-selector/</code> ya lo resuelve, con
-      <code>ModelStatusButton</code>, <code>ModelDropdown</code> y sus estados.</p>
+      <p class="ks-note">Ya está, en Ajustes &gt; Aspecto. El número de cada uno es su contraste
+      MEDIDO contra el fondo de este tema. El usuario puede elegir cualquier color, incluido uno
+      del selector libre, y si no llega a 4,5 se le busca la claridad más cercana que sí llegue y
+      se le dice a cuánto se ha quedado. Los seis de arriba pasan en los dos temas: doce de doce
+      comprobados. <b>Ojo:</b> los números de esta ficha son los del tema OSCURO, porque esta
+      página es estática; en claro los mismos colores se oscurecen y quedan entre 4,53 y 4,84.</p>
     </div>
 
     <div class="ks-card ks-gone">
-      <header><code>--accent</code> configurable · tema claro</header>
-      <p class="ks-note">VoCript deriva toda su paleta con <code>color-mix</code> de un acento
-      que elige el usuario, y tiene tema claro y oscuro. Aquí el morado está escrito a mano.</p>
+      <header>El logo</header>
+      <p class="ks-note">Munir dijo el 2026-08-23 que el actual es temporal y que no le gusta. No
+      se toca de refilón: se decide aparte, con varias propuestas delante y numeradas, como se
+      hizo con la paleta.</p>
     </div>
 
     <div class="ks-card ks-gone">
-      <header>Jerarquía en los atajos</header>
-      <p class="ks-note">Las diez pastillas necesitan grupos (lo que cambia el montaje, lo que
-      cambia el aspecto, lo que añade algo encima) y una marca de cuáles están puestas.</p>
-    </div>
-
-    <div class="ks-card ks-gone">
-      <header>Un botón de nivel medio</header>
-      <p class="ks-note">Entre el morado a todo lo ancho y el fantasma no hay nada. La mitad de
-      los sitios donde hoy hay un <code>.ghost</code> pedían un botón normal.</p>
+      <header>Una escala de tamaños</header>
+      <p class="ks-note">Todo lo que no es título es 12, 12,5 o 13 px según dónde cayó. Los pesos
+      ya viven en tres variables (<code>--w-cuerpo</code>, <code>--w-fuerte</code>,
+      <code>--w-et</code>); los tamaños siguen sueltos por la hoja.</p>
     </div>
   </section>
 
