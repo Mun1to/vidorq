@@ -278,6 +278,28 @@ html.motion .scroll-hint span {
 .section-inner { max-width: 780px; margin: 0 auto; }
 
 .section-inner.center { text-align: center; display: flex; flex-direction: column; align-items: center; }
+.section-inner.wide { max-width: 980px; }
+
+/* ---------- captura real de la app ---------- */
+
+.shot-section { padding-top: 0; padding-bottom: 60px; }
+
+.shot {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px -24px color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+.shot-caption {
+  text-align: center;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.lede { color: var(--muted); font-size: 17px; line-height: 1.55; margin-bottom: 30px; max-width: 620px; }
+.lede strong { color: var(--text); font-weight: var(--w-fuerte); }
 
 /* ---------- problema ---------- */
 
@@ -431,6 +453,8 @@ html.motion .scroll-hint span {
 /* ---------- funciona con tu IA ---------- */
 
 .hint-text { color: var(--muted); max-width: 460px; margin-bottom: 26px; }
+
+.chips-label { color: var(--muted); font-size: 13px; margin: 30px 0 12px; }
 
 .chips { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 
