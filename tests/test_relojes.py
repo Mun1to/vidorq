@@ -778,8 +778,8 @@ def casos():
 
     # Y funciona de verdad: un hijo sin PYTHONIOENCODING imprimiendo un emoji.
     fuente = (RAIZ / "skill" / "helpers" / "vidorq_render.py").read_text(encoding="utf-8")
-    i = fuente.index("if sys.stdout.encoding")
-    j = fuente.index("sys.stderr.reconfigure", i)
+    i = fuente.index("for _flujo in (sys.stdout, sys.stderr):")
+    j = fuente.index("reconfigure(encoding=", i)
     blindaje = fuente[i:fuente.index(chr(10), j)]
     carpeta = Path(tempfile.mkdtemp())
     CLAQUETA = chr(0x1F3AC)
@@ -794,6 +794,30 @@ def casos():
                       capture_output=True, env=entorno)
         yield ("emoji: un hijo %s" % nombre, fin.returncode == 0,
                nombre == "con blindaje")
+
+    # --- y el blindaje no puede tumbar el import cuando NO hay consola -----
+    # El motor lo arranca el script de Resolve con `spawn_hidden`, o sea con
+    # pythonw.exe, y ahi `sys.stdout` y `sys.stderr` son None. Un blindaje
+    # escrito como `if sys.stdout.encoding` revienta el modulo ENTERO al
+    # importarlo, y como `previews._shape` importa vidorq_render, eso dejaba
+    # TODAS las previsualizaciones respondiendo 500 en la instalacion de
+    # verdad mientras desde una terminal funcionaban. Medido el 23-ago-2026:
+    # "'NoneType' object has no attribute 'encoding'".
+    for guion in ("vidorq_render.py", "transcribe.py"):
+        fuente = (RAIZ / "skill" / "helpers" / guion).read_text(encoding="utf-8")
+        i = fuente.index("for _flujo in (sys.stdout, sys.stderr):")
+        j = fuente.index("reconfigure(encoding=", i)
+        bloque = fuente[i:fuente.index(chr(10), j)]
+        hijo = carpeta / ("mudo_%s" % guion)
+        hijo.write_text(
+            "import sys" + chr(10) +
+            "sys.stdout = None" + chr(10) +
+            "sys.stderr = None" + chr(10) +
+            bloque + chr(10),
+            encoding="utf-8")
+        fin = _sp.run([sys.executable, str(hijo)], capture_output=True)
+        yield ("emoji: %s aguanta sin consola (pythonw)" % guion,
+               fin.returncode, 0)
 
     # --- el video vertical sin barras negras -------------------------------
     # Resolve METE un clip que no cuadra dentro del cuadro, asi que un 16:9 en

@@ -31,9 +31,12 @@ from pathlib import Path
 # lo lee si lo sea. No imprime la ruta hoy, pero cualquier mensaje de error
 # que la incluya (rutas de usuario, con lo que sea que haya en ellas) tiene
 # el mismo riesgo, y es gratis blindarlo aqui tambien.
-if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+# Uno por uno y mirando antes si existe, por lo mismo que alli: sin consola
+# (pythonw) los dos son None y tocarlos tumba el import entero.
+for _flujo in (sys.stdout, sys.stderr):
+    _enc = getattr(_flujo, "encoding", None)
+    if _enc and _enc.lower() != "utf-8":
+        _flujo.reconfigure(encoding="utf-8", errors="replace")
 
 
 def _cuda_on_path():

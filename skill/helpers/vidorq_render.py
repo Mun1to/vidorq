@@ -45,9 +45,18 @@ from pathlib import Path
 # Va por delante de `av` y `numpy` y no detras: lo que se escribe antes del
 # blindaje sale con la codepage vieja, y eso incluye la traza de un import
 # que falle, que es justo la que hay que poder leer.
-if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+#
+# Y uno por uno, mirando antes si existe: bajo `pythonw.exe` no hay consola y
+# los dos son None, asi que `sys.stdout.encoding` revienta el modulo entero al
+# importarlo. Eso no es teorico: el motor lo arranca el script de Resolve
+# oculto, o sea con pythonw, y `previews._shape` importa este archivo, de forma
+# que TODAS las previsualizaciones respondian 500 con
+# "'NoneType' object has no attribute 'encoding'" en la instalacion de verdad,
+# mientras desde una terminal funcionaban.
+for _flujo in (sys.stdout, sys.stderr):
+    _enc = getattr(_flujo, "encoding", None)
+    if _enc and _enc.lower() != "utf-8":
+        _flujo.reconfigure(encoding="utf-8", errors="replace")
 
 import av
 import numpy as np
