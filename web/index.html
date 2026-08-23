@@ -6,7 +6,24 @@
   <meta name="description" content="Vidorq: el editor de vídeo con IA, open source y gratuito, que vive dentro de DaVinci Resolve Free. Describe la edición, el resto es nuestro.">
   <title>Vidorq - Describe la edición. El resto es nuestro.</title>
   <link rel="icon" type="image/png" href="logo.png">
+  <script>
+  (function () {
+    var h = document.documentElement;
+    var q = new URLSearchParams(location.search).get('motion');
+    var stored = null;
+    try { stored = localStorage.getItem('vidorq-motion'); } catch (e) {}
+    var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var gain = q === 'off' ? 0
+      : q === 'full' ? 1
+      : stored === 'off' ? 0
+      : reduce ? 0.25
+      : 1;
+    h.style.setProperty('--motion-gain', String(gain));
+    h.classList.toggle('motion', gain > 0);
+  })();
+  </script>
   <link rel="stylesheet" href="styles.css">
+  <noscript><style>.reveal { opacity: 1 !important; translate: 0 0 !important; }</style></noscript>
 </head>
 <body>
 
@@ -69,24 +86,25 @@
 
     <!-- ============ COMO FUNCIONA ============ -->
     <section id="funciona" class="section">
-      <div class="section-inner">
-        <p class="eyebrow reveal">Cómo funciona</p>
-        <h2 class="reveal">Tres pasos. Ninguna curva de aprendizaje</h2>
+      <div class="section-inner funciona-grid">
+        <div class="funciona-sticky">
+          <p class="eyebrow reveal">Cómo funciona</p>
+          <h2 class="reveal">Tres pasos. Ninguna curva de aprendizaje</h2>
+          <p class="funciona-counter" aria-hidden="true"><span data-count>01</span> / 03</p>
+        </div>
 
-        <div class="steps">
-          <div class="step reveal">
+        <div class="funciona-steps">
+          <div class="step reveal" data-step="1">
             <span class="step-num">1</span>
             <h3>Arrastra tu vídeo</h3>
             <p>Suelta tu clip, tu podcast o tu partida grabada. Se instala una vez (Resolve, Python y ffmpeg) y a partir de ahí es un clic en el menú de Resolve.</p>
           </div>
-          <div class="step-line" aria-hidden="true"></div>
-          <div class="step reveal">
+          <div class="step reveal" data-step="2">
             <span class="step-num">2</span>
             <h3>Preset o prompt</h3>
             <p>Un clic en un preset, o escribe en lenguaje natural lo que quieres: "corta los silencios y añade zoom en los momentos clave".</p>
           </div>
-          <div class="step-line" aria-hidden="true"></div>
-          <div class="step reveal">
+          <div class="step reveal" data-step="3">
             <span class="step-num">3</span>
             <h3>MP4 o timeline en Resolve</h3>
             <p>Recibe el vídeo final listo para publicar, o el proyecto abierto en DaVinci Resolve para retocar cualquier detalle a mano.</p>
@@ -227,6 +245,7 @@
       <div class="footer-links">
         <a href="https://github.com/Mun1to/vidorq" target="_blank" rel="noopener">GitHub</a>
         <a href="https://github.com/Mun1to/vidorq/blob/main/LICENSE" target="_blank" rel="noopener">Licencia MIT</a>
+        <button type="button" class="motion-toggle" id="motionToggle" aria-pressed="false">Reducir movimiento</button>
       </div>
       <p class="footer-copy">Open source y gratuito, para siempre.</p>
     </div>
