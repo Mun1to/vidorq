@@ -59,10 +59,56 @@
     </section>
 
     <!-- ============ ASI SE VE ============ -->
-    <section class="section shot-section">
+    <!-- Recreado con el mismo CSS de la web, no una captura de la app: una
+         captura real mezclaba dos temas visuales distintos y se veia ajena
+         a la pagina. Los textos son los reales, tal cual estan hoy en
+         app/src/App.tsx. -->
+    <section class="section demo-section">
       <div class="section-inner wide">
-        <img src="screenshot-editar.png" alt="Pantalla de edición de Vidorq: arrastra un vídeo, escribe qué quieres y elige un preset" class="shot reveal" loading="lazy" width="1920" height="780">
-        <p class="shot-caption reveal">La pantalla real. Sin maquetas.</p>
+        <div class="demo reveal" aria-hidden="true">
+          <div class="demo-head">
+            <div>
+              <h3>Editar un vídeo</h3>
+              <p>Describe la edición. El resto es nuestro.</p>
+            </div>
+            <div class="demo-seg">
+              <button type="button" class="sel" tabindex="-1">MP4 directo</button>
+              <button type="button" tabindex="-1">Timeline en Resolve</button>
+            </div>
+          </div>
+
+          <div class="demo-drop">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 20h14"/></svg>
+            <strong>Arrastra tu vídeo aquí</strong>
+            <span>o pega la ruta del archivo y pulsa Enter</span>
+          </div>
+
+          <div class="demo-prompt">Un short vertical con subtítulos grandes</div>
+          <div class="demo-eg">
+            <span>Un short vertical con subtítulos grandes</span>
+            <span>Quita silencios y titubeos, nada más</span>
+            <span>Los mejores momentos, en vertical</span>
+          </div>
+
+          <div class="demo-presets">
+            <button type="button" class="demo-preset sel" tabindex="-1">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.12 15.88"/><path d="M14.47 14.48L20 20"/><path d="M8.12 8.12L12 12"/></svg>
+              <b>Limpieza</b>
+              <small>Corta silencios, titubeos y momentos muertos</small>
+            </button>
+            <button type="button" class="demo-preset" tabindex="-1">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 19v3"/></svg>
+              <b>Podcast</b>
+              <small>Corta y marca cada pregunta</small>
+            </button>
+            <button type="button" class="demo-preset" tabindex="-1">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+              <b>Montaje <em>BETA</em></b>
+              <small>Se queda los momentos de más energía</small>
+            </button>
+          </div>
+        </div>
+        <p class="demo-caption reveal">El panel de edición, tal cual. Prueba a tocar un preset.</p>
       </div>
     </section>
 

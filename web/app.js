@@ -83,6 +83,16 @@
   };
 
   document.querySelectorAll(".cta, .ghost").forEach((el) => attachMagnetic(el, 8));
+
+  // ---------- demo del panel: clic para "seleccionar" (solo visual) ----------
+  const selectSibling = (btn) => {
+    btn.parentElement.querySelectorAll(":scope > .sel").forEach((el) => el.classList.remove("sel"));
+    btn.classList.add("sel");
+  };
+
+  document
+    .querySelectorAll(".demo-preset, .demo-seg button")
+    .forEach((btn) => btn.addEventListener("click", () => selectSibling(btn)));
   document.querySelectorAll(".chip").forEach((el) => attachMagnetic(el, 5));
 
   // ---------- parallax en capas + salida del hero (escalado por --motion-gain) ----------

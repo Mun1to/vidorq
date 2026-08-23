@@ -280,22 +280,69 @@ html.motion .scroll-hint span {
 .section-inner.center { text-align: center; display: flex; flex-direction: column; align-items: center; }
 .section-inner.wide { max-width: 980px; }
 
-/* ---------- captura real de la app ---------- */
+/* ---------- demo del panel (recreado, no capturado) ---------- */
 
-.shot-section { padding-top: 0; padding-bottom: 60px; }
+.demo-section { padding-top: 0; padding-bottom: 60px; }
 
-.shot {
-  width: 100%;
-  border-radius: 14px;
+.demo {
+  background: var(--bg);
   border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 30px 34px;
   box-shadow: 0 24px 60px -24px color-mix(in srgb, var(--text) 30%, transparent);
 }
 
-.shot-caption {
+.demo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 22px; }
+.demo-head h3 { font-size: 19px; font-weight: var(--w-fuerte); margin-bottom: 4px; }
+.demo-head p { font-size: 12.5px; color: var(--muted); }
+
+.demo-seg { display: inline-flex; gap: 3px; padding: 3px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.demo-seg button {
+  font: inherit; font-size: 12.5px; font-weight: var(--w-cuerpo); padding: 7px 13px;
+  border-radius: 6px; border: 0; background: transparent; color: var(--muted); cursor: pointer;
+}
+.demo-seg button.sel { background: var(--accent); color: var(--sobre); font-weight: var(--w-fuerte); }
+
+.demo-drop {
+  border: 1.5px dashed var(--line); border-radius: 12px; background: var(--panel2);
+  padding: 36px 24px; display: flex; flex-direction: column; align-items: center; gap: 7px;
+  color: var(--muted); text-align: center; margin-bottom: 20px;
+}
+.demo-drop svg { color: var(--faint); margin-bottom: 4px; }
+.demo-drop strong { color: var(--text); font-size: 16px; font-weight: var(--w-fuerte); }
+.demo-drop span { font-size: 13px; }
+
+.demo-prompt {
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 11px;
+  padding: 14px 16px; font-size: 14px; color: var(--text); margin-bottom: 12px;
+}
+
+.demo-eg { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.demo-eg span { font-size: 12px; color: var(--muted); border: 1px dashed var(--line); border-radius: 999px; padding: 6px 12px; }
+
+.demo-presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.demo-preset {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+  text-align: left; font-family: inherit; cursor: pointer; display: flex; flex-direction: column; gap: 6px;
+  transition: border-color .15s, background .15s;
+}
+.demo-preset svg { color: var(--muted); }
+.demo-preset b { font-size: 14px; font-weight: var(--w-fuerte); color: var(--text); display: flex; align-items: center; gap: 6px; }
+.demo-preset em { font-style: normal; font-size: 9.5px; font-weight: var(--w-et); color: var(--accent-soft); letter-spacing: .6px; }
+.demo-preset small { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.demo-preset.sel { border-color: var(--accent); background: var(--accent-fill); }
+.demo-preset.sel svg { color: var(--accent); }
+
+.demo-caption {
   text-align: center;
   margin-top: 14px;
   font-size: 13px;
   color: var(--muted);
+}
+
+@media (max-width: 720px) {
+  .demo-presets { grid-template-columns: 1fr; }
+  .demo { padding: 22px 20px; }
 }
 
 .lede { color: var(--muted); font-size: 17px; line-height: 1.55; margin-bottom: 30px; max-width: 620px; }
