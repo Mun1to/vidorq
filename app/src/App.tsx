@@ -1048,11 +1048,16 @@ function App() {
               pasa nada. Cuando falta el video lo dice el propio boton, que es
               el sitio donde ya esta mirando. El motor caido tiene su aviso
               arriba, asi que ese caso no se repite aqui. */}
-          <button className="cta" disabled={!canEdit} onClick={() => startEdit()}>
-            {video ? <IconPlay size={15} className="icon" />
-                   : <IconVideo size={15} className="icon" />}
-            {video ? t("cta.edit") : t("cta.needVideo")}
-          </button>
+          {/* El suelo es el que se pega abajo, y el boton solo va centrado
+              dentro. Antes el boton cruzaba el panel entero y hacia las dos
+              cosas a la vez; al acortarlo hacen falta dos elementos. */}
+          <div className="cta-suelo">
+            <button className="cta" disabled={!canEdit} onClick={() => startEdit()}>
+              {video ? <IconPlay size={15} className="icon" />
+                     : <IconVideo size={15} className="icon" />}
+              {video ? t("cta.edit") : t("cta.needVideo")}
+            </button>
+          </div>
         </section>
       )}
 

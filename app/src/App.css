@@ -332,26 +332,30 @@ body {
    encontrar el boton de editar habia que hacer scroll y adivinar que estaba
    ahi abajo. Se queda pegado al fondo del panel con su propio suelo, para que no
    flote encima del contenido que pasa por debajo. */
-/* Y con un ancho, no de lado a lado. La ventana paso a 1280 de ancho, y un
-   boton que cruza el panel entero a esa medida deja de leerse como un boton:
-   se lee como una barra de color. Sigue centrado y sigue pegado abajo, que es
-   lo que resolvia el problema de arriba; lo que se quita es el estiron. */
-.main > .cta {
+/* Y con un ancho, no de lado a lado. La ventana paso a 1280, y un boton que
+   cruza el panel entero a esa medida deja de leerse como un boton: se lee como
+   una barra de color.
+
+   El que se pega abajo es el SUELO, no el boton, y esa diferencia importa. Al
+   acortar el boton, su suelo (que era un `::after` suyo) dejo de cubrir el
+   panel; estirarlo con `left: -50vw` desde el propio boton lo arreglaba a la
+   vista y metia una barra de scroll horizontal en la ventana entera, porque un
+   pseudo-elemento de media pantalla a cada lado desborda igual que cualquier
+   otra caja. Con el suelo como elemento propio a ancho completo no hay nada que
+   desbordar, y el boton solo tiene que ir centrado dentro.
+
+   Los 26px de relleno de abajo son los que se midieron el 19-ago: el boton
+   acababa en 686 y el panel en 708, asi que por esos 22 px seguia asomando lo
+   que pasaba por detras, y con una miniatura clara eso se lee como una imagen
+   partida por la mitad. */
+.cta-suelo {
   position: sticky; bottom: 0; z-index: 3;
-  margin: 2px auto 0; max-width: 420px;
+  margin-top: 2px; padding-bottom: 26px;
+  display: flex; justify-content: center;
+  background: var(--bg);
   box-shadow: 0 -14px 20px -8px var(--bg);
 }
-/* El suelo que decia el comentario de arriba y no existia. Medido el 19-ago:
-   el boton se queda con el borde de abajo en 686 y el panel acaba en 708, o sea
-   que por esos 22 px de relleno seguia asomando lo que pasaba por detras. Con
-   una miniatura clara eso se lee como una imagen partida por la mitad. */
-/* El suelo se estira a lo ancho del panel a mano, porque el boton ya no lo
-   cruza: con los -26px de antes, al acortarlo a 420 quedaban dos ventanas a los
-   lados por donde volvia a asomar lo que pasa por detras. */
-.main > .cta::after {
-  content: ""; position: absolute; left: -50vw; right: -50vw; top: 100%;
-  height: 26px; background: var(--bg);
-}
+.cta-suelo > .cta { max-width: 420px; }
 
 .ghost {
   background: transparent; border: 1px solid var(--line); color: var(--text-dim);
