@@ -57,6 +57,9 @@ vidorq_render.py         → mp4 directo (GPU)
 | `GET /words` | cada palabra con su segundo, para editar leyendo |
 | `GET /aprende` | mira un vídeo de referencia y dice cómo está editado, con los estilos de la casa que más se le parecen |
 | `GET /aprende/captura` | un fotograma de ese vídeo de referencia, para poder enseñar lo que se ha visto en vez de contarlo |
+| `GET /galeria` | los componentes que has copiado de otros vídeos, con lo que se midió de cada uno |
+| `POST /galeria` | guarda uno nuevo con **los números medidos dentro**, y contesta qué salió del vídeo y qué de la plantilla |
+| `POST /galeria/borrar` | quita uno de la galería |
 | `GET /tramos` | el montaje partido en tramos, con lo que se dice en cada uno |
 | `GET /history` | todas las ediciones hechas, la última primero |
 | `GET /preview` | una foto de lo que hace una elección, sobre tu propio metraje |

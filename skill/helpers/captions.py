@@ -307,16 +307,77 @@ MIN_CHUNK_S = 0.30
 CHUNK_TAIL_S = 0.12
 
 
+def _propios():
+    """Los estilos de subtitulo copiados de un video, o {} si no hay ninguno.
+
+    Se importa aqui dentro y no arriba porque `galeria` necesita este modulo
+    para construir uno, asi que arriba seria un import circular. Y no lanza
+    nunca: una galeria rota no puede dejar sin subtitulos a quien solo usa los
+    diez de la casa.
+    """
+    try:
+        import galeria
+        return galeria.de_tipo(galeria.CAPTION)
+    except Exception:
+        return {}
+
+
+def known(name):
+    """Si `name` es un estilo que se sabe pintar, sea de la casa o copiado.
+
+    Existe porque media docena de sitios preguntaban `name in PRESETS`, y esa
+    pregunta empezo a estar mal el dia que un estilo pudo no estar en PRESETS:
+    un estilo copiado del video de alguien pasaba la comprobacion como falso y
+    la edicion caia al de la casa sin decir nada.
+    """
+    return bool(name) and (name in PRESETS or name in _propios())
+
+
 def preset(name):
-    """A preset by name, falling back to the default rather than exploding."""
-    return PRESETS.get(name) or PRESETS[DEFAULT_PRESET]
+    """A preset by name, falling back to the default rather than exploding.
+
+    Un estilo copiado se guarda entero, asi que normalmente ya trae todos los
+    campos. El relleno contra el de la casa es para los que se guardaron antes
+    de que existiera algun campo nuevo: sin el, un estilo del mes pasado se
+    queda sin `tracking` y el render revienta al buscarlo.
+    """
+    p = PRESETS.get(name)
+    if p:
+        return p
+    propio = _propios().get(name)
+    if propio:
+        return {**PRESETS[DEFAULT_PRESET], **propio}
+    return PRESETS[DEFAULT_PRESET]
+
+
+def _ficha_de(pid, p, lang):
+    return {"id": pid, "label": p["label"].get(lang, p["label"]["en"]),
+            "note": p["note"].get(lang, p["note"]["en"]),
+            "propio": bool(p.get("propio"))}
 
 
 def preset_list(lang="es"):
-    """What the app needs to draw the picker."""
-    return [{"id": pid, "label": p["label"].get(lang, p["label"]["en"]),
-             "note": p["note"].get(lang, p["note"]["en"])}
-            for pid, p in PRESETS.items()]
+    """What the app needs to draw the picker.
+
+    Los copiados van DELANTE de los diez de la casa. Quien acaba de copiar un
+    estilo de su video lo busca en el selector, y si sale el ultimo de trece da
+    por hecho que no se guardo.
+    """
+    propios = [_ficha_de(pid, p, lang) for pid, p in _propios().items()]
+    return propios + [_ficha_de(pid, p, lang) for pid, p in PRESETS.items()]
+
+
+def anim_of():
+    """La entrada que trae cada estilo, copiados incluidos.
+
+    La ventana la necesita para enseñar "la suya" en el selector de animacion.
+    Se arma de una sola lectura del disco: preguntarlo estilo por estilo abria
+    el archivo trece veces para contestar una pantalla.
+    """
+    out = {pid: p["anim"] for pid, p in PRESETS.items()}
+    for pid, p in _propios().items():
+        out[pid] = p.get("anim") or PRESETS[DEFAULT_PRESET]["anim"]
+    return out
 
 
 # --------------------------------------------------------------------------- #

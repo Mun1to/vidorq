@@ -1986,7 +1986,7 @@ def preset_de(req, marca):
     `or` que el propio test acababa de escribir.
     """
     nombre = (req or {}).get("captionPreset") or (marca or {}).get("captionPreset")
-    return nombre if nombre in cap.PRESETS else cap.DEFAULT_PRESET
+    return nombre if cap.known(nombre) else cap.DEFAULT_PRESET
 
 
 def anim_de(req, marca):
@@ -2059,6 +2059,76 @@ def _mira_archivo(video):
     f["parecidos"] = [{"id": pid, "distancia": d} for pid, d in
                       aprende.parecidos(f)]
     return f
+
+
+def _numero(v, minimo, maximo):
+    """`v` como float dentro de un rango, o None si no lo es."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if f != f or f < minimo or f > maximo:      # el primero caza los NaN
+        return None
+    return f
+
+
+def _color(v):
+    """Un color de tres numeros en 0-1, o None."""
+    if not isinstance(v, (list, tuple)) or len(v) < 3:
+        return None
+    fuera = [_numero(x, 0.0, 1.0) for x in v[:3]]
+    return tuple(fuera) if all(x is not None for x in fuera) else None
+
+
+def guarda_estilo(body):
+    """Guarda un estilo copiado de un video, con lo MEDIDO dentro.
+
+    Antes esto era un POST /profile con el nombre de la plantilla mas parecida,
+    o sea que los cuatro numeros que se habian sacado del video se tiraban en
+    el mismo gesto de guardarlos. Ahora lo medido se queda y el estilo pasa a
+    existir por su cuenta, sin depender de la plantilla que le sirvio de base.
+
+    Todo lo que llega aqui se vuelve a comprobar aunque lo acabe de mandar la
+    propia ventana: los numeros vienen de mirar un video AJENO y el cuadro del
+    nombre lo escribe una persona. Un `size` de 40 o un color con un texto
+    dentro no tumban una edicion tres pantallas mas tarde.
+    """
+    import galeria
+
+    sub = body.get("sub") if isinstance(body.get("sub"), dict) else {}
+    limpio = {}
+    y = _numero(sub.get("y"), 0.0, 1.0)
+    if y is not None:
+        limpio["y"] = round(y, 4)
+    # El tope de `size` no es 1: una letra de mas de media pantalla de alto no
+    # es un subtitulo, y si llega un numero asi es que la banda medida se comio
+    # el cuadro, que es exactamente el fallo que ya paso con metraje real.
+    size = _numero(sub.get("size"), 0.005, 0.5)
+    if size is not None:
+        limpio["size"] = round(size, 4)
+    for campo in ("fill", "outline"):
+        c = _color(sub.get(campo))
+        if c:
+            limpio[campo] = c
+    if "fill" not in limpio:
+        # Sin color de relleno no hay nada que copiar que se vea. Se dice en
+        # vez de guardar un estilo que es la plantilla con otro nombre, que es
+        # justo la mentira que este trabajo viene a quitar.
+        return {"ok": False, "why": "sin_medida"}
+    fondo = _color(sub.get("fondo"))
+    if fondo:
+        limpio["fondo"] = fondo
+
+    base = body.get("base")
+    if not isinstance(base, str) or base not in cap.PRESETS:
+        base = cap.DEFAULT_PRESET
+    nombre = body.get("nombre") if isinstance(body.get("nombre"), str) else ""
+    video = body.get("video") if isinstance(body.get("video"), str) else ""
+    comp = galeria.caption_de(limpio, base, nombre, video=video,
+                              cuando=time.strftime("%Y-%m-%d"))
+    eid = galeria.guardar(comp)
+    return {"ok": True, "id": eid, "medido": comp["medido"],
+            "heredado": [c for c in galeria.CAMPOS if c not in comp["medido"]]}
 
 
 def tramos_of(video):
@@ -2681,8 +2751,8 @@ def refine_settings(prompt, base, ai=None, model=None, log=None):
         delta.pop(key, None)
     for key, value in delta.items():
         if key == "captionAnim" and value == "__any__":
-            out["captionAnim"] = cap.PRESETS[
-                out.get("captionPreset") or cap.DEFAULT_PRESET]["anim"]
+            out["captionAnim"] = cap.preset(
+                out.get("captionPreset") or cap.DEFAULT_PRESET)["anim"]
             continue
         out[key] = value
     if delta.get("captions") is False:
@@ -3669,6 +3739,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send(profile_load())
         elif self.path == "/resolve":
             self._send(bridge_status())
+        elif self.path == "/galeria":
+            import galeria
+            self._send({"list": [
+                {"id": eid, "tipo": c.get("tipo") or galeria.CAPTION,
+                 "label": (c.get("label") or {}).get("es") or eid,
+                 "medido": c.get("medido") or [], "de": c.get("de") or {}}
+                for eid, c in galeria.cargar().items()]})
         elif self.path.startswith("/preview"):
             # A picture of what a choice actually does, made by the real
             # renderer. Slow the first time, free every time after, because the
@@ -3902,7 +3979,7 @@ class Handler(BaseHTTPRequestHandler):
             lang = "en" if "lang=en" in self.path else "es"
             self._send({"default": cap.DEFAULT_PRESET, "list": cap.preset_list(lang),
                         "anims": cap.anim_list(lang),
-                        "animOf": {k: v["anim"] for k, v in cap.PRESETS.items()},
+                        "animOf": cap.anim_of(),
                         "langs": tl.LANGS,
                         "looks": looks.catalogue(lang),
                         "cards": overlays.kind_list(lang, only=overlays.WITH_TEXT),
@@ -3983,6 +4060,20 @@ class Handler(BaseHTTPRequestHandler):
         elif self.path == "/profile":
             profile_save(body)
             self._send({"ok": True})
+        elif self.path == "/galeria":
+            # Guardar en la galeria lo que se ha sacado de un video ajeno. Se
+            # contesta con lo que se midio y lo que se heredo, porque la
+            # ventana lo enseña: la version anterior de esta pantalla decia
+            # "guardado" sin decir que guardaba el nombre de una plantilla.
+            try:
+                self._send(guarda_estilo(body))
+            except Exception as e:
+                traceback.print_exc()
+                self._send({"ok": False, "why": "error", "error": str(e)[:200]})
+        elif self.path == "/galeria/borrar":
+            import galeria
+            eid = body.get("id")
+            self._send({"ok": bool(isinstance(eid, str) and galeria.borrar(eid))})
         elif self.path == "/edit":
             global _lang
             if body.get("lang") in TEXT:

@@ -244,7 +244,7 @@ def change(prompt, current, ai=None, model=None, log=None):
     # obliga a volver a cortar el video entero: medido, "haz un zoom" volvio con
     # shake=true. Las palabras para lo que esta dicho, el modelo para lo que hay
     # que juzgar.
-    if delta.get("captionPreset") in cap.PRESETS:
+    if cap.known(delta.get("captionPreset")):
         out["captionPreset"] = delta["captionPreset"]
     if delta.get("captionAnim") in cap.ANIMS:
         out["captionAnim"] = delta["captionAnim"]
@@ -572,7 +572,7 @@ def look(prompt, ai=None, model=None, lang="es", log=None, base=None):
         got["ratio"] = crudo["ratio"]
     if isinstance(crudo.get("captions"), bool):
         got["captions"] = crudo["captions"]
-    if crudo.get("captionPreset") in cap.PRESETS:
+    if cap.known(crudo.get("captionPreset")):
         got["captionPreset"] = crudo["captionPreset"]
     if crudo.get("captionAnim") in cap.ANIMS:
         got["captionAnim"] = crudo["captionAnim"]
@@ -589,7 +589,7 @@ def look(prompt, ai=None, model=None, lang="es", log=None, base=None):
     # "Animated" without naming one means any of them, so the look's own applies -
     # never "none", which would contradict what was asked.
     if said.get("captionAnim") == "__any__" and out["captionAnim"] in ("", "none"):
-        out["captionAnim"] = cap.PRESETS[out["captionPreset"]]["anim"]
+        out["captionAnim"] = cap.preset(out["captionPreset"])["anim"]
     if not out["captions"]:
         out["captionAnim"] = ""
     # A short lives on a phone screen held at arm's length, so a quiet caption is
@@ -598,7 +598,7 @@ def look(prompt, ai=None, model=None, lang="es", log=None, base=None):
     if (out["ratio"] in ("vertical", "portrait")
             and "captionPreset" not in said
             and "captionPreset" not in tocado
-            and cap.PRESETS[out["captionPreset"]]["size"] < 0.09):
+            and cap.preset(out["captionPreset"])["size"] < 0.09):
         out["captionPreset"] = "pop"
     out["said"] = sorted(k for k in said if k != "captionAnim" or
                          said["captionAnim"] != "__any__")

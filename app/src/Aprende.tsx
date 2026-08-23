@@ -40,6 +40,16 @@ export interface Ficha {
   parecidos?: { id: string; distancia: number }[];
 }
 
+// Lo que contesta POST /galeria: el id del componente nuevo, y el reparto
+// honesto entre lo que salio del video y lo que salio de la plantilla.
+interface Guardado {
+  ok?: boolean;
+  why?: string;
+  id?: string;
+  medido?: string[];
+  heredado?: string[];
+}
+
 // Lo que contesta el motor cuando dice que no, y que se le enseña por cada
 // caso. La clave vacia cae al mensaje de la ruta, que es el caso comun.
 const MOTIVOS: Record<string, Key> = {
@@ -70,6 +80,9 @@ export default function Aprende({ onClose, styles, video, onSaved }:
   const [elegido, setElegido] = useState("");
   const [nombre, setNombre] = useState("");
   const [guardado, setGuardado] = useState(false);
+  // Lo que contesto el motor al guardar. Se enseña: es la diferencia entre
+  // "guardado" y "guardado, y esto es lo que de verdad llevo dentro".
+  const [resultado, setResultado] = useState<Guardado | null>(null);
 
   async function mirar() {
     if (!ruta.trim()) return;
@@ -78,6 +91,7 @@ export default function Aprende({ onClose, styles, video, onSaved }:
     setF(null);
     setElegido("");
     setGuardado(false);
+    setResultado(null);
     // Tambien el nombre: si no, el que se escribio para un video se queda
     // puesto al mirar el siguiente y se guarda el estilo de B con el nombre
     // de A, sin que nada lo enseñe nunca.
@@ -99,26 +113,45 @@ export default function Aprende({ onClose, styles, video, onSaved }:
     setMirando(false);
   }
 
-  // Lo aprobado entra en el perfil de la marca, que es de donde ya sale el
-  // estilo de cada edicion. No se inventa un sitio nuevo donde guardarlo.
+  // Lo aprobado entra en la GALERIA como un componente nuevo, con los numeros
+  // que se midieron del video dentro. Antes esto guardaba el nombre de la
+  // plantilla mas parecida en el perfil de la marca, o sea que los cuatro
+  // numeros que se acababan de medir se tiraban al pulsar el boton: el estilo
+  // guardado era una de las diez plantillas con otro nombre encima.
   //
-  // El nombre que le pone el usuario se guarda con el, y no de adorno: si se
-  // pide un nombre y luego se tira, la pantalla esta prometiendo algo que no
-  // cumple, que es justo el fallo que esta casa persigue. Todavia NO sale en
-  // el selector de la pantalla de editar; eso es lo siguiente.
+  // La plantilla elegida sigue haciendo falta, pero como BASE y no como
+  // resultado: de ella se copia una vez lo que todavia no se sabe medir
+  // mirando (la tipografia, cuantas palabras por linea, la sombra), y el
+  // componente se queda con esa copia dentro para no depender de ella nunca
+  // mas.
   async function guardar() {
-    if (!elegido) return;
+    if (!elegido || !f?.subtitulo) return;
+    const r = await apiPost<Guardado>("/galeria", {
+      sub: f.subtitulo,
+      base: elegido,
+      nombre: nombre.trim(),
+      video: mirada,
+    });
+    if (!r?.ok || !r.id) {
+      setError(t(r?.why === "sin_medida" ? "learn.nomeasure" : "learn.nosave"));
+      setGuardado(false);
+      return;
+    }
+    // Y pasa a ser el estilo activo, igual que antes. El perfil guarda ahora el
+    // id del componente, que existe por su cuenta, en vez del nombre de una de
+    // las diez plantillas de la casa.
     const p = await apiGet<BrandProfile>("/profile").catch(() => ({} as BrandProfile));
     await apiPost("/profile", {
       ...p,
-      captionPreset: elegido,
+      captionPreset: r.id,
       captionPresetName: nombre.trim() || undefined,
     });
     // Y se le dice al panel de editar. Sin esto el estilo se guardaba en la
     // marca y no llegaba a ninguna edicion: el panel manda SIEMPRE el suyo en
     // la peticion, y lo pedido gana sobre la marca. Se guardaba de verdad y no
     // servia para nada, que es la peor version de un fallo.
-    onSaved?.(elegido, nombre.trim() || undefined);
+    onSaved?.(r.id, nombre.trim() || undefined);
+    setResultado(r);
     setGuardado(true);
   }
 
@@ -280,6 +313,24 @@ export default function Aprende({ onClose, styles, video, onSaved }:
                         : t("learn.keep")}
                     </button>
                   </div>
+                  {/* El reparto, con sus nombres. Guardar y no decir que de las
+                      dieciseis cosas de un estilo se midieron cuatro es lo que
+                      hacia creer que esta pantalla copiaba el video entero. */}
+                  {guardado && resultado?.medido && (
+                    <div className="reparto">
+                      <p className="hint">
+                        <strong>{t("learn.kept.what")}</strong>{" "}
+                        {resultado.medido
+                          .map((c) => t(`learn.field.${c}` as Key))
+                          .join(", ")}.
+                      </p>
+                      <p className="hint">
+                        {t("learn.kept.rest")}{" "}
+                        {(resultado.heredado ?? []).join(", ")}.
+                      </p>
+                      <p className="hint">{t("learn.kept.where")}</p>
+                    </div>
+                  )}
                 </section>
               )}
             </>

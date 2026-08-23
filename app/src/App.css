@@ -637,6 +637,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .warn-line { color: var(--muted); }
 .warn-line .icon { color: #e0a33a; flex: none; margin-top: 2px; }
 
+/* El reparto de lo que se acaba de guardar: cuanto salio del video y cuanto de
+   la plantilla. Va en su caja y no suelto entre los demas parrafos porque es
+   la respuesta al boton, no una nota mas de la pantalla. */
+.reparto {
+  margin-top: 10px; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel2);
+}
+.reparto p { margin: 0; }
+.reparto p + p { margin-top: 5px; }
+
 /* La ruta del archivo o el nombre del timeline: monoespaciada y capaz de
    partirse, porque una ruta de Windows no cabe en una burbuja. */
 .bubble-path {
