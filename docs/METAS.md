@@ -321,29 +321,32 @@ después sirve para cualquier frase y cualquier vídeo.
 hay un título nuevo con tu nombre. Lo arrastras, escribes CUALQUIER frase, y sale con los
 colores por palabra, el tamaño, la posición y la entrada del original.
 
-#### Estado a 2026-08-23 por la tarde: hecho todo menos el nudo
+#### Estado a 2026-08-23 por la noche: PROBADO EN RESOLVE
 
-- **Hecho.** `skill/helpers/fusion.py` escribe el `.setting`, y el formato **no está
-  inventado**: sale de los **417 ficheros de fábrica** que Blackmagic reparte dentro de
-  `Fusion/Templates/Templates.drfx` de la propia instalación. El texto es un mando público, la
-  entrada viaja como `BezierSpline`, y los nodos de dentro se le piden prestados a `captions`
-  para no escribir dos veces lo que ya está medido. Los diez presets salen bien y hay 34
-  comprobaciones. Se sirve por HTTP (`GET /fusion`, `POST /fusion/instalar`, `.../quitar`).
-- **Hecho.** Los estilos se exportan y se importan (`POST /galeria/exportar` e `importar`), y
-  lo que entra se reconstruye campo a campo con lista blanca: un archivo de estilo lo puede
-  haber escrito cualquiera. Si un valor no pasa la revisión, cae a la plantilla **y se cae de
-  la lista de medido**, para que un estilo importado no pueda presumir de algo que perdió por
-  el camino.
-- **Hecho.** `fusion.faltantes(estilo)` dice qué parte no sale con nodos nativos, con el
-  motivo escrito.
-- **SIN HACER, y es el nudo: Character Level Styling.** De las 417 plantillas de fábrica
-  **ninguna** pinta por rango de caracteres, y las tres que tocan `CharacterLevelStylingBase`
-  traen el mismo bloque de color por defecto, así que **no hay de dónde deducir** qué código
-  es el relleno. Adivinarlo da un fichero que Resolve no abre, y encima no avisa. Se abre con
-  un minuto de Munir dentro de Resolve: los pasos exactos están en `docs/FUSION.md`.
-- **NO PROBADO EN RESOLVE.** Hay dos plantillas puestas en su carpeta de verdad
-  (`Vidorq Pop` y `Vidorq Neon`). Que aparezcan en Effects Library solo se puede ver con
-  Resolve abierto, y eso lo tiene que hacer él.
+Con Resolve 21.0.4.5 Free abierto y el puente puesto. No es "compila", es que se vio.
+
+- **Resolve encuentra la plantilla y la inserta por su nombre.**
+  `POST /title/insert {"titleName":"Vidorq Pop","fusionTitle":true}` devuelve
+  `{"success": true}`, que es lo mismo que arrastrarla desde Effects Library > Titles. **No
+  hizo falta reiniciar Resolve**, que llevaba horas abierto.
+- **El estilo llega entero.** El comp que devuelve Resolve trae el tipo de letra, el encuadre
+  (`Center 0.5/0.2`), el contorno (`Enabled2`, `Thickness2 0.22`, `Red2 0`), la sombra
+  (`Alpha3 0.7`, `Softness3 0.35`, `Offset3`) y el tamaño atado a su `BezierSpline`.
+- **Y con la plantilla del halo, igual:** `Vidorq_Neon` vuelve con su nodo `Glow` y sus DOS
+  splines, el de la entrada y el del encendido del halo.
+- **Escribirle CUALQUIER frase funciona.** Se le puso "MIRA ESTO", que no está en la plantilla,
+  y el fotograma sale con el halo cian del preset. Eso era el criterio.
+- **Los estilos se exportan y se importan** (`POST /galeria/exportar` e `importar`), con lista
+  blanca al entrar: si un valor no pasa la revisión cae a la plantilla **y se cae de la lista
+  de medido**, para que un estilo importado no presuma de algo que perdió por el camino.
+
+**Lo único que NO sale, y ahora está MEDIDO en vez de supuesto:** un color por palabra dentro
+de un solo `Text+`. El nodo acepta `CharacterLevelStyling` y `CharacterLevelStylingBase`, los
+conserva enteros al ir y volver del comp, y **los ignora al renderizar**: se probaron los dos
+campos con cinco códigos de color a la vez sobre seis palabras, y el fotograma salió blanco
+entero las dos veces. Es el mismo caso que `WriteOnStart`. Los tres caminos que quedan
+(un `Text+` por palabra, el overlay con alfa, o mirar qué hace la interfaz al aplicarlo a mano)
+están en `docs/FUSION.md`.
 
 **Decisiones abiertas** (se le enseñaron en el navegador el 2026-08-23 y no ha contestado):
 
