@@ -257,6 +257,15 @@ def casos(casa, fuente):
     for caso in _a_media_altura(casa):
         yield caso
 
+    # --- un fondo que se mueve entero, que es el metraje de verdad ---------
+    # Todos los videos de arriba tienen el fondo LISO, y eso le pone las cosas
+    # facil al detector: donde hay detalle es donde hay texto. En metraje de
+    # pelicula no: hay detalle en todas partes y cambia en todas partes, no
+    # aparece ningun pico, y las filas que pasan el umbral salen seguidas y se
+    # funden en una sola banda del tamaño del fotograma.
+    for caso in _fondo_vivo(casa):
+        yield caso
+
     # --- el circulo entero: de un video ajeno al video del usuario ---------
     # Esto es lo que promete la pantalla, y hasta aqui todo eran piezas
     # sueltas. Se mira un video de un desconocido, se guarda el estilo que
@@ -380,6 +389,63 @@ def _links():
     finally:
         sys.executable, os.environ["PATH"] = hueco, camino
         shutil.rmtree(falso, ignore_errors=True)
+
+
+def _fondo_vivo(casa):
+    """Un fondo con detalle y movimiento en TODO el cuadro, y sin texto.
+
+    Lo encontro el primer video real que se probo: un Short de YouTube con
+    metraje de pelicula detras. El detector devolvia una banda de las filas 45
+    a 308 de 360, el 73% del alto, y la ficha salia con un subtitulo inventado
+    (y=0,889 size=0,974), o sea que la pantalla ofrecia reconstruir un estilo
+    que no existe.
+
+    Va con barras negras arriba y abajo A PROPOSITO. Un mandelbrot a cuadro
+    completo tambien da una banda enorme, pero del 99,7% del alto, y esa la
+    descarta el guard de BORDE que ya existia, asi que el caso pasaba igual con
+    el techo quitado y no probaba nada. Con el relleno negro las filas de los
+    extremos no puntuan y la banda queda en 54-305, gorda y despegada de los
+    dos bordes: el mismo cuadro que el Short, y solo la caza el techo.
+    """
+    import aprende
+    import captions
+
+    vivo = casa / "mandelbrot.mp4"
+    r = subprocess.run(
+        ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i",
+         "mandelbrot=s=720x896:r=25", "-t", "20",
+         "-vf", "scale=720:896,pad=720:1280:0:192:black", "-c:v", "libx264",
+         "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(vivo)],
+        capture_output=True)
+    if not vivo.exists():
+        yield ("aprende: se pudo generar el fondo vivo", r.returncode, 0)
+        return
+
+    frames, _dur = aprende.fotogramas(str(vivo))
+    yield ("aprende: un fondo que se mueve entero no es un subtitulo",
+           aprende.banda_de_texto(frames), None)
+    f = aprende.ficha(str(vivo))
+    yield ("aprende: y por tanto no propone ningun estilo",
+           aprende.parecidos(f), [])
+
+    # Y el techo aprieta por el otro lado: si alguien lo baja, los subtitulos
+    # de verdad dejan de verse. Los diez, no cuatro elegidos a mano.
+    gordas = {}
+    for pid in captions.PRESETS:
+        v = _render(casa, casa / "fuente.mp4", "gordo_%s.mp4" % pid,
+                    "--preset", pid, "--no-zoom")
+        if not v.exists():
+            continue
+        trozos, _ = aprende.fotogramas(str(v))
+        banda = aprende.banda_de_texto(trozos)
+        if banda:
+            gordas[pid] = (banda[1] - banda[0]) / float(trozos[0].shape[0])
+        v.unlink(missing_ok=True)
+    yield ("aprende: los diez estilos siguen dando banda",
+           sorted(gordas), sorted(captions.PRESETS))
+    peor = max(gordas.values()) if gordas else 1.0
+    yield ("aprende: y ninguno se acerca al techo (peor %.3f de %.2f)"
+           % (peor, aprende.GORDA), peor < aprende.GORDA * 0.6, True)
 
 
 def _en_horizontal(casa):

@@ -56,6 +56,29 @@ ALTO = 360
 # negro se queda fuera y el tamaño sale corto; con 0.25 entra medio fondo.
 UMBRAL = 0.35
 
+# Y el techo: por encima de este trozo del alto, lo encontrado no es una banda
+# de subtitulo, es medio cuadro. Hace falta porque el metodo de abajo
+# (presencia por detalle) da por bueno casi todo el fotograma cuando el fondo
+# es metraje de pelicula de verdad: ahi hay detalle en todas partes y cambia en
+# todas partes, no aparece un pico, y las filas que pasan el umbral salen
+# seguidas y se funden en un solo grupo enorme.
+#
+# Medido el 2026-08-23 con LOS DIEZ presets, en vertical y en horizontal, y
+# repetido forzando frases largas por si alguna hacia tres lineas (no sube):
+#
+#   vertical    minimal 0,014  mono 0,014  glass 0,017  bar 0,025  halo 0,031
+#               marker 0,042   pop 0,053   neon 0,053  ember 0,056  punch 0,069
+#   horizontal  mono 0,025  minimal 0,028  halo 0,028  glass 0,031  bar 0,053
+#               marker 0,075   neon 0,094  ember 0,097  pop 0,100  punch 0,128
+#   -------------------------------------------------------------------------
+#   un Short con fondo de pelicula:  0,731   <- no es un subtitulo
+#
+# 0,30 esta a mas del doble del peor subtitulo de verdad y a menos de la mitad
+# del falso positivo, asi que no aprieta por ningun lado. Lo encontro el
+# primer video real que se probo, un Short de YouTube, y hasta entonces solo se
+# habia medido contra fondos lisos hechos en casa, donde esto no pasa nunca.
+GORDA = 0.30
+
 # Lo que el umbral se come por arriba. Las primeras filas de una linea de texto
 # son las puntas de cuatro o cinco letras y casi no dan señal, asi que la banda
 # empieza un poco mas abajo de donde empieza el texto. Medido renderizando los
@@ -172,6 +195,8 @@ def banda_de_texto(frames):
         return None                              # pegada a un borde
     if (a1 - a0) < alto * 0.008:
         return None                              # mas fina que una letra
+    if (a1 - a0) > alto * GORDA:
+        return None                              # medio cuadro no es un texto
     # Y el tercero, que mira el PATRON y no el sitio: en una franja de rayas
     # todas las filas son la misma fila repetida, y en un texto no, porque la
     # parte alta de las letras no se parece a la baja.
