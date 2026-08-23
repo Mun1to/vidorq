@@ -9,7 +9,6 @@ import Gallery from "./Gallery";
 import Words from "./Words";
 import History from "./History";
 import Chat, { Settings as ChatState, Turn } from "./Chat";
-import logo from "./assets/logo.png";
 import {
   IconAlert, IconBook, IconBrand, IconCheck, IconChevron, IconClock, IconDrop,
   IconFilm, IconFolder, IconFolderOpen, IconMic, IconPlay, IconScissors, IconSliders,
@@ -551,11 +550,9 @@ function App() {
   return (
     <main className="shell">
       <aside className="side">
-        <div className="logo">
-          <img src={logo} alt="" />
-          <b>Vidorq</b>
-        </div>
-
+        {/* Sin logo ni nombre arriba: estorbaban. La ventana ya lleva "Vidorq"
+            en su barra de titulo, asi que repetirlo dentro solo gastaba el alto
+            que le hace falta a la navegacion. */}
         <div className="ws-wrap" ref={wsRef}>
           <button className="ws-btn" onClick={() => setWsOpen(!wsOpen)}>
             <IconFolder size={15} className="icon" />

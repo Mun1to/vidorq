@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "Vidorq",
-        "width": 940,
-        "height": 720,
-        "minWidth": 760,
-        "minHeight": 620,
+        "width": 1280,
+        "height": 760,
+        "minWidth": 1040,
+        "minHeight": 600,
         "center": true
       }
     ],

@@ -113,9 +113,6 @@ body {
   background: var(--bg-side); border-right: 1px solid var(--line-soft);
   padding: 16px 12px; display: flex; flex-direction: column; gap: 18px;
 }
-.logo { display: flex; align-items: center; gap: 9px; padding: 0 3px; }
-.logo img { width: 30px; height: 30px; }
-.logo b { font-size: 15.5px; font-weight: var(--w-fuerte); letter-spacing: -.1px; }
 
 .ws-btn {
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
