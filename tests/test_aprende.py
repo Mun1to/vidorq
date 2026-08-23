@@ -335,7 +335,12 @@ def _links():
     yield ("link: None tampoco pasa", descargar.vale(None), (False, "no_link"))
 
     # Y sin la herramienta, se dice: no se intenta y se falla en silencio.
-    if not descargar.hay_ytdlp():
+    # Desviada a proposito y no "si no esta instalada": el caso tiene que
+    # comprobarse en la maquina que la tiene y en la que no, o en media casa
+    # esta prueba no existe.
+    antes = descargar.donde_ytdlp
+    descargar.donde_ytdlp = lambda: ""
+    try:
         fallo = ""
         try:
             descargar.traer("https://www.tiktok.com/@a/video/1")
@@ -344,6 +349,37 @@ def _links():
         except Exception as e:
             fallo = "otro: %s" % type(e).__name__
         yield ("link: sin yt-dlp lo dice por su nombre", fallo, "no_ytdlp")
+    finally:
+        descargar.donde_ytdlp = antes
+
+    # Y se encuentra donde de verdad esta: junto al interprete que corre.
+    # El motor lo arranca el script de Resolve llamando al pythonw.exe de un
+    # entorno virtual por ruta completa, y eso NO mete su carpeta Scripts en el
+    # PATH. Medido el 2026-08-23: recien instalado en ese mismo entorno,
+    # shutil.which devolvia None y la ventana seguia diciendo que faltaba.
+    import os
+    falso = Path(tempfile.mkdtemp(prefix="vidorq_entorno_"))
+    for sub in ("Scripts", "bin"):
+        (falso / sub).mkdir(parents=True, exist_ok=True)
+    hueco, camino = sys.executable, os.environ.get("PATH", "")
+    try:
+        # PATH vacio: si estuviera puesto y la maquina tuviera yt-dlp fuera del
+        # entorno, la prueba pasaria sin comprobar nada de lo que dice medir.
+        os.environ["PATH"] = ""
+        sys.executable = str(falso / "python.exe")
+        for sub, exe in (("Scripts", "yt-dlp.exe"), ("bin", "yt-dlp")):
+            arma = falso / sub / exe
+            arma.write_text("", encoding="utf-8")
+            try:
+                yield ("link: encuentra yt-dlp en %s del entorno" % sub,
+                       descargar.donde_ytdlp(), str(arma))
+            finally:
+                arma.unlink()
+        yield ("link: y sin nada al lado, dice que no hay",
+               descargar.donde_ytdlp(), "")
+    finally:
+        sys.executable, os.environ["PATH"] = hueco, camino
+        shutil.rmtree(falso, ignore_errors=True)
 
 
 def _en_horizontal(casa):

@@ -11,12 +11,12 @@ shell, con su tiempo maximo, y a una carpeta temporal que se borra sola.
   esto seria una herramienta para que el programa pida cosas a maquinas de
   dentro de casa en nombre del usuario. Con lista blanca eso no existe.
 
-yt-dlp NO es una dependencia de Vidorq y no esta en requirements.txt. Se usa si
-la persona lo tiene instalado, y si no, se le dice. La razon es de licencias y
-esta medida (2026-08-22, ver docs/RECURSOS.md): el paquete de PyPI es Unlicense
-y se puede usar en un producto de pago, pero los ejecutables que ellos
-empaquetan llevan GPLv3+, asi que meterlo en el instalador es otra decision y
-no la toma este archivo.
+yt-dlp esta en requirements.txt desde el 2026-08-23, y el matiz de licencia
+importa (medido, ver docs/RECURSOS.md): lo que instala pip es la rueda de PyPI,
+que es Unlicense y vale dentro de un producto de pago. Los ejecutables que ellos
+empaquetan con PyInstaller SI llevan GPLv3+ y no se redistribuyen. O sea: se
+instala, no se mete su binario en el instalador. Si aun asi no esta, se dice por
+su nombre en vez de fallar en silencio.
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ import ipaddress
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
@@ -94,9 +95,34 @@ def vale(url):
     return True, ""
 
 
+def donde_ytdlp():
+    """La ruta de la herramienta de descarga, o "" si no esta.
+
+    Mira el PATH y, si ahi no aparece, la carpeta de scripts del interprete que
+    esta corriendo. Lo segundo no es adorno: el motor lo arranca el script de
+    Resolve llamando al `pythonw.exe` de un entorno virtual POR RUTA COMPLETA,
+    y eso no mete el `Scripts` de ese entorno en el PATH. Medido el
+    2026-08-23: con yt-dlp instalado en el mismo entorno que corre el motor,
+    `shutil.which("yt-dlp")` devolvia None y la ventana seguia diciendo que
+    faltaba, que es de las averias que dan mas rabia porque acabas de
+    instalarlo.
+    """
+    for nombre in ("yt-dlp", "yt-dlp.exe"):
+        camino = shutil.which(nombre)
+        if camino:
+            return camino
+    base = Path(sys.executable).parent
+    for carpeta in (base, base / "Scripts", base / "bin"):
+        for nombre in ("yt-dlp.exe", "yt-dlp"):
+            camino = carpeta / nombre
+            if camino.is_file():
+                return str(camino)
+    return ""
+
+
 def hay_ytdlp():
     """Si la herramienta de descarga esta en esta maquina."""
-    return bool(shutil.which("yt-dlp") or shutil.which("yt-dlp.exe"))
+    return bool(donde_ytdlp())
 
 
 def traer(url, destino=None, log=None):
@@ -108,7 +134,8 @@ def traer(url, destino=None, log=None):
     ok, motivo = vale(url)
     if not ok:
         raise ValueError(motivo)
-    if not hay_ytdlp():
+    exe = donde_ytdlp()
+    if not exe:
         raise RuntimeError("no_ytdlp")
     casa = Path(destino or tempfile.mkdtemp(prefix="vidorq_ref_"))
     casa.mkdir(parents=True, exist_ok=True)
@@ -117,9 +144,17 @@ def traer(url, destino=None, log=None):
     r = subprocess.run(
         # Sin shell, con la url como UN argumento, y con -- delante para que
         # una url que empiece por guion no se lea como una opcion.
-        ["yt-dlp", "--no-playlist", "--no-continue", "--no-part",
+        [exe, "--no-playlist", "--no-continue", "--no-part",
          "--max-filesize", "500M", "--socket-timeout", "30",
-         "-f", "mp4/best", "-o", str(casa / "ref.%(ext)s"), "--", url.strip()],
+         # Con techo de 1080: lo que se mira de este video es la tipografia, el
+         # color y el ritmo de corte, y nada de eso se lee mejor en 4K. Medido
+         # el 2026-08-23 con "mp4/best" a secas: el formato elegido para un
+         # corto de diez minutos pesaba 743 MB, o sea que reventaba el limite
+         # de 500 MB de la linea de arriba y el usuario solo veia "no pude
+         # bajar ese video".
+         "-f", ("bv*[height<=1080][ext=mp4]+ba[ext=m4a]/"
+                "b[height<=1080][ext=mp4]/b[height<=1080]/b"),
+         "-o", str(casa / "ref.%(ext)s"), "--", url.strip()],
         capture_output=True, timeout=TIMEOUT, creationflags=NO_WINDOW)
     salidas = sorted(casa.glob("ref.*"))
     if r.returncode != 0 or not salidas:

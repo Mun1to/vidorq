@@ -11,3 +11,12 @@ av>=12.0                # decoding, and reading a file's real frame rate
 pillow>=10.0            # frames in and out of the vision and face passes
 numpy>=1.26             # the arithmetic behind shot detection and face decoding
 onnxruntime>=1.17       # runs the face detector in skill/models/
+
+# Pasting a social link into "Copy a style" instead of a file path. Called as a
+# program, never imported, and it brings no required dependencies of its own.
+#
+# On the licence, because it is not obvious: what pip installs here is the PyPI
+# wheel, and that one is Unlicense, so it is safe inside a paid product. The
+# executables the yt-dlp project ships, built with PyInstaller, do carry GPLv3+
+# code and must NOT be redistributed. Install it, do not bundle their binary.
+yt-dlp>=2026.7          # downloads the reference video behind a link
