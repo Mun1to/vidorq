@@ -381,7 +381,20 @@ para los `Text+` de los subtítulos y de Color solo un CDL básico.
   - Las letras de ese vídeo están **huecas** (solo contorno, y por dentro se ve el fondo),
     así que todo lo que mire "el interior de la letra" devuelve el fondo. El color se
     saca del BORDE, y se coge el que más se repite y no el promedio.
-- [ ] **Detectar la animación de entrada** de las palabras.
+- [~] **Detectar la animación de entrada** de las palabras. Se detecta la FAMILIA
+      (`efectos.entrada`): si el texto entra **creciendo**, **apareciendo** o **de golpe**.
+      Calibrado contra LAS NUEVE entradas de la casa renderizadas: creciendo son bounce
+      0,641, pop 0,415, ignite 0,275 y zoom 0,170; apareciendo son focus 0,690, fade 0,655
+      y rise 0,631; de golpe son throb 0,071 y none 0,000. **Lo que NO se sabe** es cuál de
+      las que crecen es, porque las cuatro crecen igual. El Short de referencia dice que su
+      texto **entra creciendo**, que es lo que se ve en los recortes: las letras entran
+      huecas y se rellenan.
+
+      Dos cosas que solo salieron al probar con vídeo real. Los fotogramas hay que pedirlos
+      **seguidos**, porque una entrada dura tres o cuatro y el muestreo normal se la salta
+      entera. Y la mancha de texto se busca **por color**, no por brillo: sobre metraje el
+      cuadro entero pasa cualquier umbral de brillo, la mancha nunca desaparece y entonces
+      no hay forma de ver dónde empieza el texto.
 - [~] **Detectar transiciones y efectos.** Las TRANSICIONES ya se detectan
       (`skill/helpers/efectos.py`): distingue un corte seco de una transicion, dice cuanto
       dura, y separa el fundido a negro del fundido a blanco. Calibrado con transiciones

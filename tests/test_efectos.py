@@ -90,6 +90,25 @@ def _video(tipo, casa, dur_trans=0.8):
     return fuera if fuera.exists() else None
 
 
+def _con_entrada(anim, casa, w=640, h=360, dur=1.6):
+    """Un video con una frase que entra con esa animacion de la casa."""
+    import captions as cap
+
+    obra = casa / ("e_" + anim)
+    obra.mkdir(parents=True, exist_ok=True)
+    trozo = {"start": 0.5, "end": dur, "text": "HOLA MUNDO",
+             "words": [{"w": "HOLA", "s": 0.5, "e": 1.0},
+                       {"w": "MUNDO", "s": 1.0, "e": dur}]}
+    cap.to_ass(obra / "s.ass", [trozo], 0.0, dur, w, h, "pop", anim)
+    fuera = obra / "v.mp4"
+    subprocess.run(
+        ["ffmpeg", "-y", "-v", "error", "-f", "lavfi",
+         "-i", "color=c=0x202028:s=%dx%d:d=%.2f:r=25" % (w, h, dur),
+         "-vf", "subtitles=s.ass", "-pix_fmt", "yuv420p", "v.mp4"],
+        capture_output=True, cwd=str(obra), creationflags=NO_WINDOW)
+    return fuera if fuera.exists() else None
+
+
 def casos(casa):
     import efectos
 
@@ -130,6 +149,52 @@ def casos(casa):
     if solo.exists():
         import efectos as e
         yield ("un solo plano no da transiciones", e.transiciones(solo), [])
+
+    # ------------------------------------------- como ENTRA un subtitulo
+    # Circulo cerrado contra LAS NUEVE entradas de la casa: se renderiza cada
+    # una y se le mide la entrada como si viniera de fuera.
+    #
+    # Se comprueban FAMILIAS y no nombres, porque es lo que la medida separa
+    # de verdad: un pop, un rebote y un zoom crecen los tres, y decir cual es
+    # seria una respuesta segura y a medias equivocada. Los nueve nombres
+    # estan igualmente aqui, para que si alguien añade una entrada nueva se
+    # entere de en que familia cae.
+    import captions as cap
+    FAMILIA = {
+        "pop": "creciendo", "bounce": "creciendo", "zoom": "creciendo",
+        "ignite": "creciendo",
+        "fade": "apareciendo", "rise": "apareciendo", "focus": "apareciendo",
+        # Un latido no es una entrada: la letra ya esta ahi entera.
+        "throb": "de golpe", "none": "de golpe",
+    }
+    yield ("estan las nueve entradas de la casa",
+           sorted(FAMILIA) == sorted(cap.ANIMS), True)
+    for anim, quiero in FAMILIA.items():
+        v = _con_entrada(anim, casa)
+        if not v:
+            yield ("se puede renderizar la entrada %s" % anim, False, True)
+            continue
+        r = efectos.entrada(v, 0.7)
+        yield ("%s: se mide la entrada" % anim, r is not None, True)
+        if r:
+            yield ("%s: entra %s" % (anim, quiero), r["como"], quiero)
+    # Si no hay NADA que destaque, no hay entrada que medir, y se dice con
+    # None en vez de con una familia inventada.
+    #
+    # Ojo con lo que este caso prueba y lo que no: `entrada()` da por hecho
+    # que en ese instante hay texto, porque quien la llama viene de leer.py,
+    # que ya lo encontro. No sabe distinguir una letra de un cartel, y no es
+    # su trabajo. Lo unico que se comprueba aqui es que un cuadro sin nada no
+    # inventa una animacion.
+    vacio = casa / "vacio.mp4"
+    subprocess.run(
+        ["ffmpeg", "-y", "-v", "error", "-f", "lavfi",
+         "-i", "color=c=0x101014:s=320x180:d=1.5:r=25",
+         "-pix_fmt", "yuv420p", str(vacio)],
+        capture_output=True, creationflags=NO_WINDOW)
+    if vacio.exists():
+        yield ("un cuadro sin nada no inventa una entrada",
+               efectos.entrada(vacio, 0.7), None)
 
 
 def main():

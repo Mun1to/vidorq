@@ -421,6 +421,43 @@ def subtitulos(video, n=MUESTRAS, alto=ALTO):
     # asi que sobreestima: con ella el subtitulo reconstruido salia mas grande
     # que el original, y eso se ve al ponerlos uno al lado del otro.
     alto_letra = float(np.median(letras)) if letras else 0.0
+
+    # Como ENTRA el texto. Se pregunta por varias lineas y gana la respuesta
+    # que mas se repita: una sola puede caer justo donde el plano cambia y
+    # entonces lo que se mide es el corte, no la entrada del subtitulo.
+    #
+    # Es una pasada aparte sobre trozos de un segundo, porque una entrada dura
+    # tres o cuatro fotogramas y el muestreo normal se la salta entera. Si no
+    # se puede ver, se dice que no en vez de suponer "de golpe".
+    entrada = None
+    # El color que mas se repite en el texto, para poder buscar la mancha POR
+    # COLOR y no por brillo: sobre metraje el cuadro entero pasa cualquier
+    # umbral de brillo y el texto no "aparece" nunca.
+    dominante = None
+    if paleta:
+        k = max(paleta, key=lambda k: paleta[k])
+        dominante = tuple(v / 8 + 1 / 16 for v in k)
+    try:
+        import efectos
+        banda = (max(0.0, (arriba - alto_px) / H),
+                 min(1.0, (arriba + alto_px * 2) / H))
+        votos = []
+        for d in sorted(dentro, key=lambda d: d["i"])[:4]:
+            t = dur * (d["i"] + 0.5) / len(frames)
+            e = efectos.entrada(video, t, banda=banda, antes=1.4, despues=0.3,
+                                color=dominante)
+            if e:
+                votos.append(e)
+        if votos:
+            cuenta = {}
+            for v in votos:
+                cuenta[v["como"]] = cuenta.get(v["como"], 0) + 1
+            gana = max(cuenta, key=lambda k: cuenta[k])
+            entrada = {"como": gana, "de": len(votos),
+                       "acuerdo": round(cuenta[gana] / len(votos), 2)}
+    except Exception:
+        entrada = None
+
     return {
         "y": round(1.0 - arriba / H + borde, 3),
         "size": round((alto_letra or alto_px) / ref, 3),
@@ -434,6 +471,10 @@ def subtitulos(video, n=MUESTRAS, alto=ALTO):
         "lineas": lineas,
         "paleta": [tuple(round(v / 8 + 1 / 16, 3) for v in k) for k, _ in orden[:6]],
         "logo": sorted(logo),
+        # Como entra el texto: "creciendo", "apareciendo", "de golpe", o None
+        # si no se ha podido ver. `acuerdo` dice cuantas de las lineas miradas
+        # opinaban lo mismo, para poder desconfiar de un 0,5.
+        "entrada": entrada,
         # Lo que rodea a la letra. La MEDIANA y no la media: una palabra sobre
         # un plano oscuro da un contorno que no existe, y con la media una sola
         # basta para inventarse uno en todo el video.

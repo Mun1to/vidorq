@@ -46,7 +46,8 @@ def capacidades():
                 "donde caen y de que tamaño", "que dicen, leido de la imagen",
                 "el color de CADA palabra", "si llevan contorno y de que grosor",
                 "si llevan halo", "el grosor del trazo de la letra",
-                "cual es la marca de agua del autor, para dejarla fuera"],
+                "cual es la marca de agua del autor, para dejarla fuera",
+                "si el texto entra creciendo, apareciendo o de golpe"],
             "imagen": ["donde estan las caras", "el color dominante"],
             "transiciones": ["si el montaje corta a hueso o funde",
                              "cuanto dura cada fundido",
@@ -73,7 +74,9 @@ def capacidades():
             "medida no mira.",
             "No detecta efectos, zooms ni grading del video ajeno. No existe "
             "ni un campo para guardarlos.",
-            "No sabe la animacion de entrada de las palabras.",
+            "De la animacion de entrada sabe la FAMILIA (si el texto entra "
+            "creciendo, apareciendo o de golpe) pero no cual es: un pop, un "
+            "rebote y un zoom crecen los tres igual.",
             "En Resolve, un Text+ no pinta dos colores a la vez, asi que el "
             "color por palabra es HOY solo del camino del MP4.",
             "Los tiempos de los subtitulos leidos son aproximados: se leen "
@@ -217,6 +220,7 @@ def informe(video, leer_texto=True):
             "peso_del_trazo": lei.get("peso"),
             "contorno_px": borde.get("contorno", 0),
             "halo_px": borde.get("halo", 0),
+            "entrada": lei.get("entrada"),
             "paleta": [{"rgb": c, "nombre": _nombre_color(c)} for c in paleta],
             "marca_de_agua_descartada": lei.get("logo") or [],
             # Marcado: esto lo escribio otra persona en su video.
@@ -238,6 +242,21 @@ def informe(video, leer_texto=True):
             "Lleva subtitulos QUEMADOS, leidos de la imagen: caen a %.2f de "
             "altura, letra de %.3f, %s."
             % (lei["y"], lei["size"], " y ".join(adorno)))
+        ent = lei.get("entrada")
+        if ent:
+            # Con una sola linea medida se dice, y con esas palabras: una
+            # entrada vista una vez puede ser el corte de plano y no el
+            # subtitulo, y quien lea esto tiene que poder desconfiar.
+            flojo = ent["de"] < 2 or ent["acuerdo"] < 0.6
+            lineas.append(
+                "%s texto entra %s%s. De que clase de %s es no se sabe: un "
+                "pop, un rebote y un zoom crecen los tres igual."
+                % ("Parece que el" if flojo else "El", ent["como"],
+                   (", pero solo se ha podido ver en %d de las lineas miradas"
+                    % ent["de"]) if flojo else
+                   " (%d lineas, %d%% de acuerdo)"
+                   % (ent["de"], round(ent["acuerdo"] * 100)),
+                   ent["como"]))
         if len(paleta) >= 2:
             lineas.append(
                 "Cada palabra puede llevar su color. Los que mas salen: %s."
@@ -258,7 +277,7 @@ def informe(video, leer_texto=True):
 
     lineas.append(
         "Vidorq NO sabe de este video: la tipografia, los efectos, el grading, "
-        "la animacion de entrada de las palabras, ni de que CLASE es cada "
-        "fundido mas alla de si va a negro o a blanco.")
+        "de que CLASE es cada fundido mas alla de si va a negro o a blanco, ni "
+        "cual de las entradas que crecen es la suya.")
     out["resumen"] = "\n".join(lineas)
     return out

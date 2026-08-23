@@ -129,6 +129,171 @@ def transiciones(video, planos=None, track=None):
     return out
 
 
+# --------------------------------------------------------------------------- #
+# Como ENTRA un subtitulo
+# --------------------------------------------------------------------------- #
+# Cuanto tiene que cambiar de alto la mancha de texto para llamarlo "entra
+# creciendo", y cuanto tiene que subirle el contraste para llamarlo "entra
+# apareciendo". Medido renderizando LAS NUEVE entradas de la casa y midiendolas
+# como si vinieran de fuera:
+#
+#   creciendo    bounce 0,641   pop 0,415   ignite 0,275   zoom 0,170
+#   apareciendo  focus  0,690   fade 0,655  rise   0,631
+#   de golpe     throb  0,071   none 0,000
+#
+# El margen entre `zoom` (0,170), que es la que menos crece de las que crecen,
+# y `throb` (0,071), que es la que mas de las que no, es de mas del doble.
+CRECE = 0.12
+ACLARA = 0.45
+# Fotogramas seguidos que se miran desde que aparece el texto. La entrada mas
+# larga de la casa cabe de sobra en ocho, y pedir mas cuesta descodificar mas.
+ENTRADA_FRAMES = 8
+
+
+def _mancha(f, umbral=60, color=None):
+    """(ancho, alto, centro_y, contraste) del texto dentro del cuadro.
+
+    Con `color`, la mancha son los pixeles que se parecen al RELLENO que ya se
+    midio, y `f` viene en RGB. Sin el, son los que pasan un umbral de brillo.
+
+    El umbral de brillo solo vale sobre un fondo oscuro de laboratorio: sobre
+    metraje de pelicula lo pasa casi todo el cuadro, la mancha nunca
+    desaparece y entonces no hay forma de ver DONDE empieza el texto. Medido
+    con un Short real, donde devolvia None por eso mismo.
+    """
+    import numpy as np
+
+    if color is not None:
+        obj = np.array(color, dtype="float32") * 255.0
+        d = np.abs(f.astype("float32") - obj).sum(axis=2)
+        m = d < 110
+        fuerza = f.mean(axis=2)
+    else:
+        m = f > umbral
+        fuerza = f
+    if m.sum() < 20:
+        return None
+    filas = np.where(m.any(axis=1))[0]
+    cols = np.where(m.any(axis=0))[0]
+    return (int(cols[-1] - cols[0] + 1), int(filas[-1] - filas[0] + 1),
+            float(filas.mean()), float(fuerza[m].std()))
+
+
+def entrada(video, at, banda=None, antes=0.35, despues=0.65, color=None):
+    """Como entra el subtitulo que aparece cerca del segundo `at`.
+
+    `banda` es (y0, y1) en fraccion del alto, para mirar solo donde esta el
+    texto y no el video entero. Devuelve None si no se pudo ver.
+
+    Los fotogramas se piden SEGUIDOS y no muestreados a proposito: una entrada
+    dura tres o cuatro fotogramas, y el muestreo normal de la casa (40 por
+    video) se la salta entera. Por eso esto es una pasada aparte y solo se
+    hace sobre el trozo que interesa.
+
+    Devuelve tres familias y no nueve nombres:
+
+      "creciendo"    la letra cambia de tamaño al entrar
+      "apareciendo"  aparece sin cambiar de tamaño
+      "de golpe"     ya esta ahi entera en el primer fotograma
+
+    Dentro de cada familia NO se distingue cual es, y se dice: un pop, un
+    rebote y un zoom crecen los tres, y ponerle nombre a cual seria una
+    respuesta segura y a medias equivocada.
+
+    DA POR HECHO que en ese instante hay texto, porque quien la llama viene de
+    `leer.py`, que ya lo ha encontrado. No sabe distinguir una letra de un
+    cartel ni de un logo: si se le apunta a un sitio donde no hay subtitulo,
+    describira como entra lo que sea que haya ahi.
+    """
+    import subprocess
+
+    import numpy as np
+
+    import aprende
+
+    w, h, dur = aprende.medidas(video)
+    if not (w and h and dur > 0):
+        return None
+    desde, hasta = max(0.0, at - antes), min(dur, at + despues)
+    if hasta <= desde:
+        return None
+    # A un alto manejable, en gris: aqui solo importa la FORMA de la mancha.
+    ALTO = 360
+    ancho = int(round(w * ALTO / h))
+    ancho -= ancho % 2
+    if ancho < 2:
+        return None
+    filtros = ["select='between(t,%.3f,%.3f)'" % (desde, hasta),
+               "setpts=N/FRAME_RATE/TB",
+               "scale=%d:%d" % (ancho, ALTO)]
+    alto = ALTO
+    if banda:
+        # El recorte va DESPUES del escalado, para que la banda se mida contra
+        # el mismo alto en el que viene expresada.
+        y0 = max(0, int(banda[0] * ALTO))
+        y1 = min(ALTO, int(banda[1] * ALTO))
+        y1 -= (y1 - y0) % 2
+        if y1 - y0 >= 8:
+            filtros.append("crop=%d:%d:0:%d" % (ancho, y1 - y0, y0))
+            alto = y1 - y0
+    # En color solo cuando hace falta: si se sabe de que color es el relleno,
+    # la mancha se busca por color y no por brillo, que es lo unico que
+    # funciona sobre metraje.
+    canales = 3 if color is not None else 1
+    r = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(video),
+         "-vf", ",".join(filtros),
+         "-vsync", "0", "-f", "rawvideo",
+         "-pix_fmt", "rgb24" if color is not None else "gray", "-"],
+        capture_output=True, creationflags=getattr(subprocess,
+                                                   "CREATE_NO_WINDOW", 0))
+    paso = ancho * alto * canales
+    if not r.stdout or len(r.stdout) < paso * 3:
+        return None
+    forma = (alto, ancho, 3) if canales == 3 else (alto, ancho)
+    fs = [np.frombuffer(r.stdout[i * paso:(i + 1) * paso],
+                        dtype="uint8").reshape(forma)
+          for i in range(len(r.stdout) // paso)]
+    medidas = [_mancha(f, color=color) for f in fs]
+    # Hay que VER el hueco antes del texto. Si el primer fotograma de la
+    # ventana ya tiene texto, no se sabe cuando empezo ni cuanto llevaba ahi,
+    # y lo que se mediria seria el final de una entrada anterior o nada. Se
+    # devuelve None, que es la respuesta honesta.
+    #
+    # Importa porque quien llama viene de leer.py, y el instante que da es
+    # donde se MUESTREO la linea, no donde entro: puede caer a mitad de frase.
+    vacios = [i for i, m in enumerate(medidas) if m is None]
+    if not vacios or vacios[0] >= len(medidas) - 3:
+        return None
+    empieza = next((i for i in range(vacios[0], len(medidas))
+                    if medidas[i] is not None), None)
+    if empieza is None:
+        return None
+    vivos = [m for m in medidas[empieza:] if m][:ENTRADA_FRAMES]
+    if len(vivos) < 3:
+        return None
+    altos = [v[1] for v in vivos]
+    anchos = [v[0] for v in vivos]
+    contrastes = [v[3] for v in vivos]
+    fin = max(altos) or 1
+    # El RANGO y no el cambio desde el primero: una entrada que empieza grande
+    # y se encoge daba cero midiendo desde el primero, siendo la que mas
+    # cambia de tamaño de todas.
+    crece = (max(altos) - min(altos)) / fin
+    aclara = ((max(contrastes) - min(contrastes)) / (max(contrastes) or 1))
+    if crece >= CRECE:
+        como = "creciendo"
+    elif aclara >= ACLARA:
+        como = "apareciendo"
+    else:
+        como = "de golpe"
+    return {"como": como, "crece": round(crece, 3),
+            "aclara": round(aclara, 3),
+            "crece_ancho": round((max(anchos) - min(anchos))
+                                 / (max(anchos) or 1), 3),
+            "frames": len(vivos)}
+
+
 def resumen(trans):
     """Los cambios contados por tipo, para decirlo en una frase."""
     if not trans:
