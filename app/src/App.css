@@ -332,17 +332,24 @@ body {
    encontrar el boton de editar habia que hacer scroll y adivinar que estaba
    ahi abajo. Se queda pegado al fondo del panel con su propio suelo, para que no
    flote encima del contenido que pasa por debajo. */
+/* Y con un ancho, no de lado a lado. La ventana paso a 1280 de ancho, y un
+   boton que cruza el panel entero a esa medida deja de leerse como un boton:
+   se lee como una barra de color. Sigue centrado y sigue pegado abajo, que es
+   lo que resolvia el problema de arriba; lo que se quita es el estiron. */
 .main > .cta {
   position: sticky; bottom: 0; z-index: 3;
-  margin-top: 2px;
+  margin: 2px auto 0; max-width: 420px;
   box-shadow: 0 -14px 20px -8px var(--bg);
 }
 /* El suelo que decia el comentario de arriba y no existia. Medido el 19-ago:
    el boton se queda con el borde de abajo en 686 y el panel acaba en 708, o sea
    que por esos 22 px de relleno seguia asomando lo que pasaba por detras. Con
    una miniatura clara eso se lee como una imagen partida por la mitad. */
+/* El suelo se estira a lo ancho del panel a mano, porque el boton ya no lo
+   cruza: con los -26px de antes, al acortarlo a 420 quedaban dos ventanas a los
+   lados por donde volvia a asomar lo que pasa por detras. */
 .main > .cta::after {
-  content: ""; position: absolute; left: -26px; right: -26px; top: 100%;
+  content: ""; position: absolute; left: -50vw; right: -50vw; top: 100%;
   height: 26px; background: var(--bg);
 }
 
@@ -1170,3 +1177,134 @@ select:focus-visible,
   display: inline-block; width: 15px; height: 15px; border-radius: 4px;
   border: 2px solid var(--line); vertical-align: -3px;
 }
+
+/* ---------- el escalon que faltaba entre el principal y el fantasma ---------- */
+/* Habia dos botones y nada en medio: el acento a todo lo ancho, que grita, y el
+   fantasma, que casi no se ve. La mitad de los sitios donde hoy hay un `.ghost`
+   pedian un boton normal: una accion de verdad, pero no LA accion. */
+.btn {
+  background: var(--panel2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 9px; padding: 9px 16px; font-size: 12.5px;
+  font-weight: var(--w-fuerte); font-family: inherit; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  transition: border-color .12s, background .12s;
+}
+.btn:hover:not(:disabled) {
+  border-color: var(--accent); background: var(--accent-fill);
+}
+.btn:disabled { color: var(--faint); cursor: not-allowed; }
+.btn .icon { flex: none; }
+
+/* ---------- las pastillas, por familias ---------- */
+/* La fila de diez identicas no decia cual te cambia el montaje entero y cual
+   solo pone un rotulo encima. Ahora cada familia lleva su nombre delante y va
+   en su propia linea, asi que la jerarquia se ve sin leer. */
+.chips { flex-direction: column; align-items: stretch; gap: 6px; }
+.chip-grupo { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chip-tit {
+  font-size: 10.5px; font-weight: var(--w-et); letter-spacing: .5px;
+  text-transform: uppercase; color: var(--faint);
+  min-width: 84px; flex: none;
+}
+/* Lo que YA esta puesto. No se apaga: se puede querer cambiar el filtro que
+   hay, asi que el marcador informa y no prohibe. */
+.chips button.ya {
+  border-color: var(--accent); color: var(--text);
+  background: var(--accent-fill);
+}
+.chip-marca {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+  display: inline-block; margin-right: 5px; vertical-align: 1px;
+}
+
+/* ---------- quien piensa y cuanto, pegado al redactor ---------- */
+.modelo {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 0 22px 9px; background: var(--bg); flex-wrap: wrap;
+}
+.modelo-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--panel2); border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 999px; padding: 5px 12px; font: inherit; font-size: 11.5px;
+  cursor: pointer; max-width: 300px;
+}
+.modelo-btn:hover, .modelo-btn.abierto { border-color: var(--accent); }
+.modelo-quien { font-weight: var(--w-fuerte); color: var(--text); flex: none; }
+/* El nombre del modelo puede ser larguisimo (`claude-sonnet-5-20260514`), asi
+   que se recorta en vez de estirar la barra: el titulo del boton lo dice entero. */
+.modelo-cual {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--muted);
+}
+.modelo-flecha {
+  width: 0; height: 0; flex: none;
+  border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-top: 4px solid var(--faint);
+}
+.modelo-btn.abierto .modelo-flecha { transform: rotate(180deg); }
+
+/* El punto de estado, de VoCript: verde listo, ambar le falta la clave, rojo no
+   se puede usar. Un boton apagado y mudo no dice si le falta algo a el o al
+   ordenador. */
+.punto { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.punto.listo { background: var(--ok); }
+.punto.sin-clave { background: var(--warn); }
+.punto.roto { background: var(--bad); }
+
+/* El esfuerzo va a la vista y de un toque, fuera del desplegable: es lo que mas
+   se cambia y esconderlo detras de un clic lo mataria. */
+.esfuerzo { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.esfuerzo button {
+  background: transparent; border: 0; color: var(--muted); font: inherit;
+  font-size: 11px; padding: 5px 11px; cursor: pointer;
+}
+.esfuerzo button + button { border-left: 1px solid var(--line); }
+.esfuerzo button:hover { color: var(--text); }
+.esfuerzo button.sel {
+  background: var(--accent); color: var(--sobre); font-weight: var(--w-fuerte);
+}
+
+.modelo-menu {
+  position: absolute; bottom: calc(100% + 6px); left: 22px; z-index: 20;
+  display: flex; flex-direction: column; gap: 3px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 11px;
+  padding: 10px; min-width: 280px; max-width: 420px;
+  max-height: 60vh; overflow-y: auto;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--vuelta) 22%, transparent);
+}
+.modelo-tit {
+  margin: 4px 0 2px; font-size: 10.5px; font-weight: var(--w-et);
+  letter-spacing: .5px; text-transform: uppercase; color: var(--faint);
+}
+.modelo-fila {
+  display: flex; align-items: center; gap: 8px; text-align: left;
+  background: transparent; border: 1px solid transparent; border-radius: 8px;
+  padding: 7px 9px; font: inherit; font-size: 12.5px; color: var(--text);
+  cursor: pointer; width: 100%;
+}
+.modelo-fila:hover:not(:disabled) { background: var(--panel2); border-color: var(--line); }
+.modelo-fila.sel { border-color: var(--accent); background: var(--accent-fill); }
+.modelo-fila:disabled { color: var(--faint); cursor: not-allowed; }
+.modelo-nom { font-weight: var(--w-cuerpo); }
+.modelo-nota { font-size: 11px; color: var(--faint); margin-left: auto; }
+.modelo-modelos { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 6px; }
+.modelo-menu .btn { margin-top: 4px; }
+
+/* ---------- elegir el acento ---------- */
+/* El numero de contraste va DEBAJO de cada color y no escondido en un titulo:
+   la regla de la casa es que un hex se mide, no se ajusta mirando, y esto es
+   esa regla hecha pantalla. */
+.acentos { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.acento {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--panel2); border: 1px solid var(--line); color: var(--text);
+  border-radius: 9px; padding: 7px 12px; font: inherit; font-size: 12.5px;
+  cursor: pointer;
+}
+.acento:hover { border-color: var(--accent); }
+.acento.sel { border-color: var(--accent); background: var(--accent-fill); }
+.acento-bola {
+  width: 14px; height: 14px; border-radius: 50%; flex: none;
+  border: 1px solid color-mix(in srgb, var(--vuelta) 20%, transparent);
+}
+.acento-num { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }

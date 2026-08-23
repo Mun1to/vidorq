@@ -5,6 +5,7 @@ import {
   IconUndo, IconVideo,
 } from "./Icons";
 import logo from "./assets/logo.png";
+import Modelo from "./Modelo";
 
 /** Un turno de la conversacion, tal y como lo guarda el motor en sesion.json. */
 export interface Ask {
@@ -33,29 +34,73 @@ export interface Turn {
 
 /** Atajos sobre el redactor: lo que la gente pide una y otra vez, a un toque.
  *
- *  Cada uno manda una frase normal, la misma que se podria escribir. Asi no hay
- *  dos caminos que mantener: el boton no sabe nada que el chat no sepa, y lo
- *  que pasa despues es lo mismo que si lo hubieras tecleado. Los que nombran
- *  una categoria sin decir cual acaban en la pregunta con sus opciones, que es
- *  justo lo que se quiere de un atajo: enseñarte lo que hay. */
-export const SHORTCUTS: { key: string; send: string }[] = [
-  { key: "sc.transition", send: "pon transiciones en cada corte" },
-  { key: "sc.look", send: "ponle un filtro de color" },
-  { key: "sc.captions", send: "ponle subtitulos" },
-  { key: "sc.anim", send: "cambia la animacion de los subtitulos" },
-  { key: "sc.shake", send: "ponle temblor de impacto en los cortes" },
-  { key: "sc.vertical", send: "ponlo en vertical" },
-  // Estos dos ya no dejan la frase a medias para que la remates con un numero:
-  // se mandan enteros y el motor contesta con los tramos del montaje para que
-  // señales uno. Saberse el segundo de memoria no era trabajo del usuario.
-  { key: "sc.zoom", send: "haz un zoom" },
-  { key: "sc.piece", send: "quita un trozo" },
-  // Estos dos SI dejan la frase a medias, y es lo correcto: un rotulo sin texto
-  // no es un rotulo a medio pedir, es un rotulo vacio. Lo unico que falta es lo
-  // que tiene que decir, asi que se deja el cursor justo ahi.
-  { key: "sc.rotulo", send: "pon un rotulo que diga " },
-  { key: "sc.chapa", send: "pon una chapa que diga " },
+ * Cada uno manda una frase normal, la misma que se podria escribir. Asi no hay
+ * dos caminos que mantener: el boton no sabe nada que el chat no sepa, y lo que
+ * pasa despues es lo mismo que si lo hubieras tecleado. Los que nombran una
+ * categoria sin decir cual acaban en la pregunta con sus opciones, que es justo
+ * lo que se quiere de un atajo: enseñarte lo que hay.
+ *
+ * Van en TRES familias, y no es decoracion.
+ *
+ * Antes eran diez pastillas identicas en una fila, y desde fuera no se veia
+ * cual te cambia el montaje entero y cual solo te pone un rotulo encima. Munir
+ * señalo esa fila como lo menos intuitivo de la ventana.
+ *
+ * El corte es por lo que le PASA al video, que es como lo piensa quien edita:
+ * lo que cambia el montaje, lo que cambia como se ve, y lo que añade algo
+ * nuevo encima. `puesto` dice como saber si eso ya esta aplicado; los que no
+ * lo tienen son acciones de una vez (un zoom, quitar un trozo), y ahi un
+ * marcador seria mentira porque no hay nada que "seguir puesto". */
+export const GRUPOS: {
+  key: string;
+  items: { key: string; send: string; puesto?: (n: Settings) => boolean }[];
+}[] = [
+  {
+    key: "sc.grupo.montaje",
+    items: [
+      { key: "sc.transition", send: "pon transiciones en cada corte",
+        puesto: (n) => !!n.transition && n.transition !== "none" },
+      { key: "sc.vertical", send: "ponlo en vertical",
+        puesto: (n) => n.ratio === "vertical" },
+      { key: "sc.shake", send: "ponle temblor de impacto en los cortes",
+        puesto: (n) => !!n.shake },
+      // Estos dos ya no dejan la frase a medias para que la remates con un
+      // numero: se mandan enteros y el motor contesta con los tramos del
+      // montaje para que señales uno. Saberse el segundo de memoria no era
+      // trabajo del usuario.
+      { key: "sc.zoom", send: "haz un zoom" },
+      { key: "sc.piece", send: "quita un trozo" },
+    ],
+  },
+  {
+    key: "sc.grupo.aspecto",
+    items: [
+      { key: "sc.look", send: "ponle un filtro de color",
+        puesto: (n) => !!n.look },
+      { key: "sc.captions", send: "ponle subtitulos",
+        puesto: (n) => !!n.captions },
+      { key: "sc.anim", send: "cambia la animacion de los subtitulos",
+        puesto: (n) => !!n.captions && !!n.captionAnim },
+    ],
+  },
+  {
+    key: "sc.grupo.encima",
+    items: [
+      // Estos dos SI dejan la frase a medias, y es lo correcto: un rotulo sin
+      // texto no es un rotulo a medio pedir, es un rotulo vacio. Lo unico que
+      // falta es lo que tiene que decir, asi que se deja el cursor justo ahi.
+      { key: "sc.rotulo", send: "pon un rotulo que diga " },
+      { key: "sc.chapa", send: "pon una chapa que diga " },
+    ],
+  },
 ];
+
+/* La lista plana sigue existiendo porque fuera de aqui se usa para otra cosa
+   (saber si una frase escrita coincide con un atajo). Se deriva de los grupos
+   en vez de escribirse dos veces: dos listas que hay que acordarse de tocar a
+   la vez se separan el primer dia que alguien tenga prisa. */
+export const SHORTCUTS: { key: string; send: string }[] =
+  GRUPOS.flatMap((g) => g.items.map(({ key, send }) => ({ key, send })));
 
 /** Lo que la edicion tiene puesto ahora mismo, tal y como lo guarda el motor. */
 export interface Settings {
@@ -317,21 +362,43 @@ export default function Chat({
       </div>
 
       <div className="chips">
-        {SHORTCUTS.map((sc) => (
-          <button key={sc.key} onClick={() => {
-            // Los que acaban en espacio piden un numero: se dejan escritos en
-            // el redactor para que solo haya que completarlos.
-            if (sc.send.endsWith(" ")) {
-              onDraft(sc.send);
-              // Al final del texto, no al principio: lo que falta va detras.
-              const el = askRef.current;
-              if (el) { el.focus(); requestAnimationFrame(() =>
-                el.setSelectionRange(el.value.length, el.value.length)); }
-            }
-            else onSend(sc.send);
-          }}>{t(sc.key as never)}</button>
+        {GRUPOS.map((g) => (
+          <div className="chip-grupo" key={g.key}>
+            <span className="chip-tit">{t(g.key as never)}</span>
+            {g.items.map((sc) => {
+              const ya = !!(sc.puesto && now && sc.puesto(now));
+              return (
+                <button
+                  key={sc.key}
+                  className={ya ? "ya" : ""}
+                  // Un atajo que ya esta aplicado no se apaga: se puede querer
+                  // cambiar el filtro que hay puesto. Solo se dice que esta.
+                  title={ya ? t("chip.ya") : undefined}
+                  onClick={() => {
+                    // Los que acaban en espacio piden un numero: se dejan
+                    // escritos en el redactor para que solo haya que
+                    // completarlos.
+                    if (sc.send.endsWith(" ")) {
+                      onDraft(sc.send);
+                      // Al final del texto, no al principio: lo que falta va
+                      // detras.
+                      const el = askRef.current;
+                      if (el) { el.focus(); requestAnimationFrame(() =>
+                        el.setSelectionRange(el.value.length, el.value.length)); }
+                    }
+                    else onSend(sc.send);
+                  }}
+                >
+                  {ya && <span className="chip-marca" aria-hidden="true" />}
+                  {t(sc.key as never)}
+                </button>
+              );
+            })}
+          </div>
         ))}
       </div>
+
+      <Modelo onSetup={onSetup} />
 
       <div className="chat-foot">
         <input
