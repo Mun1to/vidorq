@@ -140,7 +140,13 @@ export default function Modelo({ onSetup }: { onSetup: () => void }) {
       </button>
 
       {/* El esfuerzo va FUERA del desplegable, a la vista y de un toque: es lo
-          que mas se cambia y esconderlo detras de un clic lo mataria. */}
+          que mas se cambia y esconderlo detras de un clic lo mataria.
+
+          Y si no hay ninguno, no se pinta la caja. Con un motor viejo la lista
+          llega vacia y quedaba una pastilla con borde y nada dentro al lado del
+          modelo, que parece un fallo de maquetacion en vez de un mando que este
+          motor todavia no tiene. Visto en pantalla, no deducido. */}
+      {esfuerzos.length > 0 && (
       <div className="esfuerzo" role="group" aria-label={t("modelo.esfuerzo")}>
         {esfuerzos.map((e) => (
           <button
@@ -152,6 +158,7 @@ export default function Modelo({ onSetup }: { onSetup: () => void }) {
           >{e.label}</button>
         ))}
       </div>
+      )}
 
       {open && (
         <div className="modelo-menu">
