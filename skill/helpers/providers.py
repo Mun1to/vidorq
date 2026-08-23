@@ -171,6 +171,57 @@ PROVIDERS = {
 DEFAULT_PROVIDER = "local"
 TIMEOUT = 180
 
+# --------------------------------------------------------------------------- #
+# Cuanto se le deja pensar
+# --------------------------------------------------------------------------- #
+# El esfuerzo es un MULTIPLICADOR del presupuesto de tokens, no un ajuste por
+# proveedor. Se hace asi porque es lo unico que existe en los cuatro protocolos
+# de arriba: `num_predict` en Ollama, `max_tokens` en Anthropic y OpenAI,
+# `maxOutputTokens` en Gemini. Un "reasoning_effort" de OpenAI o un presupuesto
+# de pensamiento de Anthropic solo valdrian para uno de los cuatro, y entonces
+# el mando mentiria en los otros tres.
+#
+# El factor se aplica en un solo sitio (`director._hosted`), asi que los
+# presupuestos que cada llamada ya tenia escritos (900 para una, 1600 para
+# otra) siguen mandando en la proporcion: lo que cambia es cuanto sitio hay.
+#
+# `normal` es 1.0 A PROPOSITO: quien no toque este mando tiene exactamente el
+# comportamiento de antes, y eso es lo que permite anadirlo sin romper nada.
+ESFUERZOS = {
+    "rapido": {"factor": 0.6,
+               "label": {"es": "Rápido", "en": "Fast"},
+               "note": {"es": "Contesta antes y piensa menos. Para retoques.",
+                        "en": "Answers sooner, thinks less. For small tweaks."}},
+    "normal": {"factor": 1.0,
+               "label": {"es": "Normal", "en": "Normal"},
+               "note": {"es": "Lo de siempre.", "en": "The usual."}},
+    "fondo": {"factor": 3.0,
+              "label": {"es": "A fondo", "en": "Deep"},
+              "note": {"es": "Le deja el triple de sitio para pensar. Tarda "
+                             "más y en un modelo de pago cuesta más.",
+                       "en": "Three times the room to think. Slower, and it "
+                             "costs more on a paid model."}},
+}
+
+DEFAULT_ESFUERZO = "normal"
+
+
+def esfuerzo(nombre):
+    """El factor de este esfuerzo. Uno desconocido vale 1.0, o sea el de antes.
+
+    Nunca lanza: este valor sale de un archivo de configuracion y de una
+    peticion HTTP, y un nombre raro no puede dejar sin edicion a nadie.
+    """
+    return float((ESFUERZOS.get(str(nombre or ""))
+                  or ESFUERZOS[DEFAULT_ESFUERZO])["factor"])
+
+
+def esfuerzo_list(lang="es"):
+    """Los esfuerzos para pintarlos, en orden de menos a mas."""
+    return [{"id": eid, "label": e["label"].get(lang, e["label"]["es"]),
+             "note": e["note"].get(lang, e["note"]["es"])}
+            for eid, e in ESFUERZOS.items()]
+
 
 def catalogue(lang="es"):
     """What the interface needs to draw the provider picker."""

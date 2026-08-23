@@ -102,6 +102,11 @@ def _hosted(ai, system, user, tokens):
     """
     p = providers.PROVIDERS[ai["provider"]]
     model = ai.get("model") or p["default"]
+    # El esfuerzo que eligio el usuario, aplicado en UN solo sitio. Cada llamada
+    # trae su propio presupuesto escrito (900 para una pregunta corta, 1600 para
+    # el plan), y el factor conserva esa proporcion en vez de igualarlas: lo que
+    # cambia es cuanto sitio hay, no cual necesita mas.
+    tokens = max(200, int(tokens * providers.esfuerzo(ai.get("esfuerzo"))))
     text = providers.complete(ai["provider"], model, system, user,
                               key=ai.get("key", ""), tokens=tokens,
                               base_url=ai.get("baseUrl", ""))

@@ -1744,7 +1744,11 @@ def ai_choice(req=None):
     return {"provider": provider,
             "model": req.get("aiModel") or cfg.get("aiModel") or "",
             "key": req.get("aiKey") or keys.get(provider, ""),
-            "baseUrl": req.get("aiBaseUrl") or cfg.get("aiBaseUrl") or ""}
+            "baseUrl": req.get("aiBaseUrl") or cfg.get("aiBaseUrl") or "",
+            # Cuanto se le deja pensar. Uno desconocido cae en "normal", que es
+            # el factor 1.0, o sea exactamente lo de antes de que esto existiera.
+            "esfuerzo": (req.get("aiEsfuerzo") or cfg.get("aiEsfuerzo")
+                         or providers.DEFAULT_ESFUERZO)}
 
 
 def packed_text(transcript):
@@ -3988,7 +3992,9 @@ class Handler(BaseHTTPRequestHandler):
                         "provider": chosen["provider"],
                         "model": chosen["model"],
                         "baseUrl": chosen["baseUrl"],
-                        "hasKey": sorted(saved)})
+                        "hasKey": sorted(saved),
+                        "esfuerzo": chosen["esfuerzo"],
+                        "esfuerzos": providers.esfuerzo_list(lang)})
         elif self.path.startswith("/voices"):
             # Same rule as /providers: it says which engines have a key, never
             # what the key is.
@@ -4092,6 +4098,12 @@ class Handler(BaseHTTPRequestHandler):
             for field in ("aiModel", "aiBaseUrl", "voiceId", "voiceBaseUrl"):
                 if field in incoming:
                     cfg[field] = incoming.pop(field)
+            # El esfuerzo se comprueba contra la tabla en vez de guardarse tal
+            # cual: acaba multiplicando un presupuesto de tokens, y un valor
+            # raro que se colara no fallaria aqui, fallaria en mitad de una
+            # edicion. Lo que no esta en la tabla se ignora y queda el de antes.
+            if incoming.pop("aiEsfuerzo", None) in providers.ESFUERZOS:
+                cfg["aiEsfuerzo"] = body["aiEsfuerzo"]
             cfg.update({k: v for k, v in incoming.items() if v != ""})
             _atomic_write(CONFIG, json.dumps(cfg))
             self._send({"ok": True})
