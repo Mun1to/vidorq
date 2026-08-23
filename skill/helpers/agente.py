@@ -48,6 +48,9 @@ def capacidades():
                 "si llevan halo", "el grosor del trazo de la letra",
                 "cual es la marca de agua del autor, para dejarla fuera"],
             "imagen": ["donde estan las caras", "el color dominante"],
+            "transiciones": ["si el montaje corta a hueso o funde",
+                             "cuanto dura cada fundido",
+                             "si es un fundido a negro o a blanco"],
         },
         "reconstruye": {
             "mp4": ["subtitulos con un color fijo por palabra",
@@ -63,8 +66,13 @@ def capacidades():
             "original no lo sea.",
             "No distingue una letra Bold de una Black midiendola: los rangos "
             "se solapan. Solo separa fina de gorda.",
-            "No detecta transiciones, efectos, zooms ni grading del video "
-            "ajeno. No existe ni un campo para guardarlos.",
+            "De las transiciones sabe que HAY una y cuanto dura, y distingue "
+            "un fundido a negro y uno a blanco. NO distingue una disolvencia "
+            "de un barrido ni de un circulo: los tres reparten el cambio "
+            "igual, y lo que los separa es la forma de la mezcla, que esta "
+            "medida no mira.",
+            "No detecta efectos, zooms ni grading del video ajeno. No existe "
+            "ni un campo para guardarlos.",
             "No sabe la animacion de entrada de las palabras.",
             "En Resolve, un Text+ no pinta dos colores a la vez, asi que el "
             "color por palabra es HOY solo del camino del MP4.",
@@ -151,9 +159,15 @@ def informe(video, leer_texto=True):
     pedir y que no.
     """
     import aprende
+    import efectos as efx
 
     f = aprende.ficha(video, leer_texto=leer_texto)
     lei = f.get("leido")
+    # Una sola pasada de vision.shots() ya la hizo `ficha`, pero no guarda el
+    # track. Se vuelve a pedir aqui y no dentro de `ficha` porque no todo el
+    # mundo que llama a `ficha` quiere pagar esto.
+    cambios = efx.transiciones(video)
+    resumen_tr = efx.resumen(cambios)
 
     out = {
         "video": {
@@ -164,6 +178,7 @@ def informe(video, leer_texto=True):
         },
         "montaje": f.get("ritmo"),
         "arranque": f.get("arranque"),
+        "transiciones": {"resumen": resumen_tr, "cambios": cambios},
         "subtitulos": None,
         "capacidades": capacidades(),
     }
@@ -180,6 +195,16 @@ def informe(video, leer_texto=True):
                       % (a["segundos"],
                          "%d cortes" % a["cortes"] if a["cortes"] else "no corta",
                          a["primer_plano_s"]))
+    if resumen_tr:
+        if resumen_tr["corta_a_hueso"]:
+            lineas.append("Corta siempre a hueso: %d cambios de plano y ni un "
+                          "fundido." % resumen_tr["total"])
+        else:
+            trozos = ["%d %s" % (n, t) for t, n in
+                      sorted(resumen_tr["por_tipo"].items(), key=lambda kv: -kv[1])]
+            lineas.append("Cambios de plano: %s. Los fundidos duran %.1f s de "
+                          "media." % (", ".join(trozos),
+                                      resumen_tr["dura_media_s"]))
 
     if lei:
         borde = lei.get("borde") or {}
@@ -232,7 +257,8 @@ def informe(video, leer_texto=True):
             "o que el lector de texto no este instalado en esta maquina.")
 
     lineas.append(
-        "Vidorq NO sabe de este video: la tipografia, las transiciones, los "
-        "efectos, el grading ni la animacion de entrada de las palabras.")
+        "Vidorq NO sabe de este video: la tipografia, los efectos, el grading, "
+        "la animacion de entrada de las palabras, ni de que CLASE es cada "
+        "fundido mas alla de si va a negro o a blanco.")
     out["resumen"] = "\n".join(lineas)
     return out

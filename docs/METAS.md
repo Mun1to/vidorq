@@ -382,7 +382,15 @@ para los `Text+` de los subtítulos y de Color solo un CDL básico.
     así que todo lo que mire "el interior de la letra" devuelve el fondo. El color se
     saca del BORDE, y se coge el que más se repite y no el promedio.
 - [ ] **Detectar la animación de entrada** de las palabras.
-- [ ] **Detectar transiciones y efectos**, que hoy es un campo que no existe.
+- [~] **Detectar transiciones y efectos.** Las TRANSICIONES ya se detectan
+      (`skill/helpers/efectos.py`): distingue un corte seco de una transicion, dice cuanto
+      dura, y separa el fundido a negro del fundido a blanco. Calibrado con transiciones
+      fabricadas por ffmpeg, o sea de tipo conocido, y la separacion no admite discusion:
+      un corte da ancho 1 (un pico de 110 entre valores de 0,1) y todas las transiciones
+      dan de 3 a 6. **Lo que NO distingue**, y se dice en vez de fingirlo: una disolvencia
+      de un barrido de un circulo, porque los tres reparten el cambio igual y lo que los
+      separa es la forma de la mezcla. **Faltan los efectos, los zooms y el grading**, que
+      siguen sin tener ni un campo.
 
 **Cómo se sabe que está hecho**: se coge un vídeo de redes con subtítulos de colores, se pasa
 por Vidorq, y en la pantalla de Resolve el subtítulo reconstruido tiene los mismos colores en
