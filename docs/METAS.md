@@ -270,6 +270,40 @@ menos de 30 minutos.
 
 **Sesión**: 📦 Sesión 5. Depende de META A.
 
+## Lo que Vidorq es de verdad, dicho por Munir (2026-08-23)
+
+> "El objetivo es crear un **harness**, una estructura para dársela bien masticada a los agentes
+> que vayan a editar en DaVinci Resolve. Una estructura sobre la cual puedan trabajar todos los
+> agentes y modelos de inteligencia artificial que conectes, y puedan copiar contenido de vídeos
+> que importes y crear los componentes, animaciones, transiciones, color, decirte también qué
+> efectos se utilizan en ese vídeo, cortar vídeos automáticamente, poner subtítulos
+> automáticamente, y muchísimo más."
+
+Esto no es una pantalla, es una plataforma, y reencuadra todo lo de abajo. **Vidorq no es una
+herramienta con un agente dentro: es la base sobre la que trabaja el agente que sea.** Cuatro
+capas, con lo que hay medido el 2026-08-23:
+
+| Capa | Qué es | Estado |
+|---|---|---|
+| **1. Percepción** | leer el vídeo ajeno | subtítulos quemados (dónde, qué dicen, color por palabra, contorno, halo, grosor), planos, ritmo, arranque, caras. **Falta** transiciones, efectos, zooms, grading, movimiento de cámara |
+| **2. Componentes** | el almacén de lo copiado | `skill/helpers/galeria.py`, con campo `tipo` para que quepan animaciones y transiciones. **Solo sabe guardar un tipo**, el estilo de subtítulo |
+| **3. Ejecución** | el puente de Resolve | **18 endpoints de 152**. Sin tocar: `/timeline/scene-cuts` (Resolve detecta los cortes él solo), `/clip/smart-reframe`, `/clip/stabilize`, `/clip/magic-mask`, `/color/copy-grades`, `/color/export-lut`, `/render/*` (12) |
+| **4. Superficie para agentes** | cómo pregunta un agente | `skill/helpers/agente.py` y `GET /agente/informe` + `/agente/capacidades`. **Recién empezada** |
+
+La capa 4 es la que convierte lo demás en lo que Munir describe. Su pieza clave no es el informe,
+es **`capacidades()`, que dice lo que Vidorq NO sabe hacer**: sin esa lista un agente promete lo
+que no puede cumplir, que es literalmente el fallo que abrió este trabajo.
+
+**Decisiones abiertas** (se le enseñaron en el navegador el 2026-08-23 y no ha contestado):
+
+1. Por dónde seguir: la capa 4 (recomendada), más percepción, o abrir el puente.
+2. Cómo hablan los agentes con Vidorq: **servidor MCP propio** (recomendado), solo HTTP, o los dos.
+3. Si el agente decide y Vidorq solo mide (recomendado), o si Vidorq también decide.
+4. Si esto amplía la v0.1 o si la v0.1 se cierra como está y el harness es la v0.2 (recomendado,
+   por la regla Z).
+
+---
+
 ## META C: se nota entrenado
 
 **Hecho cuando**: le pasas 3 links de referencia y la siguiente edición se nota entrenada.
