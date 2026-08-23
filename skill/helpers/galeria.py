@@ -312,3 +312,179 @@ def caption_de(sub, base, nombre, video="", cuando=""):
         "de": {"video": Path(video).name if video else "", "cuando": cuando},
     })
     return comp
+
+
+# --------------------------------------------------------------------------- #
+# Llevarselo a otra maquina
+# --------------------------------------------------------------------------- #
+# El sobre lleva version para que dentro de un año se pueda leer un archivo de
+# hoy sabiendo que es. Un JSON pelado no dice de que programa salio, y el dia
+# que el formato cambie no habria forma de distinguir uno viejo de uno roto.
+SELLO = "vidorq/estilo"
+FORMATO = 1
+
+# Lo que puede llevar una fuente. Nada de rutas ni signos: ese nombre acaba
+# dentro de un `.setting` de Fusion y de una linea de ASS, que son dos formatos
+# de texto donde un caracter suelto cambia lo que significa el resto.
+_FUENTE_OK = re.compile(r"[^\w \-]", re.UNICODE)
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def exportar(eid, destino):
+    """Un estilo de la galeria a un archivo suelto. Devuelve la ruta o None."""
+    comp = uno(eid)
+    if not comp:
+        return None
+    destino = Path(destino)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    destino.write_text(
+        json.dumps({"que": SELLO, "formato": FORMATO, "componente": comp},
+                   ensure_ascii=False, indent=1),
+        encoding="utf-8")
+    return destino
+
+
+def _num(v, lo, hi):
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    if f != f or f < lo or f > hi:              # el primero caza los NaN
+        return None
+    return f
+
+
+def _tira(v, largo, rangos):
+    """Una tupla de `largo` numeros, cada uno en su rango. None si no cuadra.
+
+    Se exige el largo EXACTO y no "al menos": una tupla corta no revienta al
+    guardar, revienta al renderizar, o sea despues, con el usuario mirando una
+    pantalla que decia que todo habia ido bien. Ya paso con `outline`.
+    """
+    if not isinstance(v, (list, tuple)) or len(v) != largo:
+        return None
+    fuera = [_num(x, *rangos[i]) for i, x in enumerate(v)]
+    return tuple(fuera) if all(x is not None for x in fuera) else None
+
+
+_RGB = [(0.0, 1.0)] * 3
+
+# Cada campo con su forma. La `y` y el `size` repiten los topes del motor a
+# proposito: un `size` de 40 quiere decir que la banda medida se comio el
+# cuadro, y eso no se guarda aunque venga de un archivo que parezca nuestro.
+_FORMA = {
+    "outline": (4, _RGB + [(0.0, 1.0)]),
+    "shadow": (6, _RGB + [(0.0, 1.0), (-0.5, 0.5), (-0.5, 0.5)]),
+    "glow": (5, _RGB + [(0.0, 1.0), (0.0, 8.0)]),
+    "panel": (5, _RGB + [(0.0, 1.0), (0.0, 1.0)]),
+}
+
+
+def _texto(v, tope):
+    return _CONTROL.sub("", str(v or "")).strip()[:tope]
+
+
+def saneado(crudo, nombre=None):
+    """Un componente de fuera, reconstruido campo a campo. None si no vale.
+
+    LISTA BLANCA, no lista negra: se parte de nada y solo entra lo que se
+    reconoce. Un archivo de estilo lo puede haber escrito cualquiera y llegar
+    por correo, asi que aqui se trata como lo que es, un dato sin credenciales.
+    Lo que no se reconoce no se limpia: no entra.
+
+    El `id` NO se lee del archivo, se genera aqui. Dos motivos: uno de fuera
+    podria pisar un estilo que ya tienes, y ese id acaba en nombres de archivo
+    de la cache y en una linea de comandos.
+    """
+    import captions as cap
+
+    if not isinstance(crudo, dict):
+        return None
+    plantilla = cap.PRESETS.get(str(crudo.get("base") or ""),
+                                cap.PRESETS[cap.DEFAULT_PRESET])
+    comp = {}
+    # Los campos cuyo valor del archivo SI paso la revision. Sirve para no
+    # heredar la mentira: si llega un `fill` corrupto y se cae a la plantilla,
+    # el estilo no puede seguir diciendo que ese color esta medido.
+    vivos = set()
+    for campo in CAMPOS:
+        v = crudo.get(campo)
+        if campo in _FORMA:
+            largo, rangos = _FORMA[campo]
+            comp[campo] = None if v is None else _tira(v, largo, rangos)
+        elif campo in ("fill", "accent"):
+            comp[campo] = _tira(v, 3, _RGB)
+        elif campo == "size":
+            comp[campo] = _num(v, 0.005, 0.5)
+        elif campo == "y":
+            comp[campo] = _num(v, 0.0, 1.0)
+        elif campo == "tracking":
+            comp[campo] = _num(v, -0.5, 1.0)
+        elif campo in ("words", "max_chars"):
+            n = _num(v, 0, 200)
+            comp[campo] = None if n is None else int(n)
+        elif campo == "upper":
+            comp[campo] = bool(v)
+        elif campo == "font":
+            comp[campo] = _FUENTE_OK.sub("", _texto(v, 64))
+        elif campo == "style":
+            comp[campo] = _FUENTE_OK.sub("", _texto(v, 32))
+        elif campo == "anim":
+            comp[campo] = v if v in cap.ANIMS else plantilla["anim"]
+        elif campo == "word_fx":
+            comp[campo] = "karaoke" if v == "karaoke" else None
+        # Un None puede ser una medida de verdad: "este video NO lleva
+        # contorno" es un hallazgo, no un hueco, y por eso los cuatro campos
+        # que admiten None cuentan como vivos cuando llegan vacios a proposito.
+        if comp.get(campo) is not None or (v is None and campo in _FORMA):
+            vivos.add(campo)
+        # Lo que se cayo por el camino vuelve a la plantilla, que es lo mismo
+        # que hace `caption_de` con lo que no se sabe medir.
+        if comp.get(campo) is None and campo not in ("outline", "shadow",
+                                                     "glow", "panel",
+                                                     "word_fx"):
+            comp[campo] = plantilla.get(campo)
+
+    etiqueta = (_texto(nombre, 40)
+                or _texto((crudo.get("label") or {}).get("es"), 40)
+                or "Importado")
+    medido = [m for m in (crudo.get("medido") or []) if m in vivos]
+    comp.update({
+        "id": id_para(etiqueta),
+        "tipo": CAPTION,
+        "label": {"es": etiqueta, "en": etiqueta},
+        "note": {"es": "Importado: %d de %d cosas medidas."
+                       % (len(medido), len(CAMPOS)),
+                 "en": "Imported: %d of %d values measured."
+                       % (len(medido), len(CAMPOS))},
+        "propio": True,
+        "base": str(crudo.get("base") or cap.DEFAULT_PRESET)[:32],
+        "medido": medido,
+        "fondo_medido": _tira(crudo.get("fondo_medido"), 3, _RGB),
+        "de": {"video": _texto((crudo.get("de") or {}).get("video"), 80),
+               "cuando": _texto((crudo.get("de") or {}).get("cuando"), 32)},
+    })
+    return comp
+
+
+def importar(origen, nombre=None):
+    """Mete en la galeria un estilo exportado. Devuelve el id nuevo o None.
+
+    Acepta tanto el sobre de `exportar()` como el componente pelado, porque un
+    usuario que abra el archivo y copie lo de dentro tiene toda la razon en
+    esperar que funcione.
+    """
+    try:
+        datos = json.loads(Path(origen).read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if isinstance(datos, dict) and isinstance(datos.get("componente"), dict):
+        if datos.get("que") != SELLO:
+            return None
+        datos = datos["componente"]
+    comp = saneado(datos, nombre)
+    if not comp or not comp.get("fill"):
+        # Sin color de relleno no hay estilo que valga: seria la plantilla otra
+        # vez, con otro nombre encima.
+        return None
+    return guardar(comp)
