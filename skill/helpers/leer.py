@@ -160,6 +160,61 @@ def _color(linea, a, b):
             int(len(dentro)))
 
 
+def a_chunks(leido, dur=0.0, cola=1.6):
+    """Lo leido, convertido en trozos que el renderizador sabe pintar.
+
+    Es la otra mitad de copiar un subtitulo: sin esto lo leido es un informe
+    bonito que no se puede volver a montar. Cada palabra sale con SU color, y
+    `captions._ass_body` los respeta tal cual, sin moverlos con el audio.
+
+    Los tiempos son aproximados y no pueden ser otra cosa: se leen fotogramas
+    sueltos, asi que se sabe que a los 50,3 s ponia esa frase, no cuando entro
+    ni cuando salio. Cada trozo dura hasta el siguiente, con un tope, y las
+    palabras se reparten dentro por letras. Sirve para VER el estilo montado
+    encima del video; para clavar los tiempos hace falta leer seguido.
+
+      OJO: este texto lo escribio un desconocido en su video (regla AL). Aqui
+      se le quitan los caracteres de control y las llaves, que en un archivo
+      ASS no son texto sino ordenes de formato, y se recorta el largo. Es un
+      dato que se pinta, nunca algo que se obedece.
+    """
+    import re
+
+    lineas = (leido or {}).get("lineas") or []
+    out = []
+    for i, ln in enumerate(lineas):
+        palabras = ln.get("palabras") or []
+        if not palabras:
+            continue
+        inicio = float(ln["t"])
+        # Hasta la siguiente, con tope: dos frases separadas por medio video no
+        # significan que la primera estuviera treinta segundos en pantalla.
+        if i + 1 < len(lineas):
+            fin = min(float(lineas[i + 1]["t"]), inicio + cola)
+        else:
+            fin = inicio + cola
+            if dur:
+                fin = min(fin, dur)
+        if fin <= inicio:
+            continue
+        limpias, letras = [], sum(len(p["w"]) for p in palabras) or 1
+        t = inicio
+        for p in palabras:
+            w = re.sub(r"[\x00-\x1f{}\\]", "", str(p["w"]))[:40]
+            if not w:
+                continue
+            trozo = (fin - inicio) * len(p["w"]) / letras
+            limpias.append({"w": w, "s": round(t, 3), "e": round(t + trozo, 3),
+                            "color": tuple(p["color"])})
+            t += trozo
+        if not limpias:
+            continue
+        out.append({"start": round(inicio, 3), "end": round(fin, 3),
+                    "text": " ".join(p["w"] for p in limpias),
+                    "words": limpias})
+    return out
+
+
 def subtitulos(video, n=MUESTRAS, alto=ALTO):
     """Los subtitulos quemados de un video, con el color de cada palabra.
 
@@ -242,9 +297,30 @@ def subtitulos(video, n=MUESTRAS, alto=ALTO):
     arriba = float(np.mean([d["y0"] for d in dentro]))
     alto_px = float(np.mean([d["y1"] - d["y0"] for d in dentro]))
     orden = sorted(paleta.items(), key=lambda kv: -kv[1])
+    W = frames[0].shape[1]
+    # `size` contra la MISMA referencia que usa el catalogo, que es
+    # captions.line_ref(w, h) y no el alto del cuadro. Solo coinciden en 16:9;
+    # en el Short, que es cuadrado, medir contra el alto devolvia una letra
+    # mas pequeña de la que tiene y el subtitulo reconstruido salia chico al
+    # lado del original. Es la misma trampa que ya estaba anotada en
+    # aprende.ficha, y volvio a picar aqui por medirlo de nuevo desde cero.
+    try:
+        import captions as _cap
+        ref = float(_cap.line_ref(W, H)) or float(H)
+    except Exception:
+        ref = float(H)
+    # Y la caja del detector empieza donde la letra ya tiene grosor, un pelo
+    # por debajo de su tope real. El mismo desfase esta medido en
+    # aprende.BORDE_ALTO renderizando los diez presets, asi que se reusa ese
+    # numero en vez de inventar otro al lado.
+    try:
+        import aprende as _apr
+        borde = float(_apr.BORDE_ALTO)
+    except Exception:
+        borde = 0.014
     return {
-        "y": round(1.0 - arriba / H, 3),
-        "size": round(alto_px / H, 3),
+        "y": round(1.0 - arriba / H + borde, 3),
+        "size": round(alto_px / ref, 3),
         "lineas": lineas,
         "paleta": [tuple(round(v / 8 + 1 / 16, 3) for v in k) for k, _ in orden[:6]],
         "logo": sorted(logo),

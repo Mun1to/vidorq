@@ -95,6 +95,73 @@ def _cerca(uno, otro, margen=0.22):
     return all(abs(a - b / 255.0) <= margen for a, b in zip(uno, otro))
 
 
+def casos_sin_motor():
+    """Lo que se puede comprobar sin el detector: pasar lo LEIDO a algo que el
+    renderizador pinte. Va aparte porque `a_chunks` trabaja sobre un
+    diccionario y no toca ni un pixel, asi que tiene que probarse siempre,
+    tambien en una maquina sin el extra instalado."""
+    import captions as cap
+    import leer
+
+    leido = {
+        "y": 0.53, "size": 0.06,
+        "lineas": [
+            {"t": 10.0, "texto": "Y HAY OTRA PERSONA", "ajeno": True, "palabras": [
+                {"w": "Y", "color": (0.98, 0.97, 0.97), "px": 70},
+                {"w": "HAY", "color": (0.97, 0.96, 0.97), "px": 250},
+                {"w": "OTRA", "color": (0.93, 0.98, 0.07), "px": 160},
+                {"w": "PERSONA", "color": (0.98, 0.97, 0.97), "px": 440}]},
+            {"t": 12.0, "texto": "JARVIS", "ajeno": True, "palabras": [
+                {"w": "JARVIS", "color": (0.98, 0.95, 0.19), "px": 120}]},
+        ],
+        "paleta": [(0.94, 0.94, 0.94), (0.94, 0.94, 0.06)], "logo": [],
+    }
+    ch = leer.a_chunks(leido, dur=20.0)
+    yield ("sale un trozo por linea leida", len(ch), 2)
+    yield ("con sus palabras", [w["w"] for w in ch[0]["words"]],
+           ["Y", "HAY", "OTRA", "PERSONA"])
+    yield ("cada palabra se lleva SU color",
+           ch[0]["words"][2]["color"], (0.93, 0.98, 0.07))
+    # Un trozo no puede seguir en pantalla cuando ya entro el siguiente.
+    yield ("los trozos no se pisan", ch[0]["end"] <= ch[1]["start"] + 1e-6, True)
+    yield ("y ninguno dura mas de la cuenta",
+           all(c["end"] - c["start"] <= 1.61 for c in ch), True)
+    yield ("las palabras van en orden dentro del trozo",
+           all(ch[0]["words"][i]["e"] <= ch[0]["words"][i + 1]["s"] + 1e-6
+               for i in range(3)), True)
+
+    # Y que el render lo respete: un color fijo por palabra, no un barrido.
+    import tempfile
+    from pathlib import Path as _P
+    destino = _P(tempfile.mkdtemp(prefix="vidorq_ass_")) / "s.ass"
+    cap.to_ass(destino, ch, 0.0, 20.0, 1080, 1920, "pop")
+    texto = destino.read_text(encoding="utf-8")
+    # 0.93,0.98,0.07 -> 237,250,18 -> ASS va &HBBGGRR -> 12FAED.
+    yield ("el amarillo de OTRA llega al ASS", "12FAED" in texto.upper(), True)
+    yield ("y hay un cambio de color por palabra",
+           texto.count("\\1c") >= 5, True)
+    # `pop` no lleva karaoke, pero aunque lo llevara: un color copiado del
+    # video no puede moverse con el audio, asi que manda el color.
+    yield ("el color manda sobre el barrido de karaoke",
+           "\\kf" in cap._ass_body(ch[0], cap.preset("marker")), False)
+
+    # El texto es AJENO (regla AL). Lo que en un ASS son ordenes de formato se
+    # quita antes de escribirlo, no despues.
+    sucio = {"lineas": [{"t": 1.0, "texto": "x", "palabras": [
+        {"w": "{\\an8}HOLA", "color": (1, 1, 1), "px": 40},
+        {"w": "AD\x00IOS", "color": (1, 1, 1), "px": 40}]}]}
+    limpio = leer.a_chunks(sucio, dur=5.0)
+    palabras = [w["w"] for w in limpio[0]["words"]]
+    yield ("las llaves del texto ajeno no pasan", palabras[0], "an8HOLA")
+    yield ("ni los caracteres de control", palabras[1], "ADIOS")
+
+    # Una lectura vacia no puede reventar ni inventarse un trozo.
+    yield ("sin lineas no hay trozos", leer.a_chunks({}, dur=5.0), [])
+    yield ("con None tampoco", leer.a_chunks(None), [])
+    yield ("una linea sin palabras se cae sola",
+           leer.a_chunks({"lineas": [{"t": 1.0, "texto": "x", "palabras": []}]}), [])
+
+
 def casos():
     import leer
 
@@ -154,8 +221,24 @@ def main():
     except Exception as e:
         print("(no pude importar leer.py: %s)" % e)
         return 0
+
+    bad, total = [], 0
+    # Lo primero, lo que no necesita el detector. Asi una maquina sin el extra
+    # instalado sigue comprobando que lo leido se convierte bien en algo
+    # pintable, que es la mitad que se puede romper editando captions.py.
+    fuera = list(casos_sin_motor())
     if not leer.hay_motor():
-        print("(salto: falta rapidocr-onnxruntime, que es quien trae cv2)")
+        for nombre, got, want in fuera:
+            total += 1
+            if got != want:
+                bad.append("%s: esperaba %r y devolvio %r" % (nombre, want, got))
+        if bad:
+            print("%d de %d casos MAL:\n" % (len(bad), total))
+            for line in bad:
+                print("  - %s" % line)
+            return 1
+        print("(sin rapidocr-onnxruntime: %d casos de los que no lo necesitan)"
+              % total)
         return 0
     try:
         import numpy  # noqa: F401
@@ -164,8 +247,7 @@ def main():
         print("(salto: faltan numpy o Pillow)")
         return 0
 
-    bad, total = [], 0
-    for nombre, got, want in casos():
+    for nombre, got, want in list(fuera) + list(casos()):
         total += 1
         if got != want:
             bad.append("%s: esperaba %r y devolvio %r" % (nombre, want, got))

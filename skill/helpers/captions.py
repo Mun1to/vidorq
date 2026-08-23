@@ -665,6 +665,16 @@ def _ass_body(c, p):
     secondary colour to the primary one. This is the per-word behaviour the
     Resolve path cannot match, and it is why the same preset is worth more here.
     """
+    # Un color FIJO por palabra manda sobre todo lo demas. Es lo que hace el
+    # video de referencia: tres palabras blancas y una amarilla, sin que el
+    # amarillo se mueva con el audio. Karaoke no es eso: karaoke pinta la
+    # palabra que SUENA y va cambiando, asi que no se pueden hacer los dos a
+    # la vez y gana el que se copio del video.
+    if any(wd.get("color") for wd in c["words"]):
+        return " ".join(
+            ("{\\1c%s}%s" % (_ass_colour(wd["color"]), _ass_text(wd["w"])))
+            if wd.get("color") else _ass_text(wd["w"])
+            for wd in c["words"])
     if p["word_fx"] != "karaoke" or len(c["words"]) < 2:
         return _ass_text(c["text"])
     return " ".join("{\\kf%d}%s" % (max(1, int(round((wd["e"] - wd["s"]) * 100))),
