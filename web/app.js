@@ -82,7 +82,7 @@
     });
   };
 
-  document.querySelectorAll(".btn").forEach((el) => attachMagnetic(el, 8));
+  document.querySelectorAll(".cta, .ghost").forEach((el) => attachMagnetic(el, 8));
   document.querySelectorAll(".chip").forEach((el) => attachMagnetic(el, 5));
 
   // ---------- parallax en capas + salida del hero (escalado por --motion-gain) ----------

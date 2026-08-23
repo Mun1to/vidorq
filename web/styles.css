@@ -1,38 +1,81 @@
 /* ==========================================================
    Vidorq - landing
-   Mismo lenguaje visual que la app de escritorio (App.css):
-   fondo oscuro, paneles violeta/azul, tipografía del sistema.
+   Los tokens de color, peso y tipografia son una copia sincronizada
+   de app/src/App.css (paleta Grafito, hecha el 23-ago-2026). No se
+   importan por ruta relativa a proposito: la landing se despliega
+   sola y ese archivo puede no existir en produccion. Si App.css
+   cambia su :root, hay que volver a copiarlo aqui a mano.
    ========================================================== */
 
 :root {
-  --bg: #0d0f14;
-  --panel: #151923;
-  --panel2: #1b2130;
-  --line: #262e40;
-  --text: #e8ecf4;
-  --muted: #8b95a8;
-  --accent: #6c5ce7;
-  --accent2: #8f7bff;
-  --blue: #2b82f0;
+  font-family: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", Inter,
+    system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  letter-spacing: .05px;
+  -webkit-font-smoothing: antialiased;
+
+  --w-cuerpo: 600;
+  --w-fuerte: 720;
+  --w-et: 800;
+
+  --panel: color-mix(in srgb, var(--bg) 100%, var(--vuelta) 4%);
+  --panel2: color-mix(in srgb, var(--bg) 100%, var(--vuelta) 2%);
+  --line: color-mix(in srgb, var(--bg) 100%, var(--vuelta) 13%);
+  --line-soft: color-mix(in srgb, var(--bg) 100%, var(--vuelta) 7%);
+  --accent-soft: color-mix(in srgb, var(--accent) 74%, var(--vuelta));
+  --accent-fill: color-mix(in srgb, var(--accent) 14%, var(--bg));
+}
+
+:root, :root[data-theme="light"] {
+  color-scheme: light;
+  --vuelta: #000000;
+  --bg: #f4f5f7;
+  --text: #1a1d21;
+  --text-dim: #33383f;
+  --muted: #5c636d;
+  --faint: #858c96;
+  --accent: #1f6fc0;
+  --sobre: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --vuelta: #ffffff;
+    --bg: #17191c;
+    --text: #e8eaed;
+    --text-dim: #c5cbd3;
+    --muted: #9aa1ab;
+    --faint: #6b727c;
+    --accent: #3d8ee0;
+    --sobre: #06090c;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --vuelta: #ffffff;
+  --bg: #17191c;
+  --text: #e8eaed;
+  --text-dim: #c5cbd3;
+  --muted: #9aa1ab;
+  --faint: #6b727c;
+  --accent: #3d8ee0;
+  --sobre: #06090c;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-html {
-  scroll-behavior: auto;
-}
-
-html.motion {
-  scroll-behavior: smooth;
-}
+html { scroll-behavior: auto; }
+html.motion { scroll-behavior: smooth; }
 
 body {
-  font-family: "Segoe UI", Inter, Helvetica, Arial, sans-serif;
   background: var(--bg);
   color: var(--text);
+  font-weight: var(--w-cuerpo);
   overflow-x: hidden;
   position: relative;
-  line-height: 1.5;
 }
 
 img { display: block; max-width: 100%; }
@@ -58,13 +101,14 @@ a { color: inherit; text-decoration: none; }
   max-height: 620px;
   border-radius: 50%;
   filter: blur(90px);
-  opacity: .28;
+  opacity: .16;
   will-change: translate;
 }
 
-.orb-sm { width: 30vw; height: 30vw; max-width: 380px; max-height: 380px; opacity: .22; }
-.orb-violet { background: radial-gradient(circle, var(--accent), transparent 70%); }
-.orb-blue { background: radial-gradient(circle, var(--blue), transparent 70%); }
+.orb-sm { width: 30vw; height: 30vw; max-width: 380px; max-height: 380px; opacity: .11; }
+
+/* Un solo acento, no dos: el morado ya no existe en Grafito. */
+.orb-violet, .orb-blue { background: radial-gradient(circle, var(--accent), transparent 70%); }
 
 main, .footer { position: relative; z-index: 1; }
 
@@ -87,13 +131,14 @@ main, .footer { position: relative; z-index: 1; }
 
 .eyebrow {
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: .6px;
-  color: var(--accent2);
+  font-weight: var(--w-et);
+  letter-spacing: .7px;
+  text-transform: uppercase;
+  color: var(--accent-soft);
   margin-bottom: 10px;
 }
 
-h1, h2, h3 { font-weight: 800; letter-spacing: -.01em; }
+h1, h2, h3 { font-weight: var(--w-et); letter-spacing: -.01em; color: var(--text); }
 
 h2 {
   font-size: clamp(26px, 4vw, 38px);
@@ -128,7 +173,7 @@ h2 {
   width: 88px;
   height: 88px;
   margin-bottom: 22px;
-  filter: drop-shadow(0 8px 28px rgba(108, 92, 231, .45));
+  filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--accent) 25%, transparent));
 }
 
 .hero h1 {
@@ -138,11 +183,8 @@ h2 {
 
 .tagline {
   font-size: clamp(22px, 3.4vw, 30px);
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--text), var(--accent2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-weight: var(--w-fuerte);
+  color: var(--accent);
   margin-bottom: 20px;
   line-height: 1.3;
 }
@@ -154,40 +196,49 @@ h2 {
   margin-bottom: 34px;
 }
 
-.hero-sub strong { color: var(--text); }
+.hero-sub strong { color: var(--text); font-weight: var(--w-fuerte); }
 
 .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
 
-.btn {
+/* ---------- botones (mismas clases que la app: .cta y .ghost) ---------- */
+
+.cta {
+  background: var(--accent);
+  color: var(--sobre);
+  border: 0;
+  border-radius: 11px;
   padding: 14px 26px;
-  border-radius: 12px;
   font-size: 15px;
-  font-weight: 700;
-  letter-spacing: .2px;
-  transition: transform .12s, translate .18s ease-out, filter .12s, border-color .12s, background .12s;
-  display: inline-block;
+  font-weight: var(--w-fuerte);
+  letter-spacing: .3px;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  transition: filter .12s, translate .18s ease-out;
 }
 
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent), var(--blue));
-  color: white;
-  box-shadow: 0 6px 24px rgba(108, 92, 231, .35);
-}
+.cta:hover { filter: brightness(1.1); }
+.cta:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
-.btn-primary:hover { transform: translateY(-2px); filter: brightness(1.08); }
-
-.btn-ghost {
+.ghost {
   background: transparent;
   border: 1px solid var(--line);
-  color: var(--text);
+  color: var(--text-dim);
+  border-radius: 9px;
+  padding: 14px 26px;
+  font-size: 15px;
+  font-weight: var(--w-cuerpo);
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-block;
+  transition: border-color .12s, translate .18s ease-out;
 }
 
-.btn-ghost:hover { border-color: var(--accent2); transform: translateY(-2px); }
-
-.btn:focus-visible {
-  outline: 2px solid var(--accent2);
-  outline-offset: 3px;
-}
+.ghost:hover { border-color: var(--accent); }
+.ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 
 .scroll-hint {
   position: absolute;
@@ -207,7 +258,7 @@ h2 {
   width: 4px;
   height: 8px;
   border-radius: 999px;
-  background: var(--accent2);
+  background: var(--accent-soft);
 }
 
 html.motion .scroll-hint span {
@@ -215,9 +266,9 @@ html.motion .scroll-hint span {
 }
 
 @keyframes scrollDot {
-  0% { transform: translateY(0); opacity: 1; }
-  70% { transform: translateY(14px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 0; }
+  0% { translate: 0 0; opacity: 1; }
+  70% { translate: 0 14px; opacity: 0; }
+  100% { translate: 0 14px; opacity: 0; }
 }
 
 /* ---------- secciones ---------- */
@@ -234,7 +285,7 @@ html.motion .scroll-hint span {
   background: var(--panel);
   border: 1px solid var(--line);
   border-left: 3px solid var(--accent);
-  border-radius: 16px;
+  border-radius: 14px;
   padding: 28px 30px;
   font-size: 17px;
   line-height: 1.65;
@@ -242,9 +293,9 @@ html.motion .scroll-hint span {
   margin-bottom: 34px;
 }
 
-.story p + p { margin-top: 14px; color: var(--accent2); font-weight: 700; }
+.story p + p { margin-top: 14px; color: var(--accent-soft); font-weight: var(--w-fuerte); }
 
-.story strong { color: var(--accent2); }
+.story strong { color: var(--text); font-weight: var(--w-fuerte); }
 
 .stat-row { display: flex; gap: 16px; flex-wrap: wrap; }
 
@@ -260,7 +311,7 @@ html.motion .scroll-hint span {
   gap: 4px;
 }
 
-.stat strong { font-size: 26px; color: var(--accent2); }
+.stat strong { font-size: 26px; color: var(--accent); font-weight: var(--w-et); }
 .stat span { font-size: 13px; color: var(--muted); }
 
 /* ---------- como funciona (timeline + columna sticky) ---------- */
@@ -270,13 +321,13 @@ html.motion .scroll-hint span {
 .funciona-counter {
   margin-top: 18px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: var(--w-fuerte);
   color: var(--muted);
   letter-spacing: .5px;
   font-variant-numeric: tabular-nums;
 }
 
-.funciona-counter span { color: var(--accent2); font-size: 15px; }
+.funciona-counter span { color: var(--accent); font-size: 15px; font-weight: var(--w-et); }
 
 .funciona-steps {
   position: relative;
@@ -294,15 +345,15 @@ html.motion .scroll-hint span {
   top: 6px;
   bottom: 6px;
   width: 2px;
-  background: linear-gradient(180deg, var(--line), var(--accent2) 15%, var(--accent2) 85%, var(--line));
-  opacity: .5;
+  background: linear-gradient(180deg, var(--line), var(--accent-soft) 15%, var(--accent-soft) 85%, var(--line));
+  opacity: .6;
 }
 
 .step {
   position: relative;
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 14px;
   padding: 26px 22px;
   display: flex;
   flex-direction: column;
@@ -316,9 +367,9 @@ html.motion .scroll-hint span {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), var(--blue));
-  color: white;
-  font-weight: 800;
+  background: var(--accent);
+  color: var(--sobre);
+  font-weight: var(--w-et);
   font-size: 14px;
   display: grid;
   place-items: center;
@@ -328,10 +379,10 @@ html.motion .scroll-hint span {
 
 .step.active .step-num {
   scale: 1.15;
-  box-shadow: 0 0 0 4px var(--bg), 0 0 16px rgba(108, 92, 231, .55);
+  box-shadow: 0 0 0 4px var(--bg), 0 0 16px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
-.step h3 { font-size: 17px; }
+.step h3 { font-size: 17px; font-weight: var(--w-fuerte); }
 .step p { font-size: 14px; color: var(--muted); line-height: 1.55; }
 
 @media (min-width: 860px) {
@@ -347,7 +398,7 @@ html.motion .scroll-hint span {
   .funciona-steps { margin-top: 0; }
 }
 
-/* ---------- anti-slop ---------- */
+/* ---------- anti-slop / lo que ya hace ---------- */
 
 .split {
   display: grid;
@@ -375,7 +426,7 @@ html.motion .scroll-hint span {
 
 .profile-row + .profile-row { border-top: 1px solid var(--line); }
 .profile-row span { color: var(--muted); }
-.profile-row em { color: var(--accent2); font-style: normal; font-weight: 700; text-align: right; }
+.profile-row em { color: var(--accent-soft); font-style: normal; font-weight: var(--w-fuerte); text-align: right; }
 
 /* ---------- funciona con tu IA ---------- */
 
@@ -390,10 +441,55 @@ html.motion .scroll-hint span {
   border-radius: 999px;
   padding: 9px 18px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--w-fuerte);
   display: inline-block;
   transition: translate .18s ease-out, border-color .15s;
 }
+
+/* ---------- lo ultimo (changelog) ---------- */
+
+.log { list-style: none; display: flex; flex-direction: column; gap: 0; }
+
+.log-row {
+  display: grid;
+  grid-template-columns: 108px 1fr;
+  gap: 20px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+}
+
+.log-row:last-child { border-bottom: 1px solid var(--line); }
+
+.log-when {
+  font-size: 12.5px;
+  font-weight: var(--w-fuerte);
+  letter-spacing: .3px;
+  color: var(--accent);
+  padding-top: 2px;
+}
+
+.log-row h3 { font-size: 16px; margin-bottom: 6px; font-weight: var(--w-fuerte); }
+.log-row p { font-size: 14.5px; color: var(--muted); line-height: 1.6; }
+.log-row em { color: var(--text-dim); font-style: normal; font-weight: var(--w-fuerte); }
+
+@media (max-width: 640px) {
+  .log-row { grid-template-columns: 1fr; gap: 6px; }
+}
+
+/* Las frases que se le pueden escribir. Se ven como lo que son: texto que
+   alguien teclea, no botones ni tarjetas. */
+.says {
+  display: flex; flex-direction: column; gap: 10px;
+  max-width: 620px; margin: 28px auto 32px; text-align: left;
+}
+.say {
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px; padding: 13px 16px;
+  font-size: 15px; line-height: 1.4; color: var(--text-dim);
+}
+@media (max-width: 640px) { .say { font-size: 14px; padding: 11px 13px; } }
 
 /* ---------- footer ---------- */
 
@@ -405,14 +501,14 @@ html.motion .scroll-hint span {
 
 .footer .brand { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 10px; }
 .footer .brand-logo { width: 30px; height: 30px; }
-.footer .brand-name { font-weight: 800; font-size: 16px; }
+.footer .brand-name { font-weight: var(--w-et); font-size: 16px; }
 
 .footer-tagline { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
 
 .footer-links { display: flex; gap: 22px; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 18px; }
-.footer-links a { font-size: 13px; color: var(--accent2); font-weight: 600; }
+.footer-links a { font-size: 13px; color: var(--accent); font-weight: var(--w-fuerte); }
 .footer-links a:hover { text-decoration: underline; }
-.footer-links a:focus-visible { outline: 2px solid var(--accent2); outline-offset: 3px; }
+.footer-links a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 .motion-toggle {
   background: transparent;
@@ -421,15 +517,15 @@ html.motion .scroll-hint span {
   border-radius: 999px;
   padding: 5px 14px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--w-fuerte);
   font-family: inherit;
   cursor: pointer;
   transition: border-color .15s, color .15s;
 }
 
-.motion-toggle:hover { border-color: var(--accent2); color: var(--text); }
-.motion-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent2); }
-.motion-toggle:focus-visible { outline: 2px solid var(--accent2); outline-offset: 3px; }
+.motion-toggle:hover { border-color: var(--accent); color: var(--text); }
+.motion-toggle[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-fill); }
+.motion-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 .footer-copy { font-size: 12px; color: var(--muted); }
 
@@ -444,52 +540,7 @@ html.motion .scroll-hint span {
 }
 
 @media (max-width: 480px) {
-  .orb { opacity: .18; }
-  .btn { width: 100%; text-align: center; }
+  .orb { opacity: .1; }
+  .cta, .ghost { width: 100%; text-align: center; }
   .hero-actions { flex-direction: column; width: 100%; }
-}
-
-
-/* Las frases que se le pueden escribir. Se ven como lo que son: texto que
-   alguien teclea, no botones ni tarjetas. */
-.says {
-  display: flex; flex-direction: column; gap: 10px;
-  max-width: 620px; margin: 28px auto 32px; text-align: left;
-}
-.say {
-  background: rgba(255, 255, 255, .035);
-  border: 1px solid rgba(255, 255, 255, .09);
-  border-left: 3px solid var(--accent);
-  border-radius: 10px; padding: 13px 16px;
-  font-size: 15px; line-height: 1.4;
-}
-@media (max-width: 640px) { .say { font-size: 14px; padding: 11px 13px; } }
-
-/* ---------- lo ultimo (changelog) ----------
-   Una lista con la fecha a la izquierda y el cambio a la derecha. Es la prueba
-   de que el proyecto esta vivo, asi que se lee de un vistazo y no pide clic. */
-.log { list-style: none; display: flex; flex-direction: column; gap: 0; }
-
-.log-row {
-  display: grid;
-  grid-template-columns: 108px 1fr;
-  gap: 20px;
-  padding: 20px 0;
-  border-top: 1px solid var(--line);
-}
-.log-row:last-child { border-bottom: 1px solid var(--line); }
-
-.log-when {
-  font-size: 12.5px;
-  font-weight: 700;
-  letter-spacing: .3px;
-  color: var(--accent2);
-  padding-top: 2px;
-}
-
-.log-row h3 { font-size: 16px; margin-bottom: 6px; }
-.log-row p { font-size: 14.5px; color: var(--muted); line-height: 1.6; }
-
-@media (max-width: 640px) {
-  .log-row { grid-template-columns: 1fr; gap: 6px; }
 }
