@@ -321,6 +321,30 @@ después sirve para cualquier frase y cualquier vídeo.
 hay un título nuevo con tu nombre. Lo arrastras, escribes CUALQUIER frase, y sale con los
 colores por palabra, el tamaño, la posición y la entrada del original.
 
+#### Estado a 2026-08-23 por la tarde: hecho todo menos el nudo
+
+- **Hecho.** `skill/helpers/fusion.py` escribe el `.setting`, y el formato **no está
+  inventado**: sale de los **417 ficheros de fábrica** que Blackmagic reparte dentro de
+  `Fusion/Templates/Templates.drfx` de la propia instalación. El texto es un mando público, la
+  entrada viaja como `BezierSpline`, y los nodos de dentro se le piden prestados a `captions`
+  para no escribir dos veces lo que ya está medido. Los diez presets salen bien y hay 34
+  comprobaciones. Se sirve por HTTP (`GET /fusion`, `POST /fusion/instalar`, `.../quitar`).
+- **Hecho.** Los estilos se exportan y se importan (`POST /galeria/exportar` e `importar`), y
+  lo que entra se reconstruye campo a campo con lista blanca: un archivo de estilo lo puede
+  haber escrito cualquiera. Si un valor no pasa la revisión, cae a la plantilla **y se cae de
+  la lista de medido**, para que un estilo importado no pueda presumir de algo que perdió por
+  el camino.
+- **Hecho.** `fusion.faltantes(estilo)` dice qué parte no sale con nodos nativos, con el
+  motivo escrito.
+- **SIN HACER, y es el nudo: Character Level Styling.** De las 417 plantillas de fábrica
+  **ninguna** pinta por rango de caracteres, y las tres que tocan `CharacterLevelStylingBase`
+  traen el mismo bloque de color por defecto, así que **no hay de dónde deducir** qué código
+  es el relleno. Adivinarlo da un fichero que Resolve no abre, y encima no avisa. Se abre con
+  un minuto de Munir dentro de Resolve: los pasos exactos están en `docs/FUSION.md`.
+- **NO PROBADO EN RESOLVE.** Hay dos plantillas puestas en su carpeta de verdad
+  (`Vidorq Pop` y `Vidorq Neon`). Que aparezcan en Effects Library solo se puede ver con
+  Resolve abierto, y eso lo tiene que hacer él.
+
 **Decisiones abiertas** (se le enseñaron en el navegador el 2026-08-23 y no ha contestado):
 
 1. Por dónde seguir: la capa 4 (recomendada), más percepción, o abrir el puente.
