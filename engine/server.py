@@ -3864,6 +3864,30 @@ class Handler(BaseHTTPRequestHandler):
                     else "That file is not a video Vidorq can open.")})
             else:
                 self._send({"ok": True, "why": "", "name": os.path.basename(video)})
+        elif self.path.startswith("/agente/capacidades"):
+            # Lo que Vidorq sabe hacer y lo que NO. Va primero y sin video,
+            # para que un agente pueda saber que pedir antes de pedir nada.
+            import agente
+            self._send(agente.capacidades())
+        elif self.path.startswith("/agente/informe"):
+            # Todo lo que se sabe de un video, dicho para que lo lea un agente
+            # y no para pintar una pantalla. Misma comprobacion de ruta que el
+            # resto: la escribe alguien a mano.
+            from urllib.parse import parse_qs, urlparse
+            q = parse_qs(urlparse(self.path).query)
+            video = ((q.get("video") or [""])[0] or "").strip().strip('"')
+            try:
+                if (not video or not Path(video).is_file()
+                        or os.path.splitext(video)[1].lower() not in VIDEO_EXT):
+                    self._send({"ok": False, "why": "no_video"}, 404)
+                    return
+                import agente
+                out = agente.informe(video)
+                out["ok"] = True
+                self._send(out)
+            except Exception as e:
+                traceback.print_exc()
+                self._send({"ok": False, "why": "error", "error": str(e)[:200]})
         elif self.path.startswith("/aprende/captura"):
             # Un fotograma del video de referencia, para poder enseñar lo que
             # se ha visto en vez de contarlo. Misma comprobacion de ruta.

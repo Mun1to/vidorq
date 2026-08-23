@@ -57,6 +57,8 @@ vidorq_render.py         → mp4 directo (GPU)
 | `GET /words` | cada palabra con su segundo, para editar leyendo |
 | `GET /aprende` | mira un vídeo de referencia y dice cómo está editado, con los estilos de la casa que más se le parecen |
 | `GET /aprende/captura` | un fotograma de ese vídeo de referencia, para poder enseñar lo que se ha visto en vez de contarlo |
+| `GET /agente/informe` | todo lo que se sabe de un vídeo, escrito para que lo lea **otro agente de IA** y no para pintar una pantalla: un resumen en prosa y los números al lado |
+| `GET /agente/capacidades` | lo que Vidorq sabe hacer y, sobre todo, **lo que no**, para que un agente no prometa lo que no puede cumplir |
 | `GET /galeria` | los componentes que has copiado de otros vídeos, con lo que se midió de cada uno |
 | `POST /galeria` | guarda uno nuevo con **los números medidos dentro**, y contesta qué salió del vídeo y qué de la plantilla |
 | `POST /galeria/borrar` | quita uno de la galería |

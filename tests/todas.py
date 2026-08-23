@@ -29,7 +29,7 @@ AQUI = Path(__file__).resolve().parent
 # verdad tiene, y al final el render de verdad, que es lenta y va sola.
 ARCHIVOS = ["test_relojes.py", "test_understanding.py", "test_castellano.py",
             "test_idiomas.py", "test_promesas.py", "test_render.py",
-            "test_aprende.py", "test_galeria.py", "test_leer.py"]
+            "test_aprende.py", "test_galeria.py", "test_leer.py", "test_agente.py"]
 
 
 def cuadra_el_readme(cuentas):

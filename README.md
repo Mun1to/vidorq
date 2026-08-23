@@ -8,7 +8,7 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1836%20checks-00b359.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1866%20checks-00b359.svg)](tests/)
 
 **[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
 
@@ -323,6 +323,7 @@ test_render.py            18 cases          a real video in, a real MP4 out
 test_aprende.py          126 cases          reads a video back and names its style
 test_galeria.py          101 cases          a copied style keeps what was measured
 test_leer.py              67 cases          reads burned-in captions, colour by word
+test_agente.py            30 cases          what it tells another agent, limits included
 ```
 
 Eleven seconds, no model, no network, no API key.
