@@ -46,6 +46,37 @@ Del análisis se extrae un informe por vídeo:
 
 > Nota legal: los vídeos de referencia se analizan localmente para extraer PATRONES de estilo (ritmo, estructura), nunca para copiar contenido. El material descargado no se redistribuye.
 
+#### Lo que de esa lista hace hoy de verdad (medido el 2026-08-23)
+
+Esa lista de arriba es lo que hay que construir. Esto es lo que existe, para que nadie lea el
+documento y se crea que ya está:
+
+| De la lista | Hoy |
+|---|---|
+| Ritmo de corte | **Sí.** Planos, duración típica, si acelera, cuántos cortes caen en un golpe |
+| Estructura del hook | **Sí**, los 3 primeros segundos aparte |
+| Texto en pantalla | **A medias y solo con fondo liso.** Posición, tamaño y color, pero no la tipografía ni la animación, y con metraje de película detrás falla del todo |
+| Zoom/movimiento | **No.** Solo cuántos planos están quietos |
+| Sonido | **No.** Detecta golpes de imagen, no música ni SFX |
+| Psicología | **No** |
+| Color | **No** |
+
+Y hay una diferencia de fondo, más importante que la tabla: **Vidorq no extrae un estilo, lo
+empareja**. Compara lo medido con sus diez presets de `captions.PRESETS` y ofrece los tres más
+cercanos. Al guardar, lo que queda en el perfil es el NOMBRE del preset, no lo medido, así que
+todo lo que se midió se pierde. Mientras eso siga así, cualquier cosa nueva que aprenda el
+analizador acaba en la basura al pulsar Guardar.
+
+**El caso que lo dejó claro**, un Short de YouTube que trajo Munir: cada palabra de su
+subtítulo lleva un color distinto (blanco, cian, amarillo, verde), una palabra usa otra
+tipografía y las letras entran animadas. Vidorq montó texto de un solo color, plano y sacado
+del audio en vez de la imagen, o sea peor que el original. El plan para arreglarlo, ordenado,
+está en la **META C** de `METAS.md`.
+
+**Y el texto sale del audio, no del vídeo.** Whisper transcribe lo que se oye; los subtítulos
+quemados dicen lo que dicen. En ese Short, Whisper escribió "Charvis" donde el vídeo pone
+JARVIS. Para recrear los subtítulos de dentro de un vídeo hace falta leer la imagen.
+
 ### 3. Feedback continuo (el gimnasio)
 
 Cada edición entregada se puede corregir en lenguaje natural ("los subtítulos más pequeños", "ese corte del minuto 2 es brusco"). Las correcciones:

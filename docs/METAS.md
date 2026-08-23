@@ -175,9 +175,12 @@ menos de 30 minutos.
       TikTok, Reels, Shorts, Vimeo, X, Facebook y Twitch, con lista blanca que rechaza
       cualquier URL que apunte a la propia máquina; el caso que más importa es
       `http://127.0.0.1:9877/shutdown`, que es el interruptor de apagado del propio motor,
-      y está probado en la ventana. yt-dlp NO entra en `requirements.txt`: su rueda de PyPI
-      es Unlicense y vale, pero sus ejecutables llevan GPLv3+ (medido, en
-      `docs/RECURSOS.md`). **El nombre** que le pones al estilo ya sustituye a la etiqueta
+      y está probado en la ventana. yt-dlp entro en `requirements.txt` el 2026-08-23: su rueda de
+      PyPI es Unlicense y vale dentro de un producto de pago, y lo que lleva GPLv3+ son
+      los ejecutables que ellos empaquetan, que no se redistribuyen (medido, en
+      `docs/RECURSOS.md`). Los Shorts de YouTube bajan en 3 segundos; un video largo de
+      YouTube da 403 y Vimeo da 401, porque hacen falta piezas extra que no se instalan
+      sin decidirlo. **El nombre** que le pones al estilo ya sustituye a la etiqueta
       de la casa en el selector de editar. Y **el círculo se cierra en la app**: el panel
       estaba en Pop, se elige Brasa en la pantalla nueva y el panel pasa a Brasa. Antes se
       guardaba en la marca y no llegaba a ninguna edición, porque el panel manda siempre el
@@ -270,6 +273,60 @@ menos de 30 minutos.
 ## META C: se nota entrenado
 
 **Hecho cuando**: le pasas 3 links de referencia y la siguiente edición se nota entrenada.
+
+### Lo que Munir quiere de verdad, dicho por él (2026-08-23)
+
+> "Pegas un link o importas un vídeo, lo analiza, coge los efectos, los subtítulos y los
+> componentes de ese vídeo, y los recrea en DaVinci con la capacidad del MCP, con funciones
+> profesionales de Fusion, color, etcétera."
+
+Y sobre los subtítulos, después de ver lo que montó Vidorq encima de su vídeo de referencia:
+
+> "Yo me refería a que tenías que recrear los subtítulos de dentro del vídeo. Esos subtítulos
+> son mucho peores que los del vídeo."
+
+Tenía razón, y la distancia con lo que hay construido es la meta:
+
+**Vidorq no extrae, empareja.** Mide siete cosas de un vídeo ajeno (`ancho`, `alto`,
+`duracion`, `vertical`, `subtitulo`, `ritmo`, `arranque`), las compara con sus DIEZ estilos de
+catálogo y ofrece los tres más cercanos. Al guardar, lo que queda en la marca es el NOMBRE del
+preset (`"ember"`), no lo medido, así que todo lo que se midió se tira. El propio docstring de
+`aprende.parecidos` lo dice sin rodeos: *"propone los estilos que Vidorq sabe reconstruir de
+verdad"*. Es un buscador de parecidos en un cajón cerrado, no un extractor.
+
+**Medido con un Short de verdad** (metraje de película detrás, no el fondo liso de
+laboratorio): el detector devolvió una banda del 73% del cuadro y se inventó un subtítulo que
+no existía (`y=0,889`, `size=0,974`). Ese Short pinta **cada palabra de un color distinto**
+(blanco `0.95/0.94/0.96`, cian `0.07/0.83/0.94`, amarillo `0.92/0.85/0.11`), **cambia de
+tipografía** en una palabra (JARVIS) y **anima la entrada** letra a letra. Vidorq no sabe
+reconstruir ninguna de las tres.
+
+**Y de efectos no detecta nada**: no existe un solo campo para transiciones, zooms, grading o
+nodos de Fusion. Del puente de Resolve se usan **18 herramientas de 155**; Fusion se usa solo
+para los `Text+` de los subtítulos y de Color solo un CDL básico.
+
+### La meta, por orden de lo que más se nota
+
+- [ ] **Guardar LO MEDIDO y no un nombre de plantilla.** Es el que bloquea a los otros
+      cuatro: mientras la galería guarde `"ember"`, todo lo que aprenda el analizador se
+      tira al guardar. Un estilo guardado tiene que poder existir sin parecerse a ningún
+      preset. Aburrido y no se ve en pantalla, pero va primero.
+- [ ] **Un color por palabra**, con la paleta sacada del vídeo. Lo más visible y lo más
+      barato. Los tres colores del Short de referencia ya están medidos, arriba.
+      `captions.PRESETS` ya tiene `word_fx` y `accent`, y `marker` ya pinta la palabra que
+      suena; lo que falta es que varias palabras lleven colores FIJOS distintos a la vez,
+      que es lo que hace el vídeo real.
+- [ ] **Leer el texto de la IMAGEN y no del audio.** Hoy transcribe con Whisper, y en ese
+      Short escribió "Charvis" donde el vídeo pone JARVIS, además de comerse las tildes.
+- [ ] **Detectar la animación de entrada** de las palabras.
+- [ ] **Detectar transiciones y efectos**, que hoy es un campo que no existe.
+
+**Cómo se sabe que está hecho**: se coge un vídeo de redes con subtítulos de colores, se pasa
+por Vidorq, y en la pantalla de Resolve el subtítulo reconstruido tiene los mismos colores en
+las mismas palabras, en la misma posición y del mismo tamaño que el original. Se comprueba
+mirando los dos juntos, no leyendo un log en verde.
+
+### Lo de antes, que sigue en pie
 
 - [ ] Procesar 5-10 vídeos reales elegidos por Munir (ingesta, informe, confirmación).
 - [ ] Calibrar el detector de cortes con material real (luma-diff, umbral 42) contando
