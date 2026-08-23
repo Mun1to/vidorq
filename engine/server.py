@@ -3765,6 +3765,18 @@ class Handler(BaseHTTPRequestHandler):
                  "label": (c.get("label") or {}).get("es") or eid,
                  "medido": c.get("medido") or [], "de": c.get("de") or {}}
                 for eid, c in galeria.cargar().items()]})
+        elif self.path.startswith("/fusion"):
+            # Los estilos que Vidorq ha dejado en Effects Library > Titles, y
+            # lo que NO sabe recrear de cada uno. Lo segundo importa tanto como
+            # lo primero: un agente que pide un estilo tiene que poder saber
+            # que parte va a salir a medias ANTES de montarlo.
+            from urllib.parse import parse_qs, urlparse
+            import fusion
+            q = parse_qs(urlparse(self.path).query)
+            estilo = (q.get("estilo") or [""])[0]
+            self._send({"carpeta": str(fusion.carpeta(crear=False)),
+                        "instaladas": fusion.instaladas(),
+                        "faltantes": fusion.faltantes(estilo or None)})
         elif self.path.startswith("/preview"):
             # A picture of what a choice actually does, made by the real
             # renderer. Slow the first time, free every time after, because the
@@ -4117,6 +4129,57 @@ class Handler(BaseHTTPRequestHandler):
             import galeria
             eid = body.get("id")
             self._send({"ok": bool(isinstance(eid, str) and galeria.borrar(eid))})
+        elif self.path == "/galeria/exportar":
+            # El destino NO lo elige quien llama, y no es paranoia gratis: una
+            # ruta que viene en una peticion es una escritura en cualquier
+            # sitio del disco. Sale siempre a `estilos/` del workspace, y se
+            # devuelve la ruta para que la ventana la abra en el explorador.
+            import galeria
+            eid = body.get("id")
+            if not isinstance(eid, str) or not galeria.uno(eid):
+                return self._send({"ok": False, "why": "no_existe"}, 404)
+            carpeta = galeria.ws_dir() / "estilos"
+            fuera = galeria.exportar(eid, carpeta / (eid + ".json"))
+            self._send({"ok": bool(fuera), "path": str(fuera) if fuera else ""})
+        elif self.path == "/galeria/importar":
+            # Aqui la ruta SI la trae quien llama, porque el archivo viene de
+            # fuera y ese es el sentido de la funcion. Lo que llega dentro se
+            # reconstruye campo a campo en `galeria.saneado`, con lista blanca.
+            import galeria
+            origen = body.get("origen")
+            if not isinstance(origen, str) or not origen.strip():
+                return self._send({"ok": False, "why": "sin_ruta"}, 400)
+            nombre = body.get("nombre") if isinstance(body.get("nombre"), str) else None
+            eid = galeria.importar(origen, nombre)
+            if not eid:
+                return self._send({"ok": False, "why": "no_vale"}, 400)
+            comp = galeria.uno(eid) or {}
+            self._send({"ok": True, "id": eid,
+                        "medido": comp.get("medido") or []})
+        elif self.path == "/fusion/instalar":
+            # Deja el estilo en Effects Library > Titles. Se contesta ademas
+            # con lo que no se sabe recrear, para que quien lo pidio no crea
+            # que salio entero cuando salio a medias.
+            import fusion
+            estilo = body.get("estilo")
+            nombre = body.get("nombre")
+            if not isinstance(nombre, str) or not nombre.strip():
+                return self._send({"ok": False, "why": "sin_nombre"}, 400)
+            if not isinstance(estilo, str) or not cap.known(estilo):
+                return self._send({"ok": False, "why": "no_existe"}, 404)
+            try:
+                ruta = fusion.instalar(nombre.strip()[:60], estilo)
+            except OSError as e:
+                return self._send({"ok": False, "why": "no_pude",
+                                   "error": str(e)[:200]}, 500)
+            self._send({"ok": True, "path": str(ruta),
+                        "faltantes": fusion.faltantes(estilo)})
+        elif self.path == "/fusion/quitar":
+            import fusion
+            nombre = body.get("nombre")
+            if not isinstance(nombre, str):
+                return self._send({"ok": False, "why": "sin_nombre"}, 400)
+            self._send({"ok": fusion.desinstalar(nombre)})
         elif self.path == "/edit":
             global _lang
             if body.get("lang") in TEXT:
