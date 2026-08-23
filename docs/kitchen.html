@@ -74,6 +74,21 @@
     display: block; padding: 6px 9px; font: 11px ui-monospace, Consolas, monospace;
     color: var(--muted);
   }
+
+  /* Mando de tema. Sirve para dos cosas: que se pueda revisar el catalogo en
+     claro y en oscuro sin cambiar el tema de Windows, y que una captura
+     automatica pueda pedir uno concreto por la URL (?tema=light). */
+  .ks-mando { display: flex; gap: 7px; align-items: center; margin: 0 0 18px; }
+  .ks-mando span { font-size: 11px; letter-spacing: .5px; text-transform: uppercase;
+                   color: var(--faint); font-weight: var(--w-et); margin-right: 4px; }
+  .ks-mando button {
+    font: inherit; font-size: 12.5px; cursor: pointer; background: var(--panel);
+    color: var(--muted); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 15px;
+  }
+  .ks-mando button[aria-pressed="true"] {
+    background: var(--accent-fill); border-color: var(--accent); color: var(--text);
+  }
   .ks-mini { width: 260px; }
   .ks-shell-demo { height: 190px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; width: 100%; }
   .ks-shell-demo .shell { height: 100%; }
@@ -88,6 +103,13 @@
   pieza nueva, comprobar que un cambio de estilo no rompe nada de lo de al lado, y decidir
   mirando en vez de leyendo. Las fichas con el borde naranja son las que hay que rehacer, y
   las de borde rojo son las que todavía no existen.</p>
+
+  <div class="ks-mando">
+    <span>Tema</span>
+    <button type="button" data-t="system">El del sistema</button>
+    <button type="button" data-t="light">Claro</button>
+    <button type="button" data-t="dark">Oscuro</button>
+  </div>
 
   <nav class="ks-nav">
     <a href="#tokens">Colores</a>
@@ -127,10 +149,12 @@
           <div class="ks-token"><i style="background:var(--bad)"></i><span>--bad</span></div>
         </div>
       </div>
-      <p class="ks-note"><b>Quince colores fijos y un solo tema.</b> VoCript tiene la mitad de
-      tokens crudos y los deriva con <code>color-mix</code> a partir de un acento que elige el
-      usuario, más tema claro y oscuro con <code>data-theme</code>. Aquí el acento está escrito
-      a mano en quince sitios y no hay tema claro.</p>
+      <p class="ks-note"><b>Hecho el 23-ago:</b> paleta Grafito, cuatro colores crudos por tema y el
+      resto derivado con <code>color-mix</code>, más tema claro y oscuro. <b>El acento cambia
+      entre temas</b> y no es un capricho: el azul del oscuro (<code>#3d8ee0</code>) da 3,13 de
+      contraste sobre el fondo claro y hacen falta 4,5, así que en claro baja a
+      <code>#1f6fc0</code>. Todos los pares están medidos con WCAG 2.1: si tocas un hex, vuelve
+      a medirlo en vez de ajustarlo mirando. Cero colores escritos a mano fuera del tema.</p>
     </div>
   </section>
 
@@ -145,9 +169,11 @@
         <p class="warn-line">Un aviso: esto no ha salido como debía.</p>
         <p class="bubble-path">C:\proyectos\Vidorq\app\src\App.css</p>
       </div>
-      <p class="ks-note"><b>Un solo tamaño de cuerpo (13,5px) y un solo tono de nota.</b> No hay
-      escala tipográfica: todo lo que no es título es <code>.hint</code>, y por eso una pantalla
-      con seis notas seguidas se lee como un muro.</p>
+      <p class="ks-note"><b>El peso ya está en variables</b> (<code>--w-cuerpo</code> 600,
+      <code>--w-fuerte</code> 720, <code>--w-et</code> 800), en un solo sitio y no en cuarenta
+      reglas. Son pesos de una fuente variable, no la negrita falsa del navegador.
+      <b>Sigue faltando</b> una escala de tamaños: todo lo que no es título es
+      <code>.hint</code>.</p>
     </div>
   </section>
 
@@ -399,5 +425,19 @@
   </section>
 
 </div>
+
+<script>
+  // El tema se pone en el elemento raiz, que es donde App.css lo busca.
+  const raiz = document.documentElement;
+  const btns = [...document.querySelectorAll(".ks-mando button")];
+  function tema(t) {
+    if (t === "system") raiz.removeAttribute("data-theme");
+    else raiz.setAttribute("data-theme", t);
+    btns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === t)));
+  }
+  const pedido = new URLSearchParams(location.search).get("tema");
+  tema(["light", "dark"].includes(pedido) ? pedido : "system");
+  btns.forEach(b => b.addEventListener("click", () => tema(b.dataset.t)));
+</script>
 </body>
 </html>

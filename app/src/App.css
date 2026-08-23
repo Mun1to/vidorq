@@ -8,28 +8,100 @@
   letter-spacing: .05px;
   font-feature-settings: "tnum" 1;
   -webkit-font-smoothing: antialiased;
-  color-scheme: dark;
 
-  --bg: #0d0f14;
-  --bg-side: #090b0f;
-  --panel: #151923;
-  --panel2: #11141c;
-  --line: #262e40;
-  --line-soft: #1a2130;
-  --text: #e8ecf4;
-  --text-dim: #c8cfdd;
-  --muted: #8b95a8;
-  --faint: #5b6478;
-  --accent: #6c5ce7;
-  --accent-soft: #8f7bff;
-  --accent-fill: #181a2c;
-  --ok: #2ecc71;
-  --bad: #e74c3c;
+  /* Peso de la letra. Segoe UI Variable es una fuente VARIABLE, asi que 600 y
+     720 son trazos dibujados y no la negrita falsa que se inventa el navegador
+     engordando los bordes, que es lo que ensucia el texto pequeño. */
+  --w-cuerpo: 600;
+  --w-fuerte: 720;
+  --w-et: 800;
+
+  /* Cuatro colores por tema y el resto derivado con color-mix. Antes eran
+     quince escritos a mano, asi que cambiar el acento eran quince ediciones y
+     el tema claro no existia. */
+  --panel: color-mix(in srgb, var(--bg) 100%, var(--vuelta) 4%);
+  --panel2: color-mix(in srgb, var(--bg) 100%, var(--vuelta) 2%);
+  --line: color-mix(in srgb, var(--bg) 100%, var(--vuelta) 13%);
+  --line-soft: color-mix(in srgb, var(--bg) 100%, var(--vuelta) 7%);
+  --bg-side: color-mix(in srgb, var(--bg) 100%, var(--hundir) 26%);
+  /* Un campo es un HUECO donde se escribe, asi que va hundido respecto a su
+     panel. Con el panel al 2% del fondo, el campo y el panel eran la misma
+     superficie a un metro de la pantalla. */
+  --hueco: color-mix(in srgb, var(--bg) 100%, var(--hundir) 40%);
+  --accent-soft: color-mix(in srgb, var(--accent) 74%, var(--vuelta));
+  --accent-fill: color-mix(in srgb, var(--accent) 14%, var(--bg));
+}
+
+/* --------------------------------------------------------------------------
+   Los dos temas. El acento CAMBIA entre ellos y no es un capricho: medido con
+   la formula de WCAG 2.1, el azul del tema oscuro (#3d8ee0) da 5,15 sobre el
+   fondo oscuro y solo 3,13 sobre el claro, cuando hacen falta 4,5 para leer un
+   texto. En claro baja a #1f6fc0, que da 4,70. Lo mismo con el verde, el ambar
+   y el rojo. Si tocas un hex, vuelve a MEDIRLO; no lo ajustes mirando.
+
+   Se define el claro primero en :root para que sea el valor por defecto de
+   quien no tiene preferencia, y el oscuro gana por media query o por el
+   atributo. Asi la app abre en el tema del sistema sin parpadeo y sin obligar
+   a pulsar nada, y el interruptor sigue mandando sobre las dos cosas.
+   -------------------------------------------------------------------------- */
+:root, :root[data-theme="light"] {
+  color-scheme: light;
+  --vuelta: #000000;   /* hacia donde se separan los paneles del fondo */
+  --hundir: #ffffff;   /* hacia donde se hunden los campos */
+  --bg: #f4f5f7;
+  --text: #1a1d21;
+  --text-dim: #33383f;
+  --muted: #5c636d;
+  --faint: #858c96;
+  --accent: #1f6fc0;
+  --sobre: #ffffff;    /* el texto que va ENCIMA del acento */
+  --ok: #137a52;
+  --warn: #9c6b0f;
+  --bad: #c33a2c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --vuelta: #ffffff;
+    --hundir: #000000;
+    --bg: #17191c;
+    --text: #e8eaed;
+    --text-dim: #c5cbd3;
+    --muted: #9aa1ab;
+    --faint: #6b727c;
+    --accent: #3d8ee0;
+    --sobre: #06090c;
+    --ok: #35b37e;
+    --warn: #d7a13a;
+    --bad: #e05c4e;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --vuelta: #ffffff;
+  --hundir: #000000;
+  --bg: #17191c;
+  --text: #e8eaed;
+  --text-dim: #c5cbd3;
+  --muted: #9aa1ab;
+  --faint: #6b727c;
+  --accent: #3d8ee0;
+  --sobre: #06090c;
+  --ok: #35b37e;
+  --warn: #d7a13a;
+  --bad: #e05c4e;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-body { background: var(--bg); color: var(--text); overflow: hidden; }
+body {
+  background: var(--bg); color: var(--text); overflow: hidden;
+  /* Mas peso en todo: la interfaz se veia blanda. Va aqui y no en
+     cuarenta reglas, para poder subirlo o bajarlo de un sitio. */
+  font-weight: var(--w-cuerpo);
+}
 
 .icon { flex: 0 0 auto; }
 
@@ -43,7 +115,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 }
 .logo { display: flex; align-items: center; gap: 9px; padding: 0 3px; }
 .logo img { width: 30px; height: 30px; }
-.logo b { font-size: 15.5px; font-weight: 650; letter-spacing: -.1px; }
+.logo b { font-size: 15.5px; font-weight: var(--w-fuerte); letter-spacing: -.1px; }
 
 .ws-btn {
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
@@ -51,7 +123,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   display: flex; align-items: center; gap: 8px; cursor: pointer; text-align: left;
 }
 .ws-btn .chev { margin-left: auto; color: var(--faint); }
-.ws-btn:hover { border-color: #33405c; }
+.ws-btn:hover { border-color: var(--accent); }
 .ws-wrap { position: relative; display: flex; flex-direction: column; }
 .ws-menu {
   position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 20;
@@ -65,39 +137,39 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   cursor: pointer; display: flex; align-items: center; gap: 8px;
 }
 .ws-menu button:hover { background: var(--panel2); color: var(--text); }
-.ws-menu button.sel { color: var(--text); font-weight: 600; }
+.ws-menu button.sel { color: var(--text); font-weight: var(--w-fuerte); }
 
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav button {
-  padding: 9px 11px; border-radius: 7px; font-size: 13px; font-weight: 500;
+  padding: 9px 11px; border-radius: 7px; font-size: 13px; font-weight: var(--w-cuerpo);
   color: var(--muted); background: transparent; border: 0; font-family: inherit;
   display: flex; gap: 10px; align-items: center; cursor: pointer; letter-spacing: .1px;
 }
-.nav button:hover { color: var(--text-dim); background: #10131b; }
+.nav button:hover { color: var(--text-dim); background: var(--panel2); }
 .nav button.sel {
-  background: #171a2b; color: var(--text); font-weight: 600;
+  background: var(--accent-fill); color: var(--text); font-weight: var(--w-fuerte);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 9px; }
-.ver { font-size: 10px; color: #8b95a8; padding-left: 2px; letter-spacing: .15px; }
+.ver { font-size: 10px; color: var(--faint); padding-left: 2px; letter-spacing: .15px; }
 .lang {
   display: inline-flex; align-self: flex-start; gap: 2px; padding: 2px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 7px;
 }
 .lang button {
   background: transparent; border: 0; border-radius: 5px; cursor: pointer;
-  color: var(--muted); font-family: inherit; font-size: 10.5px; font-weight: 700;
+  color: var(--muted); font-family: inherit; font-size: 10.5px; font-weight: var(--w-et);
   letter-spacing: .6px; padding: 4px 9px;
 }
 .lang button:hover { color: var(--text-dim); }
-.lang button.sel { background: #1f2536; color: var(--text); }
+.lang button.sel { background: var(--accent-fill); color: var(--text); }
 
 /* Lo que le cuentas. Es la promesa de la cabecera, asi que ocupa el sitio de
    una promesa: ancho completo, debajo del video, sin nada que abrir. */
 .say { display: flex; flex-direction: column; gap: 8px; }
 .say textarea {
-  width: 100%; background: var(--panel2); border: 1px solid var(--line);
+  width: 100%; background: var(--hueco); border: 1px solid var(--line);
   border-radius: 11px; padding: 13px 15px; color: var(--text); font: inherit;
   font-size: 13px; line-height: 1.5;
   /* Sin el tirador de agrandar: lo pinta el navegador, no lo ha diseñado nadie
@@ -120,16 +192,18 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   overflow-y: auto;
 }
 .mhead { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
-.mhead h1 { font-size: 19px; font-weight: 650; letter-spacing: -.45px; }
+.mhead h1 { font-size: 19px; font-weight: var(--w-fuerte); letter-spacing: -.45px; }
 .mhead p { font-size: 12.5px; color: var(--muted); margin-top: 4px; letter-spacing: .1px; }
 
 /* ---------- avisos ---------- */
 .alert {
   display: flex; align-items: center; gap: 10px; font-size: 12.5px;
-  background: #24151a; border: 1px solid #522128; color: #ff9b8e;
+  background: color-mix(in srgb, var(--bad) 12%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--bad) 34%, var(--bg));
+  color: color-mix(in srgb, var(--bad) 78%, var(--text));
   border-radius: 9px; padding: 10px 13px;
 }
-.alert code { color: #ffc4bb; font-family: Consolas, "Cascadia Mono", monospace; font-size: 11.5px; }
+.alert code { color: color-mix(in srgb, var(--bad) 55%, var(--text)); font-family: Consolas, "Cascadia Mono", monospace; font-size: 11.5px; }
 
 /* ---------- zona de arrastre ---------- */
 .drop {
@@ -139,7 +213,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 }
 .drop.over { border-color: var(--accent-soft); background: var(--accent-fill); }
 .drop.loaded { border-style: solid; border-color: var(--accent); }
-.drop b { font-size: 14.5px; font-weight: 600; color: var(--text); letter-spacing: -.1px; }
+.drop b { font-size: 14.5px; font-weight: var(--w-fuerte); color: var(--text); letter-spacing: -.1px; }
 .drop small { font-size: 12.5px; letter-spacing: .1px; }
 /* Sin caja. Un recuadro alrededor de cada campo llena la pantalla de lineas que
    no dicen nada: el fondo ya separa el campo de lo que hay detras, y el borde
@@ -161,12 +235,12 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   transition: border-color .12s, background .12s;
 }
 .preset .icon { color: var(--muted); }
-.preset:hover { border-color: #33405c; }
+.preset:hover { border-color: var(--accent); }
 .preset.sel { border-color: var(--accent); background: var(--accent-fill); }
 .preset.sel .icon { color: var(--accent-soft); }
-.preset b { font-size: 13.5px; font-weight: 600; letter-spacing: -.1px; display: flex; align-items: center; gap: 6px; }
+.preset b { font-size: 13.5px; font-weight: var(--w-fuerte); letter-spacing: -.1px; display: flex; align-items: center; gap: 6px; }
 .preset small { color: var(--muted); font-size: 11.5px; line-height: 1.45; letter-spacing: .1px; }
-.tag { font-size: 9.5px; color: var(--accent-soft); font-weight: 700; letter-spacing: .9px; }
+.tag { font-size: 9.5px; color: var(--accent-soft); font-weight: var(--w-et); letter-spacing: .9px; }
 
 /* ---------- estilo de los captions ---------- */
 /* Fichas en una fila que envuelve: los estilos los sirve el motor, asi que
@@ -178,9 +252,9 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   color: var(--muted); font-family: inherit;
   transition: border-color .12s, background .12s, color .12s;
 }
-.capstyle:hover { border-color: #33405c; color: var(--text); }
+.capstyle:hover { border-color: var(--accent); color: var(--text); }
 .capstyle.sel {
-  border-color: var(--accent); background: var(--accent-fill); color: var(--text); font-weight: 600;
+  border-color: var(--accent); background: var(--accent-fill); color: var(--text); font-weight: var(--w-fuerte);
 }
 /* La nota ocupa su propia linea entera para que el texto no mueva las fichas. */
 .capnote {
@@ -208,10 +282,10 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   transition: background .12s, border-color .12s;
 }
 .box .icon { stroke-width: 2.6; }
-.chk:hover .box { border-color: #3d4a68; }
-.chk.on .box { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chk:hover .box { border-color: var(--accent); }
+.chk.on .box { background: var(--accent); border-color: var(--accent); color: var(--sobre); }
 .profile-note { font-size: 12.5px; color: var(--muted); }
-.profile-note b { color: var(--text); font-weight: 600; }
+.profile-note b { color: var(--text); font-weight: var(--w-fuerte); }
 
 .seg {
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
@@ -219,21 +293,21 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 }
 .seg button {
   background: transparent; color: var(--muted); border: 0; border-radius: 6px;
-  padding: 7px 13px; font-size: 12px; font-weight: 500; font-family: inherit; cursor: pointer;
+  padding: 7px 13px; font-size: 12px; font-weight: var(--w-cuerpo); font-family: inherit; cursor: pointer;
 }
-.seg button.sel { background: var(--accent); color: #fff; font-weight: 600; }
+.seg button.sel { background: var(--accent); color: var(--sobre); font-weight: var(--w-fuerte); }
 
 /* ---------- modo pro ---------- */
 .pro { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; overflow: hidden; }
 .pro-toggle {
   width: 100%; background: transparent; color: var(--accent-soft); border: 0;
-  padding: 11px 13px; font-size: 12px; font-weight: 700; letter-spacing: .15px;
+  padding: 11px 13px; font-size: 12px; font-weight: var(--w-et); letter-spacing: .15px;
   cursor: pointer; font-family: inherit; display: flex; align-items: center; gap: 8px;
 }
 .pro-toggle .chev { margin-left: auto; color: var(--faint); transition: transform .15s; }
 .pro-toggle .chev.up { transform: rotate(180deg); }
 .pro textarea {
-  width: 100%; min-height: 88px; resize: none; background: var(--panel2); color: var(--text);
+  width: 100%; min-height: 88px; resize: none; background: var(--hueco); color: var(--text);
   border: 0; border-top: 1px solid var(--line); padding: 12px 14px; font-size: 12.5px;
   font-family: inherit; line-height: 1.5;
 }
@@ -241,8 +315,8 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 
 /* ---------- boton principal ---------- */
 .cta {
-  background: var(--accent); color: #fff; border: 0; border-radius: 11px; padding: 14px;
-  font-size: 13.5px; font-weight: 600; letter-spacing: .35px; width: 100%; font-family: inherit;
+  background: var(--accent); color: var(--sobre); border: 0; border-radius: 11px; padding: 14px;
+  font-size: 13.5px; font-weight: var(--w-fuerte); letter-spacing: .35px; width: 100%; font-family: inherit;
   display: flex; align-items: center; justify-content: center; gap: 9px; cursor: pointer;
   transition: filter .12s;
 }
@@ -277,10 +351,10 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 
 .ghost {
   background: transparent; border: 1px solid var(--line); color: var(--text-dim);
-  border-radius: 9px; padding: 10px 18px; font-size: 13px; font-weight: 500;
+  border-radius: 9px; padding: 10px 18px; font-size: 13px; font-weight: var(--w-cuerpo);
   font-family: inherit; cursor: pointer;
 }
-.ghost:hover { border-color: #33405c; }
+.ghost:hover { border-color: var(--accent); }
 .ghost.small { padding: 5px 11px; font-size: 11.5px; }
 
 /* ---------- pantalla de trabajo ---------- */
@@ -294,7 +368,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   animation: spin 900ms linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-.run h2 { font-size: 23px; font-weight: 650; letter-spacing: -.6px; }
+.run h2 { font-size: 23px; font-weight: var(--w-fuerte); letter-spacing: -.6px; }
 .stepn { font-size: 12.5px; color: var(--muted); letter-spacing: .1px; }
 .track {
   width: 78%; height: 8px; border-radius: 4px; background: var(--panel);
@@ -305,7 +379,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 .done-ic { color: var(--ok); }
 .path {
   font-size: 11.5px; color: var(--muted); background: var(--panel2);
-  border: 1px solid #1e2534; border-radius: 7px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px;
   font-family: Consolas, "Cascadia Mono", monospace; letter-spacing: 0;
   max-width: 90%; word-break: break-all;
 }
@@ -337,7 +411,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
    tres columnas las baldosas se quedan tan pequenas que no se distingue un
    contorno de una sombra, que es justo lo que se viene a comparar. */
 .modal.gallery { width: min(880px, 96vw); max-height: min(calc(100vh - 48px), 880px); }
-.modal h2 { font-size: 17px; font-weight: 650; letter-spacing: -.3px; }
+.modal h2 { font-size: 17px; font-weight: var(--w-fuerte); letter-spacing: -.3px; }
 
 /* Cabecera y pie fijos, el centro rueda: el modal nunca se sale de la ventana. */
 .modal-head {
@@ -383,7 +457,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 }
 .wordbox .w.out:hover { background: transparent; }
 .wordbox .w:hover { background: var(--line-soft); }
-.wordbox .w.sel { background: var(--accent); color: #fff; }
+.wordbox .w.sel { background: var(--accent); color: var(--sobre); }
 /* La marca sigue viendose sin color, que es como la ve quien no distingue el
    morado del gris de al lado. */
 .wordbox .w.sel::after { content: ""; }
@@ -398,7 +472,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   color: var(--text); font-size: 13px;
 }
 .modal-head .find:focus { outline: none; border-color: var(--accent); }
-.hint .hits { color: var(--accent-soft); font-weight: 600; }
+.hint .hits { color: var(--accent-soft); font-weight: var(--w-fuerte); }
 .words-foot { justify-content: space-between; }
 .span-say { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .span-say em {
@@ -418,11 +492,11 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 
 .field { display: flex; flex-direction: column; gap: 7px; }
 .field label {
-  font-size: 12.5px; color: var(--text-dim); font-weight: 600;
+  font-size: 12.5px; color: var(--text-dim); font-weight: var(--w-fuerte);
   display: flex; align-items: center; gap: 8px;
 }
 .field .under { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin-top: -3px; }
-.opt-tag { font-size: 10px; color: var(--faint); font-weight: 500; letter-spacing: .4px; }
+.opt-tag { font-size: 10px; color: var(--faint); font-weight: var(--w-cuerpo); letter-spacing: .4px; }
 
 .modal input, .modal textarea {
   background: var(--panel2); border: 1px solid transparent; border-radius: 8px;
@@ -436,7 +510,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 /* Barra de desplazamiento discreta, no la gris del sistema. */
 .modal-body::-webkit-scrollbar, .main::-webkit-scrollbar { width: 10px; }
 .modal-body::-webkit-scrollbar-thumb, .main::-webkit-scrollbar-thumb {
-  background: #232b3d; border-radius: 6px; border: 3px solid var(--panel);
+  background: var(--line); border-radius: 6px; border: 3px solid var(--panel);
 }
 .main::-webkit-scrollbar-thumb { border-color: var(--bg); }
 .modal-body::-webkit-scrollbar-track, .main::-webkit-scrollbar-track { background: transparent; }
@@ -445,7 +519,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 .pace { display: flex; align-items: center; gap: 14px; }
 .pace input[type="range"] { flex: 1; }
 .pace-read { display: flex; flex-direction: column; min-width: 190px; }
-.pace-read b { font-size: 13px; font-weight: 650; }
+.pace-read b { font-size: 13px; font-weight: var(--w-fuerte); }
 .pace-read span { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
 
 .colors { display: flex; gap: 10px; }
@@ -458,7 +532,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 }
 .swatch span { display: flex; flex-direction: column; font-size: 11.5px; color: var(--muted); }
 .swatch b {
-  font-size: 11.5px; color: var(--text-dim); font-weight: 500;
+  font-size: 11.5px; color: var(--text-dim); font-weight: var(--w-cuerpo);
   font-family: Consolas, "Cascadia Mono", monospace; text-transform: uppercase;
 }
 
@@ -472,30 +546,33 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
 .steps { list-style: none; padding: 16px 22px; display: flex; flex-direction: column; gap: 4px;
   overflow-y: auto; flex: 1; min-height: 0; }
 .steps::-webkit-scrollbar { width: 10px; }
-.steps::-webkit-scrollbar-thumb { background: #232b3d; border-radius: 6px; border: 3px solid var(--panel); }
+.steps::-webkit-scrollbar-thumb { background: var(--line); border-radius: 6px; border: 3px solid var(--panel); }
 .steps::-webkit-scrollbar-track { background: transparent; }
 .step { display: flex; gap: 13px; padding: 12px; border-radius: 10px; background: var(--panel2);
   border: 1px solid transparent; }
-.step.ok { border-color: #1e5236; background: #101c16; }
+.step.ok { border-color: color-mix(in srgb, var(--ok) 38%, var(--bg));
+                background: color-mix(in srgb, var(--ok) 11%, var(--bg)); }
 .step-mark {
   width: 24px; height: 24px; border-radius: 50%; flex: 0 0 auto;
-  display: grid; place-items: center; font-size: 12px; font-weight: 700;
-  background: #1c2233; color: var(--muted); border: 1px solid var(--line);
+  display: grid; place-items: center; font-size: 12px; font-weight: var(--w-et);
+  background: var(--panel2); color: var(--muted); border: 1px solid var(--line);
 }
-.step.ok .step-mark { background: var(--ok); color: #08130c; border-color: var(--ok); }
-.step-body b { font-size: 13px; font-weight: 600; display: block; margin-bottom: 3px; }
+.step.ok .step-mark { background: var(--ok); color: var(--sobre); border-color: var(--ok); }
+.step-body b { font-size: 13px; font-weight: var(--w-fuerte); display: block; margin-bottom: 3px; }
 .step-body p { font-size: 12px; color: var(--muted); line-height: 1.5; }
 .step-body code {
   font-family: Consolas, "Cascadia Mono", monospace; font-size: 11.5px;
-  color: var(--accent-soft); background: #12151d; padding: 1px 5px; border-radius: 4px;
+  color: var(--accent-soft); background: var(--accent-fill); padding: 1px 5px; border-radius: 4px;
 }
 .step.ok .step-body b { color: var(--text); }
 .guide-ok, .guide-wait {
   margin: 0 22px; display: flex; align-items: center; gap: 10px;
   font-size: 12.5px; border-radius: 9px; padding: 11px 13px; line-height: 1.45;
 }
-.guide-ok { background: #101c16; border: 1px solid #1e5236; color: #7ee2a8; }
-.guide-wait { background: #171a26; border: 1px solid var(--line); color: var(--muted); }
+.guide-ok { background: color-mix(in srgb, var(--ok) 11%, var(--bg));
+             border: 1px solid color-mix(in srgb, var(--ok) 38%, var(--bg));
+             color: color-mix(in srgb, var(--ok) 72%, var(--text)); }
+.guide-wait { background: var(--panel2); border: 1px solid var(--line); color: var(--muted); }
 .guide .cta { margin: 14px 22px 18px; width: auto; }
 
 /* ---------- piezas del wizard de marca ---------- */
@@ -504,7 +581,7 @@ body { background: var(--bg); color: var(--text); overflow: hidden; }
   background: var(--panel2); border: 1px solid var(--line); color: var(--muted);
   border-radius: 999px; padding: 6px 14px; font-size: 12px; cursor: pointer; font-family: inherit;
 }
-.chip.sel { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.sel { background: var(--accent); border-color: var(--accent); color: var(--sobre); }
 .row2 { display: flex; gap: 16px; align-items: end; }
 .row2 .grow { flex: 1; }
 .row2 input[type="color"] {
@@ -522,15 +599,15 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .opt.out button {
   background: transparent; color: var(--muted); border: 0; border-radius: 6px;
-  padding: 7px 13px; font-size: 12px; font-weight: 500; font-family: inherit; cursor: pointer;
+  padding: 7px 13px; font-size: 12px; font-weight: var(--w-cuerpo); font-family: inherit; cursor: pointer;
 }
-.opt.out button.sel { background: var(--accent); color: #fff; font-weight: 600; }
+.opt.out button.sel { background: var(--accent); color: var(--sobre); font-weight: var(--w-fuerte); }
 /* Un proveedor que este ordenador no puede usar. Sin esto se veia igual que
    uno disponible, y el de fabrica (Ollama local) sale ademas elegido: un boton
    violeta, con aspecto de todo correcto, que no responde al clic. */
 .opt.out button:disabled { opacity: .45; cursor: not-allowed; }
 .opt.out button.sel:disabled {
-  opacity: 1; background: var(--panel); color: var(--muted); font-weight: 500;
+  opacity: 1; background: var(--panel); color: var(--muted); font-weight: var(--w-cuerpo);
   box-shadow: inset 0 0 0 1px var(--line);
 }
 .opt.out.inline { display: inline-flex; align-self: start; }
@@ -541,7 +618,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   display: inline-block; width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent); margin-left: 7px; vertical-align: 1px;
 }
-.opt.out button.sel .dot { background: #fff; }
+.opt.out button.sel .dot { background: var(--sobre); }
 /* Campo con su boton al lado: el nombre del modelo y el "ver los que hay". */
 .row { display: flex; gap: 8px; align-items: center; }
 .row input { flex: 1; min-width: 0; }
@@ -570,7 +647,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 }
 .chat-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .chat-title strong {
-  font-size: 14px; font-weight: 650; letter-spacing: -.2px;
+  font-size: 14px; font-weight: var(--w-fuerte); letter-spacing: -.2px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .chat-logo { width: 22px; height: 22px; border-radius: 6px; flex: none; }
@@ -587,7 +664,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .chat-state { display: flex; flex-wrap: wrap; gap: 5px; }
 .chat-state span {
-  font-size: 10.5px; font-weight: 600; letter-spacing: .2px;
+  font-size: 10.5px; font-weight: var(--w-fuerte); letter-spacing: .2px;
   color: var(--text-dim); background: var(--panel2);
   border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px;
 }
@@ -612,7 +689,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 /* Lo tuyo a la derecha y con el color de marca; lo de Vidorq a la izquierda
    sobre el panel. Es la unica pista que hace falta para saber quien habla. */
 .bubble.you {
-  align-self: flex-end; background: var(--accent); color: #fff;
+  align-self: flex-end; background: var(--accent); color: var(--sobre);
   border-bottom-right-radius: 5px;
 }
 .bubble.them {
@@ -635,7 +712,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 .done-line > *, .warn-line > * { min-width: 0; }
 .done-line .icon.ok { color: var(--ok); flex: none; margin-top: 2px; }
 .warn-line { color: var(--muted); }
-.warn-line .icon { color: #e0a33a; flex: none; margin-top: 2px; }
+.warn-line .icon { color: var(--warn); flex: none; margin-top: 2px; }
 
 /* Lo que se ha leido del video ajeno. Fondo oscuro fijo en los dos temas, y a
    proposito: dentro van las palabras con SU color, y los colores de un
@@ -644,19 +721,19 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
    tiene que verse igual que se ve en el video. */
 .leido {
   margin-top: 10px; padding: 11px 13px;
-  border: 1px solid var(--line); border-radius: 10px; background: #14131a;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel2);
 }
 .leido .hint { margin: 0 0 7px; }
 .leido .hint:last-child { margin: 8px 0 0; font-size: 11.5px; }
 .leido .frase {
-  margin: 0 0 5px; font-weight: 700; font-size: 15px; line-height: 1.4;
+  margin: 0 0 5px; font-weight: var(--w-et); font-size: 15px; line-height: 1.4;
   /* Se parte por palabras y no se sale de la caja: una frase larga leida de un
      video no cabe en el ancho del panel. */
   overflow-wrap: anywhere;
 }
 .leido .seg {
   display: inline-block; min-width: 46px; margin-right: 8px;
-  font: 11px ui-monospace, Consolas, monospace; font-weight: 400;
+  font: 11px ui-monospace, Consolas, monospace; font-weight: var(--w-cuerpo);
   color: var(--faint);
 }
 
@@ -683,7 +760,7 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   align-self: flex-start; display: flex; align-items: center; gap: 7px;
   background: transparent; border: 1px solid var(--line); color: var(--muted);
   border-radius: 9px; padding: 8px 14px; font: inherit; font-size: 12.5px;
-  font-weight: 600; cursor: pointer; transition: border-color .12s, color .12s;
+  font-weight: var(--w-fuerte); cursor: pointer; transition: border-color .12s, color .12s;
 }
 .stop:hover { border-color: var(--bad); color: var(--bad); }
 .stop.small { padding: 5px 10px; font-size: 11.5px; margin-top: 3px; }
@@ -695,16 +772,16 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
   align-self: flex-start; display: flex; align-items: center; gap: 7px;
   background: var(--accent-fill); border: 1px solid var(--accent);
   color: var(--accent-soft); border-radius: 9px; padding: 7px 12px;
-  font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  font: inherit; font-size: 12.5px; font-weight: var(--w-fuerte); cursor: pointer;
 }
-.offer:hover { background: var(--accent); color: #fff; }
+.offer:hover { background: var(--accent); color: var(--sobre); }
 
 /* Las preguntas dentro de la respuesta: lo que hay, a un toque, en vez de
    obligarte a saberte los nombres de memoria. */
 .ask { display: flex; flex-direction: column; gap: 7px; }
-.ask-q { font-size: 12.5px; color: var(--text); font-weight: 600; }
+.ask-q { font-size: 12.5px; color: var(--text); font-weight: var(--w-fuerte); }
 .ask-opts { display: flex; flex-wrap: wrap; gap: 6px; }
-.offer.small { padding: 5px 10px; font-size: 12px; font-weight: 500; }
+.offer.small { padding: 5px 10px; font-size: 12px; font-weight: var(--w-cuerpo); }
 
 /* Los atajos. Lo que se pide una y otra vez, sin escribirlo. */
 .chips {
@@ -826,11 +903,11 @@ select:focus-visible,
 .tile.sel .tile-shot { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-fill); }
 .tile-tick {
   position: absolute; top: 7px; right: 7px; width: 21px; height: 21px;
-  border-radius: 50%; background: var(--accent); color: #fff;
+  border-radius: 50%; background: var(--accent); color: var(--sobre);
   display: grid; place-items: center;
 }
 .tile-name {
-  font-size: 12.5px; color: var(--text-dim); font-weight: 600;
+  font-size: 12.5px; color: var(--text-dim); font-weight: var(--w-fuerte);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .tile.sel .tile-name { color: var(--text); }
@@ -841,7 +918,7 @@ select:focus-visible,
    que mirar. */
 .tile-where {
   position: absolute; left: 7px; bottom: 7px;
-  font-size: 10.5px; font-weight: 600; letter-spacing: .2px;
+  font-size: 10.5px; font-weight: var(--w-fuerte); letter-spacing: .2px;
   border-radius: 999px; padding: 3px 9px;
   background: rgba(9, 11, 15, .82); border: 1px solid var(--line);
 }
@@ -914,7 +991,7 @@ select:focus-visible,
   color: var(--muted); font-size: 12px; margin-top: 2px;
 }
 .cropx input { flex: 0 1 220px; accent-color: var(--accent); }
-.cropx b { color: var(--text); font-weight: 600; min-width: 52px; }
+.cropx b { color: var(--text); font-weight: var(--w-fuerte); min-width: 52px; }
 
 
 /* Mas ajustes: lo secundario, cerrado por defecto. Animacion, idioma, formato,
@@ -923,7 +1000,7 @@ select:focus-visible,
 .more { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; }
 .more-toggle {
   width: 100%; background: transparent; color: var(--text-dim); border: 0;
-  padding: 11px 13px; font-size: 12px; font-weight: 600; cursor: pointer;
+  padding: 11px 13px; font-size: 12px; font-weight: var(--w-fuerte); cursor: pointer;
   font-family: inherit; display: flex; align-items: center; gap: 8px;
 }
 .more-toggle .chev { margin-left: auto; color: var(--faint); transition: transform .15s; }
@@ -959,7 +1036,7 @@ select:focus-visible,
   display: flex; flex-direction: column; gap: 18px;
 }
 .hist-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.hist-head h2 { font-size: 23px; font-weight: 650; letter-spacing: -.6px; }
+.hist-head h2 { font-size: 23px; font-weight: var(--w-fuerte); letter-spacing: -.6px; }
 .hist-head button {
   background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
   color: var(--muted); font-family: inherit; font-size: 12px; padding: 7px 12px;
@@ -990,7 +1067,7 @@ select:focus-visible,
 .hist-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .hist-title { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
 .hist-title b {
-  font-size: 13px; font-weight: 600; color: var(--text);
+  font-size: 13px; font-weight: var(--w-fuerte); color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 42ch;
 }
 .hist-tag {
@@ -1021,7 +1098,7 @@ select:focus-visible,
   font-family: inherit; font-size: 12px; padding: 5px 12px; cursor: pointer;
 }
 .tabs2 button:hover { color: var(--text); }
-.tabs2 button.sel { background: var(--accent); color: #fff; }
+.tabs2 button.sel { background: var(--accent); color: var(--sobre); }
 
 .tramos { list-style: none; display: flex; flex-direction: column; gap: 7px; }
 .tramo {
@@ -1079,13 +1156,13 @@ select:focus-visible,
 
 /* La ruta escrita a mano que no lleva a ningun archivo. El campo se marca y el
    motivo va debajo: un borde rojo solo dice "algo pasa", no dice el que. */
-.path-input.bad { border-color: #c0453f; }
+.path-input.bad { border-color: var(--bad); }
 .path-bad {
   display: flex; align-items: flex-start; gap: 6px;
-  margin-top: -4px; font-size: 12px; color: #e08a86; max-width: 420px;
+  margin-top: -4px; font-size: 12px; color: color-mix(in srgb, var(--bad) 70%, var(--text)); max-width: 420px;
   text-align: left;
 }
-.path-bad .icon { color: #c0453f; flex: none; margin-top: 1px; }
+.path-bad .icon { color: var(--bad); flex: none; margin-top: 1px; }
 
 /* La pantalla de copiar un estilo. El subtitulo ajeno arriba y las tres
    propuestas debajo: se comparan mirando, que es lo unico que desempata cuatro
