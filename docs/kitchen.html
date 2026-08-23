@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vidorq · kitchen sink</title>
+
+<!-- El CSS DE VERDAD, el mismo que usa la app. Enlazado y no copiado a
+     proposito: un catalogo de piezas con su propia copia del estilo miente a
+     los dos dias, y entonces es peor que no tenerlo. Si algo se ve raro aqui,
+     se ve raro en la app. -->
+<link rel="stylesheet" href="../app/src/App.css">
+
+<style>
+  /* Lo unico propio de esta pagina: la rejilla que coloca las fichas. Nada de
+     esto describe a Vidorq, solo al catalogo. Va con el prefijo ks- para que
+     no se confunda nunca con una clase del producto. */
+  body { overflow: auto; }
+  .ks-wrap { max-width: 1180px; margin: 0 auto; padding: 28px 22px 90px; }
+  .ks-h1 { font-size: 24px; font-weight: 650; letter-spacing: -.3px; }
+  .ks-sub { color: var(--muted); font-size: 13px; margin: 6px 0 10px; max-width: 70ch; }
+  .ks-nav {
+    position: sticky; top: 0; z-index: 5; background: var(--bg);
+    border-bottom: 1px solid var(--line); padding: 10px 0 12px; margin-bottom: 24px;
+    display: flex; flex-wrap: wrap; gap: 7px;
+  }
+  .ks-nav a {
+    color: var(--muted); text-decoration: none; font-size: 12px;
+    border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px;
+  }
+  .ks-nav a:hover { color: var(--text); border-color: var(--accent); }
+  .ks-sec { margin: 0 0 34px; scroll-margin-top: 64px; }
+  .ks-sec > h2 {
+    font-size: 12px; letter-spacing: .8px; text-transform: uppercase;
+    color: var(--faint); margin: 0 0 12px; font-weight: 700;
+  }
+  .ks-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    margin: 0 0 12px; overflow: hidden;
+  }
+  .ks-card > header {
+    display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+    border-bottom: 1px solid var(--line-soft); background: var(--panel2);
+  }
+  .ks-card > header code {
+    font: 11.5px ui-monospace, Consolas, monospace; color: var(--accent-soft);
+  }
+  .ks-card > header .ks-why { color: var(--faint); font-size: 11.5px; margin-left: auto; }
+  .ks-body { padding: 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+  .ks-body.ks-col { flex-direction: column; align-items: stretch; }
+  .ks-body.tight { gap: 8px; }
+  .ks-note {
+    padding: 10px 14px; border-top: 1px solid var(--line-soft);
+    color: var(--muted); font-size: 12.5px; background: var(--panel2);
+  }
+  .ks-note b { color: var(--text-dim); }
+  .ks-flag {
+    border-left: 3px solid #e0a33a;
+  }
+  .ks-flag > header::after {
+    content: "a rehacer"; font-size: 10px; letter-spacing: .5px; text-transform: uppercase;
+    color: #e0a33a; font-weight: 700;
+  }
+  .ks-gone { border-left: 3px solid var(--bad); }
+  .ks-gone > header::after {
+    content: "no existe todavia"; font-size: 10px; letter-spacing: .5px;
+    text-transform: uppercase; color: var(--bad); font-weight: 700;
+  }
+  /* Los colores del sistema, para poder verlos y no solo leerlos. */
+  .ks-tokens { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; width: 100%; }
+  .ks-token { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+  .ks-token i { display: block; height: 42px; }
+  .ks-token span {
+    display: block; padding: 6px 9px; font: 11px ui-monospace, Consolas, monospace;
+    color: var(--muted);
+  }
+  .ks-mini { width: 260px; }
+  .ks-shell-demo { height: 190px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; width: 100%; }
+  .ks-shell-demo .shell { height: 100%; }
+</style>
+</head>
+<body>
+<div class="ks-wrap">
+
+  <h1 class="ks-h1">Vidorq · kitchen sink</h1>
+  <p class="ks-sub">Todas las piezas de la interfaz en una página, con el nombre de su clase
+  y el CSS real de la app enlazado. Sirve para tres cosas: ver qué hay antes de inventar una
+  pieza nueva, comprobar que un cambio de estilo no rompe nada de lo de al lado, y decidir
+  mirando en vez de leyendo. Las fichas con el borde naranja son las que hay que rehacer, y
+  las de borde rojo son las que todavía no existen.</p>
+
+  <nav class="ks-nav">
+    <a href="#tokens">Colores</a>
+    <a href="#texto">Texto</a>
+    <a href="#botones">Botones</a>
+    <a href="#pastillas">Pastillas</a>
+    <a href="#campos">Campos</a>
+    <a href="#paneles">Paneles</a>
+    <a href="#baldosas">Baldosas</a>
+    <a href="#chat">Chat</a>
+    <a href="#estado">Estado</a>
+    <a href="#estructura">Estructura</a>
+    <a href="#falta">Lo que falta</a>
+  </nav>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="tokens">
+    <h2>Colores</h2>
+    <div class="ks-card">
+      <header><code>:root</code><span class="ks-why">App.css, arriba del todo</span></header>
+      <div class="ks-body">
+        <div class="ks-tokens">
+          <div class="ks-token"><i style="background:var(--bg)"></i><span>--bg</span></div>
+          <div class="ks-token"><i style="background:var(--bg-side)"></i><span>--bg-side</span></div>
+          <div class="ks-token"><i style="background:var(--panel)"></i><span>--panel</span></div>
+          <div class="ks-token"><i style="background:var(--panel2)"></i><span>--panel2</span></div>
+          <div class="ks-token"><i style="background:var(--line)"></i><span>--line</span></div>
+          <div class="ks-token"><i style="background:var(--line-soft)"></i><span>--line-soft</span></div>
+          <div class="ks-token"><i style="background:var(--text)"></i><span>--text</span></div>
+          <div class="ks-token"><i style="background:var(--text-dim)"></i><span>--text-dim</span></div>
+          <div class="ks-token"><i style="background:var(--muted)"></i><span>--muted</span></div>
+          <div class="ks-token"><i style="background:var(--faint)"></i><span>--faint</span></div>
+          <div class="ks-token"><i style="background:var(--accent)"></i><span>--accent</span></div>
+          <div class="ks-token"><i style="background:var(--accent-soft)"></i><span>--accent-soft</span></div>
+          <div class="ks-token"><i style="background:var(--accent-fill)"></i><span>--accent-fill</span></div>
+          <div class="ks-token"><i style="background:var(--ok)"></i><span>--ok</span></div>
+          <div class="ks-token"><i style="background:var(--bad)"></i><span>--bad</span></div>
+        </div>
+      </div>
+      <p class="ks-note"><b>Quince colores fijos y un solo tema.</b> VoCript tiene la mitad de
+      tokens crudos y los deriva con <code>color-mix</code> a partir de un acento que elige el
+      usuario, más tema claro y oscuro con <code>data-theme</code>. Aquí el acento está escrito
+      a mano en quince sitios y no hay tema claro.</p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="texto">
+    <h2>Texto</h2>
+    <div class="ks-card">
+      <header><code>.hint</code> <code>.warn-line</code> <code>.bubble-path</code></header>
+      <div class="ks-body ks-col">
+        <p>Texto normal del cuerpo, que es el que más se lee.</p>
+        <p class="hint">Una nota de apoyo. Explica algo sin robar atención.</p>
+        <p class="warn-line">Un aviso: esto no ha salido como debía.</p>
+        <p class="bubble-path">C:\proyectos\Vidorq\app\src\App.css</p>
+      </div>
+      <p class="ks-note"><b>Un solo tamaño de cuerpo (13,5px) y un solo tono de nota.</b> No hay
+      escala tipográfica: todo lo que no es título es <code>.hint</code>, y por eso una pantalla
+      con seis notas seguidas se lee como un muro.</p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="botones">
+    <h2>Botones</h2>
+    <div class="ks-card ks-flag">
+      <header><code>.cta</code><span class="ks-why">el de aplicar</span></header>
+      <div class="ks-body ks-col">
+        <button class="cta">Aplicar</button>
+        <button class="cta" disabled>Aplicar (apagado)</button>
+        <div class="ks-mini"><button class="cta inline">Inline, dentro de una fila</button></div>
+      </div>
+      <p class="ks-note"><b>Ocupa el ancho entero siempre</b> (<code>width: 100%</code>). En una
+      ventana apaisada eso es un botón de mil píxeles para una palabra.</p>
+    </div>
+    <div class="ks-card">
+      <header><code>.ghost</code> <code>.ghost.small</code> <code>.stop</code></header>
+      <div class="ks-body">
+        <button class="ghost">Secundario</button>
+        <button class="ghost small">Pequeño</button>
+        <button class="stop">Parar</button>
+        <button class="stop small">Parar pequeño</button>
+      </div>
+      <p class="ks-note"><b>Falta el nivel de en medio.</b> O es el botón morado que ocupa toda
+      la fila, o es un fantasma casi invisible. No hay un botón normal.</p>
+    </div>
+    <div class="ks-card">
+      <header><code>.more-toggle</code> <code>.pro-toggle</code> <code>.ws-btn</code></header>
+      <div class="ks-body">
+        <button class="more-toggle">Más opciones</button>
+        <button class="pro-toggle">Modo Pro</button>
+        <button class="ws-btn">Principal</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="pastillas">
+    <h2>Pastillas</h2>
+    <div class="ks-card ks-flag">
+      <header><code>.chips</code> <code>.chip</code><span class="ks-why">los atajos del chat</span></header>
+      <div class="ks-body ks-col">
+        <div class="chips">
+          <button class="chip">Transiciones</button>
+          <button class="chip">Filtro de color</button>
+          <button class="chip">Subtítulos</button>
+          <button class="chip">Animación</button>
+          <button class="chip">Temblor</button>
+          <button class="chip">Vertical</button>
+          <button class="chip">Zoom</button>
+          <button class="chip">Acortar</button>
+          <button class="chip">Rótulo</button>
+          <button class="chip">Chapa</button>
+        </div>
+        <div class="chips">
+          <button class="chip sel">Seleccionada</button>
+          <button class="chip">Sin seleccionar</button>
+        </div>
+      </div>
+      <p class="ks-note"><b>Diez pastillas idénticas y sin jerarquía.</b> No se ve cuál cambia el
+      montaje entero y cuál solo añade un adorno, ni cuáles están puestas ahora mismo. Es la
+      fila que Munir señaló como no intuitiva.</p>
+    </div>
+    <div class="ks-card">
+      <header><code>.tag</code> <code>.opt-tag</code> <code>.hist-tag</code></header>
+      <div class="ks-body">
+        <span class="tag">etiqueta</span>
+        <span class="opt-tag">opción</span>
+        <span class="hist-tag">MP4</span>
+        <span class="hist-tag resolve">Resolve</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="campos">
+    <h2>Campos</h2>
+    <div class="ks-card">
+      <header><code>.field</code> <code>.row</code> <code>input</code></header>
+      <div class="ks-body ks-col">
+        <section class="field">
+          <label>El vídeo que te gustó</label>
+          <div class="row">
+            <input placeholder="Pega el link del vídeo, o la ruta del archivo">
+            <button class="ghost">Mirarlo</button>
+          </div>
+          <p class="hint">Se mira para sacar el patrón; no se guarda nada suyo.</p>
+        </section>
+        <section class="field">
+          <label>Un cuadro de texto</label>
+          <textarea rows="3" placeholder="¿Qué habría que cambiar?"></textarea>
+        </section>
+      </div>
+      <p class="ks-note"><b>Regla U:</b> ningún <code>textarea</code> lleva el tirador de
+      agrandar. Si esta caja lo tiene, es un fallo y se arregla en la misma regla de CSS donde
+      se le da estilo.</p>
+    </div>
+    <div class="ks-card">
+      <header><code>.chk</code> <code>.lang</code> <code>.path-input</code></header>
+      <div class="ks-body">
+        <button class="chk on">Encendido</button>
+        <button class="chk">Apagado</button>
+        <select class="lang"><option>Español</option><option>English</option></select>
+        <input class="path-input ks-mini" value="C:\videos\short.mp4">
+        <input class="path-input bad ks-mini" value="C:\no\existe.mp4">
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="paneles">
+    <h2>Paneles</h2>
+    <div class="ks-card">
+      <header><code>.box</code> <code>.alert</code> <code>.reparto</code> <code>.leido</code></header>
+      <div class="ks-body ks-col">
+        <div class="box">Una caja normal, para agrupar lo que va junto.</div>
+        <div class="alert">Un aviso que hay que leer antes de seguir.</div>
+        <div class="reparto">
+          <p class="hint"><strong>De su vídeo he copiado</strong> dónde cae el texto, el tamaño
+          de la letra, el color del relleno.</p>
+          <p class="hint">El resto sale de la plantilla, porque todavía no sé medirlo:
+          words, max_chars, upper, font, style, shadow, anim, glow, panel.</p>
+        </div>
+        <div class="leido">
+          <p class="hint">Esto es lo que pone en su vídeo, con el color de cada palabra:</p>
+          <p class="frase">
+            <span class="seg">50.3s</span>
+            <span style="color:#f9f7f7">Y </span><span style="color:#f7f6f6">HAY </span><span style="color:#eefa11">OTRA </span><span style="color:#f9f7f7">PERSONA </span>
+          </p>
+          <p class="hint">Ese texto lo escribió otra persona en su vídeo. Aquí se enseña para
+          que veas los colores, no se ejecuta ni se obedece nada de lo que ponga.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="baldosas">
+    <h2>Baldosas</h2>
+    <div class="ks-card">
+      <header><code>.grid</code> <code>.tile</code> <code>.tile-shot</code> <code>.tile-name</code></header>
+      <div class="ks-body ks-col">
+        <div class="grid">
+          <button class="tile sel">
+            <div class="tile-shot" style="background:linear-gradient(135deg,#2b2f45,#171a26)"></div>
+            <span class="tile-name">Elegida</span>
+          </button>
+          <button class="tile">
+            <div class="tile-shot" style="background:linear-gradient(135deg,#243040,#12161f)"></div>
+            <span class="tile-name">Pop</span>
+          </button>
+          <button class="tile">
+            <div class="tile-shot loading"></div>
+            <span class="tile-name">Cargando</span>
+          </button>
+        </div>
+      </div>
+      <p class="ks-note"><b>Aquí vive el arreglo del 23-ago:</b> <code>.tile-shot</code> es flex
+      y no grid, porque con grid la fila implícita se mide por el contenido y el
+      <code>max-height</code> de la imagen no tenía contra qué resolver, así que la foto se
+      recortaba justo por donde va el subtítulo.</p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="chat">
+    <h2>Chat</h2>
+    <div class="ks-card ks-flag">
+      <header><code>.chat</code> <code>.bubble</code> <code>.chat-foot</code></header>
+      <div class="ks-body ks-col">
+        <div class="bubble you">Hazlo vertical y quítale los silencios.</div>
+        <div class="bubble them">Hecho: 12 cortes y el encuadre a 9:16 siguiendo la cara.</div>
+      </div>
+      <p class="ks-note"><b>Aquí abajo tienen que aparecer el modelo, el proveedor y el
+      esfuerzo.</b> Hoy están enterrados en un modal de Ajustes con tres pestañas, así que
+      cambiar de modelo son cuatro clics y no se ve cuál está puesto sin abrirlo.</p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="estado">
+    <h2>Estado</h2>
+    <div class="ks-card">
+      <header><code>.steps</code> <code>.step</code> <code>.spin</code> <code>.done-line</code></header>
+      <div class="ks-body ks-col">
+        <div class="steps">
+          <div class="step ok"><span class="stepn">1</span><span class="step-body">Mirando el vídeo</span></div>
+          <div class="step"><span class="stepn">2</span><span class="step-body">Transcribiendo</span></div>
+          <div class="step"><span class="stepn">3</span><span class="step-body">Montando en Resolve</span></div>
+        </div>
+        <div class="track"><i style="width:62%"></i></div>
+        <p class="done-line"><span class="done-ic"></span>Terminado</p>
+        <p class="done-line"><span class="done-ic stopped"></span>Lo paraste tú</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="estructura">
+    <h2>Estructura</h2>
+    <div class="ks-card ks-flag">
+      <header><code>.shell</code><span class="ks-why">216px + resto, ventana 940×720</span></header>
+      <div class="ks-body">
+        <div class="ks-shell-demo">
+          <div class="shell">
+            <aside class="side"><div class="logo">Vidorq</div></aside>
+            <main class="main"><div class="ks-body"><p class="hint">El contenido va aquí.</p></div></main>
+          </div>
+        </div>
+      </div>
+      <p class="ks-note"><b>La ventana nace en 940×720</b>, que es casi un cuadrado. Se edita
+      vídeo en apaisado: sobra alto y falta ancho, y por eso todo se apila y hay que bajar.</p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------------ -->
+  <section class="ks-sec" id="falta">
+    <h2>Lo que falta</h2>
+
+    <div class="ks-card ks-gone">
+      <header><code>.modelo</code> <span class="ks-why">modelo · proveedor · esfuerzo, en el chat</span></header>
+      <div class="ks-body ks-col">
+        <p class="hint">Tiene que verse y cambiarse sin abrir ningún modal, pegado a donde se
+        escribe. El punto de color dice si está listo, cargando o roto, como en VoCript.</p>
+      </div>
+      <p class="ks-note">Referencia directa:
+      <code>vocript-src/src/components/model-selector/</code> ya lo resuelve, con
+      <code>ModelStatusButton</code>, <code>ModelDropdown</code> y sus estados.</p>
+    </div>
+
+    <div class="ks-card ks-gone">
+      <header><code>--accent</code> configurable · tema claro</header>
+      <p class="ks-note">VoCript deriva toda su paleta con <code>color-mix</code> de un acento
+      que elige el usuario, y tiene tema claro y oscuro. Aquí el morado está escrito a mano.</p>
+    </div>
+
+    <div class="ks-card ks-gone">
+      <header>Jerarquía en los atajos</header>
+      <p class="ks-note">Las diez pastillas necesitan grupos (lo que cambia el montaje, lo que
+      cambia el aspecto, lo que añade algo encima) y una marca de cuáles están puestas.</p>
+    </div>
+
+    <div class="ks-card ks-gone">
+      <header>Un botón de nivel medio</header>
+      <p class="ks-note">Entre el morado a todo lo ancho y el fantasma no hay nada. La mitad de
+      los sitios donde hoy hay un <code>.ghost</code> pedían un botón normal.</p>
+    </div>
+  </section>
+
+</div>
+</body>
+</html>
