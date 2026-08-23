@@ -771,8 +771,16 @@ select:focus-visible,
   position: relative; border-radius: 10px; overflow: hidden;
   border: 1px solid var(--line); background: var(--panel2);
   /* Alto fijo y la imagen contenida dentro: las baldosas de 9:16 y las de 16:9
-     conviven en la misma cuadricula sin que unas den saltos de altura. */
-  height: 172px; display: grid; place-items: center;
+     conviven en la misma cuadricula sin que unas den saltos de altura.
+     Flex y no grid a proposito: con `display: grid` la fila implicita se mide
+     por el contenido, asi que el `max-height: 100%` de la imagen no tenia
+     contra que resolver y la foto se pintaba a su tamano natural y el
+     `overflow: hidden` se comia el resto. Medido: la baldosa de 172 px de alto
+     recortaba una imagen de 480x304 y dejaba fuera justo la franja de abajo,
+     que es donde va el subtitulo. En flex, el `max-height` se resuelve contra
+     la altura declarada y la imagen entra entera. */
+  height: 172px;
+  display: flex; align-items: center; justify-content: center;
 }
 /* Las baldosas de color ensenan el cuadro ENTERO y no la banda del subtitulo,
    asi que son mas anchas y mas bajas: lo que se compara aqui es la piel y el
