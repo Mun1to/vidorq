@@ -348,11 +348,14 @@ Con Resolve 21.0.4.5 Free abierto y el puente puesto. No es "compila", es que se
   exactos, y el que genera `captions.to_comp` desde el código, también. Cómo se descifró y la
   tabla de códigos, en `docs/FUSION.md`.
 
-**Lo único que NO sale, y está MEDIDO en vez de supuesto:** el **barrido de karaoke**, o sea
-que se pinte la palabra que SUENA y vaya cambiando con el audio. El modificador guarda los
-tramos por número de carácter y no acepta splines, así que dentro de un mismo cartel el
-reparto de colores es el mismo del primer fotograma al último. Eso sigue siendo del MP4, donde
-libass tiene `\kf`, y `fusion.faltantes()` lo avisa con esas palabras.
+**Lo único que NO sale:** el **barrido de karaoke**, o sea que se pinte la palabra que SUENA y
+vaya cambiando con el audio. Hoy Vidorq escribe un solo reparto de colores por cartel, el
+mismo del primer fotograma al último, y eso sigue siendo del MP4, donde libass tiene `\kf`.
+Que además sea **imposible** moverlo está **razonado y NO PROBADO** (la entrada es un valor de
+tipo `StyledText`, no una entrada `Number` como las que llevan splines): las dos formas de
+cerrarlo están en `docs/FUSION.md`, y `fusion.faltantes()` lo dice con ese mismo cuidado. Se
+escribe así a propósito, porque la "pared" anterior de este mismo apartado resultó ser un
+error de sitio.
 
 **Decisiones abiertas** (se le enseñaron en el navegador el 2026-08-23 y no ha contestado):
 

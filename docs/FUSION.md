@@ -200,10 +200,25 @@ el comp importado en un titulo de la timeline y sacado por la pagina de Color da
 
 ### Lo que sigue sin salir
 
-El **barrido de karaoke**: que se pinte la palabra que SUENA y vaya cambiando. El modificador
-guarda los tramos por numero de caracter y no acepta splines, asi que dentro de un mismo
-cartel el reparto de colores es el mismo del primer fotograma al ultimo. Eso sigue siendo del
-MP4, donde libass tiene `\kf`. `fusion.faltantes()` lo dice con esas palabras.
+El **barrido de karaoke**: que se pinte la palabra que SUENA y vaya cambiando. Hoy Vidorq
+escribe **un solo reparto de colores por cartel**, el mismo del primer fotograma al ultimo, asi
+que eso sigue siendo del MP4, donde libass tiene `\kf`.
+
+**Cuidado con como esta escrito esto, que no es lo mismo que lo de arriba.** Que el reparto sea
+fijo es un hecho de lo que hace el codigo hoy. Que ademas sea IMPOSIBLE moverlo esta
+**razonado y NO PROBADO**: la entrada se llama `CharacterLevelStyling` y es de tipo
+`StyledText`, o sea un valor con su array, mientras que todas las splines de esta casa cuelgan
+de entradas `Number` con `Source = "Value"` (mira `_anim_splines` en `captions.py`). Es un
+argumento bueno, pero **no se ha sacado un fotograma que lo demuestre**, y en este mismo
+documento ya hubo una "pared" que resulto ser un error de sitio.
+
+Las dos formas de cerrarlo, cuando toque:
+
+1. **Intentarlo de verdad**: cablear una `BezierSpline` a `CharacterLevelStyling` y sacar dos
+   fotogramas del mismo cartel. Cuesta lo que costo lo de arriba.
+2. **Rodearlo sin pelearse**: un cartel es un clip, asi que N comps cortos con el reparto
+   corrido dan el barrido sin animar nada. Es mas trabajo de montaje, pero no depende de que
+   Fusion ceda.
 
 ## Otro limite, tambien medido
 

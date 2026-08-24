@@ -48,9 +48,13 @@ que se midio dos veces y se dio por pared; colgado del modificador, pinta. Lo
 escribe `captions.to_comp` cuando una palabra trae `color`.
 
 EL LIMITE QUE QUEDA, y se avisa en vez de disimularlo: ese color no se MUEVE.
-El modificador guarda los tramos por numero de caracter y no acepta splines, asi
-que el barrido de karaoke (pintar la palabra que suena, y que vaya cambiando)
-sigue siendo cosa del MP4, donde libass tiene `\\kf`. `faltantes()` lo dice.
+El barrido de karaoke (pintar la palabra que SUENA, y que vaya cambiando) sigue
+siendo cosa del MP4, donde libass tiene `\\kf`. **Esto es razonado, NO PROBADO
+con un fotograma**, y la diferencia importa: lo medido es que la entrada se
+llama `CharacterLevelStyling` y es de tipo `StyledText`, o sea un valor con su
+array, mientras que en esta casa todas las splines cuelgan de entradas `Number`
+con `Source = "Value"`. Falta intentarlo de verdad antes de darlo por cerrado.
+`faltantes()` lo dice con ese mismo cuidado.
 """
 from __future__ import annotations
 
@@ -351,11 +355,13 @@ def faltantes(estilo=None):
             "porque": "un color FIJO por palabra si sale desde el 2026-08-24, "
                       "con el modificador `StyledTextCLS` colgado del Text+ "
                       "(medido sacando el fotograma: salio cada palabra de su "
-                      "color). Lo que no sale es que ese color se MUEVA: el "
-                      "modificador guarda los tramos por numero de caracter y "
-                      "no acepta splines, asi que dentro de un mismo cartel el "
-                      "reparto de colores es el mismo del primer fotograma al "
-                      "ultimo. El MP4 si lo hace, porque libass tiene `\\kf`",
+                      "color). Lo que no sale es que ese color se MUEVA con el "
+                      "audio: hoy Vidorq escribe un solo reparto de colores por "
+                      "cartel, el mismo del primer fotograma al ultimo. Que "
+                      "ademas sea IMPOSIBLE moverlo esta razonado y NO PROBADO: "
+                      "la entrada es de tipo `StyledText`, un valor con su "
+                      "array, y las splines de esta casa cuelgan de entradas "
+                      "`Number`. El MP4 si lo hace, porque libass tiene `\\kf`",
             "pieza": None,
         })
     # Un Text+ NO ajusta el texto: una frase larga se sale por los dos bordes en
