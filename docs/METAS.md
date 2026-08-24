@@ -490,6 +490,16 @@ mirando los dos juntos, no leyendo un log en verde.
 
 Nada de esto entra antes de publicar. Está anotado para no perderlo, no para hacerlo ahora.
 
+- **El logo: APARCADO por Munir el 2026-08-24.** Hay SEIS marcas dibujadas y numeradas, en los
+  dos temas y a los tres tamaños que importan (56 px la ventana, 28 la barra de tareas, 16 el
+  favicon): **1 El corte, 2 Las pistas, 3 La V de pistas, 4 El cabezal, 5 Monograma Vq,
+  6 Anidado**. Están en SVG dentro de un solo HTML, guardado en el repo privado en
+  `Vidorq-Core/marca/logos.html` (aquí no, por la regla P), así que volver a enseñarlas cuesta
+  abrirlo. **Condición de desbloqueo: cuando haya algo público que necesite una cara** (la
+  landing, el instalador del producto de pago, o el primer release que se anuncie). Hasta
+  entonces el logo no bloquea nada, porque la ventana no lo usa. **Ojo con la regla AK cuando
+  se retome:** el nombre Vidorq ya es público, pero cualquier nombre NUEVO que salga de esa
+  conversación no se publica hasta tener el dominio comprado.
 - **Reframe 9:16 + safe zones de captions**: van JUNTAS. Ojo, la recomendación del informe
   ("safe zones ya, es barato") no es ejecutable sola: el motor hace `scale={w}:{h}` del
   origen, 16:9 entra y 16:9 sale. Vidorq no produce vertical todavía. Las safe zones en sí
