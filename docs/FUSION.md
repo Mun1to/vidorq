@@ -192,6 +192,13 @@ Tools = {
 
 ### La prueba, que es un fotograma y no un "deberia"
 
+**Y se vuelve a sacar con un comando**, porque este baile se hizo tres veces a mano en una
+noche: `python resolve/comprobar_cls.py`, con Resolve abierto y el puente puesto. Crea su
+propio timeline (no descoloca el tuyo), importa el comp, saca el fotograma por la pagina de
+Color y te dice donde esta el PNG y que tres colores tienen que verse.
+`python resolve/comprobar_cls.py --limpiar` lo deja como estaba.
+
+
 `captions.to_comp` lo escribe solo en cuanto una palabra del trozo trae `color`. Con
 `{"w": "SI", "color": (1.0, 0.85, 0.10)}` y `{"w": "PINTA", "color": (0.10, 0.95, 0.55)}`,
 el comp importado en un titulo de la timeline y sacado por la pagina de Color da
