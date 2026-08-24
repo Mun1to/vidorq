@@ -182,7 +182,18 @@ Tools = {
 | `100` / `109` / `102` / `1300` | fuente, grosor, tamaño, espaciado |
 
 - `Index` es el **elemento** del `Text+` empezando en 0, o sea que `Index = n` es el `Red<n+1>`
-  del nodo: **0 relleno, 1 contorno, 2 sombra**. Se omite cuando es 0.
+  del nodo: **0 relleno, 1 contorno, 2 sombra**. Se omite cuando es 0. **Los tres estan
+  MEDIDOS**, cada uno con su fotograma, y no deducidos de la plantilla de fabrica: se pinto
+  `BASE CONTORNO SOMBRA` con el preset `pop` (relleno blanco, contorno y sombra negros) tocando
+  solo `Index = 1` en la segunda palabra y solo `Index = 2` en la tercera. CONTORNO salio con
+  el **contorno rojo** y el relleno intacto; SOMBRA salio con la **sombra cian** y el contorno
+  intacto.
+- **Cuidado al comprobar la sombra a ojo: casi no se ve, y parece que no funciona.** La sombra
+  de `pop` va a alfa 0,7 y con `Softness 0.35` sobre negro, asi que el cian sale como una
+  mancha casi negra. Mirando el PNG se diria que no ha hecho nada. Contando pixeles en la
+  franja de debajo de las letras salen **445 con R=0 y G=B** (`0,22,22`, `0,27,27`) bajo
+  SOMBRA y **cero** bajo BASE, que es la palabra de control. Es el mismo aviso de siempre:
+  guarda el recorte, amplialo y CUENTA, que el ojo con un color oscuro no decide.
 - Cada fila es `{ codigo, primerCaracter, ultimoCaracter, Index = elemento, Value = v }`, con
   los dos caracteres **inclusive** y contando desde 0.
 - **Los tres canales se escriben siempre, tambien los que valen cero.** El color de partida es
