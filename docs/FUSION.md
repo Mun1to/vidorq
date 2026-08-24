@@ -222,21 +222,33 @@ El **barrido de karaoke**: que se pinte la palabra que SUENA y vaya cambiando. H
 escribe **un solo reparto de colores por cartel**, el mismo del primer fotograma al ultimo, asi
 que eso sigue siendo del MP4, donde libass tiene `\kf`.
 
-**Cuidado con como esta escrito esto, que no es lo mismo que lo de arriba.** Que el reparto sea
-fijo es un hecho de lo que hace el codigo hoy. Que ademas sea IMPOSIBLE moverlo esta
-**razonado y NO PROBADO**: la entrada se llama `CharacterLevelStyling` y es de tipo
-`StyledText`, o sea un valor con su array, mientras que todas las splines de esta casa cuelgan
-de entradas `Number` con `Source = "Value"` (mira `_anim_splines` en `captions.py`). Es un
-argumento bueno, pero **no se ha sacado un fotograma que lo demuestre**, y en este mismo
-documento ya hubo una "pared" que resulto ser un error de sitio.
+### Y la spline, MEDIDA (2026-08-24)
 
-Las dos formas de cerrarlo, cuando toque:
+Aqui llego a poner que el campo "no acepta splines", razonado a partir de su tipo de dato. **Era
+falso, y de dos maneras.** Se cablo una `BezierSpline` a `CharacterLevelStyling` y se importo:
 
-1. **Intentarlo de verdad**: cablear una `BezierSpline` a `CharacterLevelStyling` y sacar dos
-   fotogramas del mismo cartel. Cuesta lo que costo lo de arriba.
-2. **Rodearlo sin pelearse**: un cartel es un clip, asi que N comps cortos con el reparto
-   corrido dan el barrido sin animar nada. Es mas trabajo de montaje, pero no depende de que
-   Fusion ceda.
+1. **Resolve la ACEPTA y la conserva.** Al exportar el comp de vuelta, la conexion sigue ahi,
+   con sus manejadores `RH`/`LH` calculados, y Fusion le puso nombre el solo:
+   **`LetrasRightclickHeretoAnimateCharacterLevelStyling`**. Ese nombre sale de la etiqueta que
+   Fusion enseña en los campos **animables** ("Right click here to Animate"), asi que el propio
+   Resolve considera ese campo animable.
+2. **Y al pintar se lleva el texto por delante.** El fotograma sale **negro entero**, sin ni una
+   letra. No es que la animacion no se mueva: es que no hay texto.
+
+El control, que es lo que lo cierra: **el mismo comp, el mismo clip y el mismo fotograma**
+(`01:00:00:20`), quitando SOLO la spline y dejando el array normal, pinta `UNO DOS TRES` con DOS
+en rojo. Un unico cambio, dos resultados.
+
+**Ojo con el fotograma que se elige para juzgar esto.** El primer intento salio negro con spline
+Y sin ella, y por poco se concluye lo contrario: el fotograma 5 de un preset con entrada (`pop`
+arranca invisible) es negro por el diseño, no por el fallo. Sin la toma de control se habria
+escrito una mentira. Elige un fotograma pasada la entrada y dentro del `GlobalOut` del comp.
+
+### El camino que queda para el karaoke
+
+**Rodearlo sin pelearse:** un cartel es un clip, asi que N comps cortos con el reparto corrido
+dan el barrido sin animar nada. Es mas trabajo de montaje, pero no depende de que Fusion ceda,
+y usa solo lo que esta probado que renderiza.
 
 ## Otro limite, tambien medido
 

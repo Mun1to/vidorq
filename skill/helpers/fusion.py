@@ -47,14 +47,14 @@ Escrito en el propio Text+ Resolve lo guarda y lo ignora al pintar, que es lo
 que se midio dos veces y se dio por pared; colgado del modificador, pinta. Lo
 escribe `captions.to_comp` cuando una palabra trae `color`.
 
-EL LIMITE QUE QUEDA, y se avisa en vez de disimularlo: ese color no se MUEVE.
-El barrido de karaoke (pintar la palabra que SUENA, y que vaya cambiando) sigue
-siendo cosa del MP4, donde libass tiene `\\kf`. **Esto es razonado, NO PROBADO
-con un fotograma**, y la diferencia importa: lo medido es que la entrada se
-llama `CharacterLevelStyling` y es de tipo `StyledText`, o sea un valor con su
-array, mientras que en esta casa todas las splines cuelgan de entradas `Number`
-con `Source = "Value"`. Falta intentarlo de verdad antes de darlo por cerrado.
-`faltantes()` lo dice con ese mismo cuidado.
+EL LIMITE QUE QUEDA, y este SI esta medido: ese color no se MUEVE. El barrido de
+karaoke (pintar la palabra que SUENA, y que vaya cambiando) sigue siendo cosa
+del MP4, donde libass tiene `\\kf`. Se probo cablear una `BezierSpline` a
+`CharacterLevelStyling`: Resolve la ACEPTA y la conserva entera, pero al
+renderizar el fotograma sale **negro, sin texto**. Con el mismo comp, el mismo
+clip y el mismo fotograma, quitando solo la spline, pinta. El camino que queda
+es rodearlo: N comps cortos con el reparto corrido, que usa solo lo que esta
+probado. Detalle en `docs/FUSION.md`.
 """
 from __future__ import annotations
 
@@ -356,12 +356,13 @@ def faltantes(estilo=None):
                       "con el modificador `StyledTextCLS` colgado del Text+ "
                       "(medido sacando el fotograma: salio cada palabra de su "
                       "color). Lo que no sale es que ese color se MUEVA con el "
-                      "audio: hoy Vidorq escribe un solo reparto de colores por "
-                      "cartel, el mismo del primer fotograma al ultimo. Que "
-                      "ademas sea IMPOSIBLE moverlo esta razonado y NO PROBADO: "
-                      "la entrada es de tipo `StyledText`, un valor con su "
-                      "array, y las splines de esta casa cuelgan de entradas "
-                      "`Number`. El MP4 si lo hace, porque libass tiene `\\kf`",
+                      "audio: el reparto es el mismo del primer fotograma al "
+                      "ultimo. MEDIDO el 2026-08-24: cablear una `BezierSpline` "
+                      "a `CharacterLevelStyling` no da error (Resolve la acepta "
+                      "y la conserva), pero el fotograma sale NEGRO y sin "
+                      "texto; el mismo comp sin la spline pinta. El camino que "
+                      "queda es N carteles cortos con el reparto corrido. El "
+                      "MP4 si lo hace de una pieza, porque libass tiene `\\kf`",
             "pieza": None,
         })
     # Un Text+ NO ajusta el texto: una frase larga se sale por los dos bordes en

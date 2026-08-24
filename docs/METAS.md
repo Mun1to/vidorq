@@ -351,11 +351,12 @@ Con Resolve 21.0.4.5 Free abierto y el puente puesto. No es "compila", es que se
 **Lo único que NO sale:** el **barrido de karaoke**, o sea que se pinte la palabra que SUENA y
 vaya cambiando con el audio. Hoy Vidorq escribe un solo reparto de colores por cartel, el
 mismo del primer fotograma al último, y eso sigue siendo del MP4, donde libass tiene `\kf`.
-Que además sea **imposible** moverlo está **razonado y NO PROBADO** (la entrada es un valor de
-tipo `StyledText`, no una entrada `Number` como las que llevan splines): las dos formas de
-cerrarlo están en `docs/FUSION.md`, y `fusion.faltantes()` lo dice con ese mismo cuidado. Se
-escribe así a propósito, porque la "pared" anterior de este mismo apartado resultó ser un
-error de sitio.
+Y **ya está medido por qué**: cablear una `BezierSpline` a `CharacterLevelStyling` no da error
+(Resolve la acepta, la conserva con sus manejadores y hasta la renombra sola), pero el
+fotograma sale **negro y sin texto**; el mismo comp, el mismo clip y el mismo fotograma sin la
+spline pintan. Aquí llegó a poner que "no acepta splines", razonado desde el tipo de dato, y
+era falso: **sí las acepta, lo que pasa es que se lleva el texto por delante.** El camino que
+queda es rodearlo con N carteles cortos. Detalle en `docs/FUSION.md`.
 
 **Decisiones abiertas** (se le enseñaron en el navegador el 2026-08-23 y no ha contestado):
 
