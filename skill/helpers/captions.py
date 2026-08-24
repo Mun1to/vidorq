@@ -702,6 +702,74 @@ def _spline(name, keys):
             "\t\t\tKeyFrames = {\n%s\n\t\t\t}\n\t\t},\n" % (name, rows))
 
 
+# Un color por palabra dentro de UN SOLO Text+. Lo que faltaba no era la
+# sintaxis, era el OPERADOR: el estilo por caracteres no es un campo del Text+,
+# es un modificador aparte, `StyledTextCLS`, colgado de su entrada `StyledText`.
+# Escrito en el propio Text+ Resolve lo guarda y lo IGNORA al pintar, que es lo
+# que se midio dos veces; colgado del modificador, pinta. Medido el 2026-08-24
+# sacando el fotograma de Resolve: "ROJO VERDE AZUL BLANCO" salio rojo, verde,
+# azul y blanco. Detalle y como se descifro, en `docs/FUSION.md`.
+#
+# Cada fila es `{ codigo, primerCaracter, ultimoCaracter, Index = elemento,
+# Value = v }`, con los dos caracteres INCLUSIVE y contando desde 0.
+CLS_CANALES = (2401, 2402, 2403)   # rojo, verde, azul del color de relleno
+# `Index` es el elemento del Text+ empezando en 0, o sea que `Index = n` es el
+# `Red<n+1>` del nodo: 0 relleno, 1 contorno, 2 sombra. Se omite para el 0.
+CLS_RELLENO = 0
+# El nombre del modificador dentro del comp. Aparte del Text+, que se llama
+# `Template`, porque un grupo y su nodo no pueden compartir nombre.
+CLS_NODO = "Letras"
+
+
+def _tramos(chunk):
+    """(primerCaracter, ultimoCaracter, (r, g, b)) por palabra con color propio.
+
+    Los indices son sobre `chunk["text"]`. Si el texto no se reconstruye juntando
+    las palabras con un espacio, devuelve vacio: pintar el tramo equivocado es
+    peor que no pintar, porque sale un fotograma que parece bien y no lo esta.
+    """
+    words = chunk.get("words") or []
+    if not any(wd.get("color") for wd in words):
+        return []
+    if " ".join(wd["w"] for wd in words) != chunk.get("text", ""):
+        return []
+    fuera, i = [], 0
+    for wd in words:
+        if wd.get("color"):
+            fuera.append((i, i + len(wd["w"]) - 1, wd["color"]))
+        i += len(wd["w"]) + 1
+    return fuera
+
+
+def _cls_tool(text, tramos):
+    """El modificador `StyledTextCLS` que lleva el texto y sus colores.
+
+    Los tres canales se escriben SIEMPRE, tambien los que valen cero: el color
+    de partida es el del relleno del preset, asi que una fila que falta deja ese
+    canal como estaba y el rojo puro sale rosa. Un cero se escribe omitiendo
+    `Value`, que es como lo escribe Blackmagic en sus propias plantillas.
+    """
+    filas = []
+    for ini, fin, rgb in tramos:
+        for codigo, v in zip(CLS_CANALES, rgb[:3]):
+            filas.append("\t\t\t\t\t\t{ %d, %d, %d }" % (codigo, ini, fin) if not v
+                         else "\t\t\t\t\t\t{ %d, %d, %d, Value = %.4f }"
+                              % (codigo, ini, fin, v))
+    return ('\t\t%s = StyledTextCLS {\n'
+            '\t\t\tCtrlWZoom = false,\n'
+            '\t\t\tInputs = {\n'
+            '\t\t\t\tText = Input { Value = "%s", },\n'
+            '\t\t\t\tCharacterLevelStyling = Input {\n'
+            '\t\t\t\t\tValue = StyledText {\n'
+            '\t\t\t\t\t\tArray = {\n%s\n\t\t\t\t\t\t},\n'
+            '\t\t\t\t\t\tValue = ""\n'
+            '\t\t\t\t\t},\n'
+            '\t\t\t\t}\n'
+            '\t\t\t},\n'
+            '\t\t},\n'
+            % (CLS_NODO, _fu_str(text), ",\n".join(filas)))
+
+
 def _elements(p):
     """Which shading elements this preset lights up, front to back.
 
@@ -811,8 +879,12 @@ def _font_for(text, fallback_font, fallback_style):
     return fallback_font, fallback_style
 
 
-def _text_inputs(p, chunk, w, h, dur, wires, size, y, els):
-    """The Inputs block of the Text+ node: preset values plus the spline wires."""
+def _text_inputs(p, chunk, w, h, dur, wires, size, y, els, tramos=()):
+    """The Inputs block of the Text+ node: preset values plus the spline wires.
+
+    Con `tramos`, el texto deja de estar en el nodo y pasa al modificador que lo
+    colorea: la entrada `StyledText` se cablea a el en vez de llevar valor.
+    """
     def wired(input_name, fallback):
         sp = wires.get(input_name)
         if sp:
@@ -825,7 +897,9 @@ def _text_inputs(p, chunk, w, h, dur, wires, size, y, els):
         'Width = Input { Value = %d, },' % w,
         'Height = Input { Value = %d, },' % h,
         'UseFrameFormatSettings = Input { Value = 1, },',
-        'StyledText = Input { Value = "%s", },' % _fu_str(chunk["text"]),
+        ('StyledText = Input { SourceOp = "%s", Source = "StyledText", },' % CLS_NODO
+         if tramos else
+         'StyledText = Input { Value = "%s", },' % _fu_str(chunk["text"])),
         'Font = Input { Value = "%s", },' % font,
         'Style = Input { Value = "%s", },' % style,
         'VerticalJustificationNew = Input { Value = 3, },',
@@ -962,6 +1036,9 @@ def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None):
     y = float(p["y"])
     els = _elements(p)
     anim_tools, wires, extra = _anim_splines(a, dur, size, els)
+    tramos = _tramos(chunk)
+    if tramos:
+        anim_tools += _cls_tool(chunk["text"], tramos)
 
     # Text+ -> optional Blur -> optional Glow -> Saver. Kept as a chain so a
     # preset that wants neither ends up with exactly the two nodes it needs.
@@ -1016,7 +1093,7 @@ def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None):
         '}\n'
         % (max(1, dur - 1), max(1, dur - 1), name,
            anim_name or p["anim"], anim_tools,
-           _text_inputs(p, chunk, w, h, dur, wires, size, y, els),
+           _text_inputs(p, chunk, w, h, dur, wires, size, y, els, tramos),
            chain, out, x + 165)
     )
     path.write_text(comp, encoding="utf-8")

@@ -40,13 +40,17 @@ su nombre, el comp que devuelve Resolve trae el tipo de letra, el encuadre, el
 contorno, la sombra y el spline de la entrada, y escribirle CUALQUIER frase la
 pinta con ese estilo. Los pasos y la salida real estan en `docs/FUSION.md`.
 
-LIMITE MEDIDO, y se avisa en vez de disimularlo. Un color por palabra dentro de
-un solo Text+ NO se puede escribir desde fuera: el nodo acepta
-`CharacterLevelStyling` y `CharacterLevelStylingBase`, los conserva enteros al
-ir y volver del comp, y los IGNORA al renderizar. Se probaron los dos campos y
-la frase salio blanca entera las dos veces, mirando el fotograma. Es el mismo
-caso que `WriteOnStart`, que tambien se conserva y tampoco hace nada. No es
-falta de documentacion: no funciona. `faltantes()` lo dice con esas palabras.
+UN COLOR POR PALABRA SI SALE, desde el 2026-08-24. Lo que faltaba no era la
+sintaxis, era el OPERADOR: el estilo por caracteres no es un campo del Text+,
+es un modificador aparte, `StyledTextCLS`, colgado de su entrada `StyledText`.
+Escrito en el propio Text+ Resolve lo guarda y lo ignora al pintar, que es lo
+que se midio dos veces y se dio por pared; colgado del modificador, pinta. Lo
+escribe `captions.to_comp` cuando una palabra trae `color`.
+
+EL LIMITE QUE QUEDA, y se avisa en vez de disimularlo: ese color no se MUEVE.
+El modificador guarda los tramos por numero de caracter y no acepta splines, asi
+que el barrido de karaoke (pintar la palabra que suena, y que vaya cambiando)
+sigue siendo cosa del MP4, donde libass tiene `\\kf`. `faltantes()` lo dice.
 """
 from __future__ import annotations
 
@@ -342,15 +346,16 @@ def faltantes(estilo=None):
     fuera = []
     if p.get("word_fx") == "karaoke":
         fuera.append({
-            "que": "un color distinto por palabra dentro de un solo Text+",
-            "porque": "MEDIDO contra Resolve 21.0.4.5 el 2026-08-23: un Text+ "
-                      "acepta `CharacterLevelStyling` y "
-                      "`CharacterLevelStylingBase`, los conserva enteros al "
-                      "importar y exportar el comp, y los IGNORA al "
-                      "renderizar. Se probaron los dos campos y salio la frase "
-                      "entera blanca las dos veces. Es el mismo caso que "
-                      "`WriteOnStart`. No es que falte documentacion: no "
-                      "funciona escrito desde fuera",
+            "que": "el barrido de karaoke, o sea que se pinte la palabra que "
+                   "SUENA y vaya cambiando con el audio",
+            "porque": "un color FIJO por palabra si sale desde el 2026-08-24, "
+                      "con el modificador `StyledTextCLS` colgado del Text+ "
+                      "(medido sacando el fotograma: salio cada palabra de su "
+                      "color). Lo que no sale es que ese color se MUEVA: el "
+                      "modificador guarda los tramos por numero de caracter y "
+                      "no acepta splines, asi que dentro de un mismo cartel el "
+                      "reparto de colores es el mismo del primer fotograma al "
+                      "ultimo. El MP4 si lo hace, porque libass tiene `\\kf`",
             "pieza": None,
         })
     # Un Text+ NO ajusta el texto: una frase larga se sale por los dos bordes en

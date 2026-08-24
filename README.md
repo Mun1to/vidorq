@@ -8,7 +8,7 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1914%20checks-00b359.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1943%20checks-00b359.svg)](tests/)
 
 **[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
 
@@ -316,13 +316,13 @@ python tests/todas.py
 ```
 test_relojes.py          411 cases          the two clocks, the cut engine, the safety nets
 test_understanding.py    533 cases          what a sentence means, and what a button does
-test_castellano.py       538 strings        every accent in the Spanish the app shows
+test_castellano.py       558 strings        every accent in the Spanish the app shows
 test_idiomas.py           22 checks         Spanish and English say the same things
 test_promesas.py          20 promises       this README matches the code
 test_render.py            18 cases          a real video in, a real MP4 out
 test_aprende.py          126 cases          reads a video back and names its style
 test_galeria.py          101 cases          a copied style keeps what was measured
-test_leer.py              67 cases          reads burned-in captions, colour by word
+test_leer.py              76 cases          reads burned-in captions, colour by word
 test_efectos.py           48 cases          hard cut vs dissolve, and how the text enters
 test_agente.py            30 cases          what it tells another agent, limits included
 ```

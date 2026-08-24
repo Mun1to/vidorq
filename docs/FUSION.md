@@ -112,72 +112,98 @@ Text_1Size = BezierSpline { KeyFrames = { ... } }  <- la ENTRADA sobrevivio
 "Y HAY OTRA PERSONA", se volvio a importar y se saco un fotograma de la pagina de Color:
 sale en Arial Black, blanca, con su contorno y su sombra, a la altura del preset.
 
-## Character Level Styling: la pared, ahora MEDIDA
+## Character Level Styling: RESUELTO (2026-08-24)
 
-Antes aqui ponia que el formato "no esta documentado". Eso era verdad pero se quedaba corto.
-Lo que pasa de verdad es peor y es mas util saberlo:
+Aqui ponia que esto era una pared. No lo era, y el error de bulto merece quedar escrito:
 
-> **Un Text+ acepta `CharacterLevelStyling` y `CharacterLevelStylingBase`, los conserva
-> enteros al ir y volver del comp, y los IGNORA al renderizar.**
+> **El estilo por caracteres NO es un campo del `Text+`. Es un OPERADOR aparte,
+> `StyledTextCLS`, colgado de la entrada `StyledText` del nodo.**
 
-Como se midio, dos intentos y un fotograma cada uno:
+Por eso los dos intentos de antes salieron blancos: escribian `CharacterLevelStyling` dentro
+del `Text+`, donde Resolve lo guarda (por eso volvia identico al exportar) y no lo mira nunca.
+El campo se llama igual, pero vive en otro sitio.
 
-1. **Con los rangos en `CharacterLevelStyling`.** Se escribio una frase de seis palabras y se
-   le puso a cada palabra un codigo candidato distinto (2000, 2401, 2402, 2403, 2404) con un
-   color distinto, para que un solo fotograma dijera cual de los cinco es el relleno. Resolve
-   devolvio el array **palabra por palabra, identico**. El fotograma salio **blanco entero**.
-2. **Con los rangos en `CharacterLevelStylingBase`**, precedidos del bloque por defecto
-   copiado de `Simple Two Lines.setting`, que es como lo escribe Blackmagic. Resolve tambien
-   lo conservo (`{ 2000, 4, 6` sigue ahi al exportar). El fotograma, **blanco otra vez**.
+Asi queda el comp, y esto renderiza:
 
-Es el mismo caso que `WriteOnStart` / `WriteOnEnd`, que tambien se conservan y tampoco hacen
-nada al renderizar. El modificador lo aplica la interfaz; un comp escrito desde fuera no lo
-enciende.
+```lua
+Tools = {
+    Letras = StyledTextCLS {
+        CtrlWZoom = false,
+        Inputs = {
+            Text = Input { Value = "ROJO VERDE AZUL BLANCO", },   -- el texto vive AQUI
+            CharacterLevelStyling = Input {
+                Value = StyledText {
+                    Array = {
+                        { 2401, 0, 3, Value = 1 },   -- ROJO: R=1
+                        { 2402, 0, 3 },              --       G=0
+                        { 2403, 0, 3 },              --       B=0
+                        { 2401, 5, 9 },              -- VERDE
+                        { 2402, 5, 9, Value = 1 },
+                        { 2403, 5, 9 },
+                    },
+                    Value = ""
+                },
+            }
+        },
+    },
+    Template = TextPlus {
+        Inputs = {
+            StyledText = Input { SourceOp = "Letras", Source = "StyledText", },  -- cableado
+            ...
+        },
+    },
+}
+```
 
-**Por eso se para aqui** (regla X: dos intentos y se nombra la pared). Un tercer micro-ajuste
-seria el mismo intento con otra sintaxis.
+### Como se descifro, que no fue adivinando
 
-### Los caminos que quedan, que no son micro-ajustes
+1. **Se le pregunto a Fusion desde dentro.** `resolve/VidorqCLS.py` se lanza con
+   `Workspace > Scripts > Utility > VidorqCLS`, crea una comp aparte, prueba `AddTool` con
+   cada identificador candidato y guarda el `.setting` que escribe RESOLVE. Contesto
+   `StyledTextCLS` y dejo el cableado a la vista. La version Free no admite scripting externo,
+   asi que este era el unico sitio desde donde se podia preguntar.
+2. **Los codigos salieron de una plantilla de fabrica.** En `Simple Two Lines.setting`, el
+   bloque `CharacterLevelStylingBase` trae los cinco codigos con `Index` 0, 1 y 2, y solo el
+   `2404` da (1,1,1). Como esa plantilla pinta en blanco, `2404` parecia el relleno.
+3. **Y un fotograma dijo que no.** Con seis palabras y un codigo por palabra, salieron
+   **TRES en cian** y **CUATRO en magenta**, que no era lo escrito en ninguna lectura. Cian es
+   blanco sin rojo y magenta es blanco sin verde: o sea que el codigo **no es un color entero,
+   es UN CANAL**, y el `Index` no es el canal sino el **elemento**.
 
-1. **Un Text+ por palabra, unidos con Merge.** Cada palabra su nodo, su color y su X. Solo usa
-   lo que esta probado que renderiza. Lo que hay que resolver es la posicion, y para eso ya
-   hay un dato medido en `captions.py`: un caracter avanza unos 0.41 del `Size`
-   (`CHAR_ADVANCE`). Es el camino mas corto a "los mismos colores en las mismas palabras"
-   dentro de Resolve.
-2. **El overlay con alfa, que ya estaba decidido en `AGENTS.md`.** Generar el subtitulo fuera
-   con Motion Canvas o Revideo (MIT) y dejarlo en V2. Da color por palabra y cualquier
-   animacion, sin pelearse con Fusion. A cambio, el texto deja de ser editable dentro de
-   Resolve.
-3. **Que Munir haga UNO a mano y se lea.** Ahora significa otra cosa que antes: no se trata
-   de aprender el formato (ya se sabe), sino de ver **que hace la interfaz ademas de escribir
-   esos campos**, porque escribirlos no basta. Es un minuto, y el lector ya esta escrito:
-   `resolve/leer_cls.py`.
+### La tabla, ya confirmada
 
-   **Los pasos, exactos:**
+| Codigo | Que es |
+| ------ | ------ |
+| `2000` | si el elemento esta encendido |
+| `2401` | canal **rojo** |
+| `2402` | canal **verde** |
+| `2403` | canal **azul** |
+| `2404` | canal **alfa** |
+| `100` / `109` / `102` / `1300` | fuente, grosor, tamaño, espaciado |
 
-   1. Resolve, pestaña **Fusion**.
-   2. Anadir un nodo **Text+** (Shift+Espacio, escribir `Text+`, Enter).
-   3. En el Inspector, escribir en el cuadro de texto: `HOLA MUNDO`
-   4. **Clic derecho encima del cuadro de texto** y elegir **Character Level Styling**.
-   5. Seleccionar con el raton solo la palabra **MUNDO**.
-   6. Cambiarle el color con el selector que sale en el Inspector.
-   7. **Mirar el visor** y comprobar que MUNDO se ve de otro color. Si no se ve, no hay nada
-      que leer y hay que decirlo: querria decir que tampoco funciona a mano.
-   8. **Clic derecho sobre el nodo** > **Settings** > **Save As**, y guardarlo en
-      `%USERPROFILE%\Desktop\cls.setting`.
-   9. Lanzar `python resolve/leer_cls.py`, que dice que nodos hay, que nombres salen que
-      nosotros no escribiamos, y ensena el bloque tal cual.
+- `Index` es el **elemento** del `Text+` empezando en 0, o sea que `Index = n` es el `Red<n+1>`
+  del nodo: **0 relleno, 1 contorno, 2 sombra**. Se omite cuando es 0.
+- Cada fila es `{ codigo, primerCaracter, ultimoCaracter, Index = elemento, Value = v }`, con
+  los dos caracteres **inclusive** y contando desde 0.
+- **Los tres canales se escriben siempre, tambien los que valen cero.** El color de partida es
+  el del relleno del preset, asi que una fila que falta deja ese canal como estaba: pedir rojo
+  puro sobre texto blanco y escribir solo el rojo devuelve blanco. Un cero se escribe
+  **omitiendo `Value`**, que es como lo hace Blackmagic.
 
-### Lo que ya no hay que volver a mirar
+### La prueba, que es un fotograma y no un "deberia"
 
-- El nombre del campo: es `CharacterLevelStyling` y `CharacterLevelStylingBase`, sin prefijo
-  en un `TextPlus` suelto (con prefijo `Text1.` en un `MultiText`).
-- La forma de cada fila: `{ codigo, primerCaracter, ultimoCaracter, Index = canal, Value = v }`,
-  con `Index` 0/1/2 y el 0 implicito, y los valores 0 omitidos. Resolve la acepta y la devuelve
-  igual, asi que la sintaxis es esa.
-- Los codigos que SI estan confirmados, cruzando el array con los valores explicitos del mismo
-  nodo: `100` fuente, `109` grosor, `102` tamaño, `1300` espaciado entre letras.
-- Los codigos de color siguen sin identificar, y **ya no importa mientras no renderice**.
+`captions.to_comp` lo escribe solo en cuanto una palabra del trozo trae `color`. Con
+`{"w": "SI", "color": (1.0, 0.85, 0.10)}` y `{"w": "PINTA", "color": (0.10, 0.95, 0.55)}`,
+el comp importado en un titulo de la timeline y sacado por la pagina de Color da
+**ESTO en blanco, SI en amarillo y PINTA en verde**. Antes de esto se saco
+`ROJO VERDE AZUL BLANCO` y salieron los cuatro exactos.
+
+### Lo que sigue sin salir
+
+El **barrido de karaoke**: que se pinte la palabra que SUENA y vaya cambiando. El modificador
+guarda los tramos por numero de caracter y no acepta splines, asi que dentro de un mismo
+cartel el reparto de colores es el mismo del primer fotograma al ultimo. Eso sigue siendo del
+MP4, donde libass tiene `\kf`. `fusion.faltantes()` lo dice con esas palabras.
 
 ## Otro limite, tambien medido
 

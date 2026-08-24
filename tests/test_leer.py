@@ -145,6 +145,54 @@ def casos_sin_motor():
     yield ("el color manda sobre el barrido de karaoke",
            "\\kf" in cap._ass_body(ch[0], cap.preset("marker")), False)
 
+    # Y que llegue tambien a Resolve, que es el camino que durante dos intentos
+    # se dio por imposible. El estilo por caracteres no es un campo del Text+,
+    # es el modificador `StyledTextCLS` colgado de su entrada `StyledText`:
+    # escrito en el nodo, Resolve lo guarda y lo ignora; colgado del
+    # modificador, pinta. Comprobado el 2026-08-24 sacando el fotograma.
+    comp_dest = destino.parent / "s.comp"
+    cap.to_comp(comp_dest, ch[0], 1080, 1920, 40, "pop")
+    comp = comp_dest.read_text(encoding="utf-8")
+    yield ("el comp lleva el modificador", "StyledTextCLS" in comp, True)
+    yield ("y el texto cuelga de el, no del nodo",
+           'StyledText = Input { SourceOp = "Letras", Source = "StyledText", },'
+           in comp, True)
+    # "Y HAY OTRA PERSONA": OTRA son los caracteres 6 a 9, contando desde 0 y
+    # con el ultimo incluido. Un tramo corrido da un fotograma que parece bien.
+    yield ("OTRA ocupa los caracteres que ocupa",
+           [t[:2] for t in cap._tramos(ch[0])][2], (6, 9))
+    yield ("y su amarillo va canal por canal",
+           "{ 2401, 6, 9, Value = 0.9300 }" in comp
+           and "{ 2402, 6, 9, Value = 0.9800 }" in comp
+           and "{ 2403, 6, 9, Value = 0.0700 }" in comp, True)
+    # Los tres canales SIEMPRE, tambien los que valen cero: el color de partida
+    # es el relleno del preset, asi que una fila que falta lo deja como estaba y
+    # el rojo puro sale rosa. Un cero se escribe omitiendo `Value`.
+    negro = {"text": "UNO DOS", "start": 0.0, "end": 1.0, "words": [
+        {"w": "UNO", "s": 0.0, "e": 0.5},
+        {"w": "DOS", "s": 0.5, "e": 1.0, "color": (1.0, 0.0, 0.0)}]}
+    cap.to_comp(comp_dest, negro, 1080, 1920, 24, "pop")
+    rojo = comp_dest.read_text(encoding="utf-8")
+    yield ("un canal a cero se escribe igual, sin Value",
+           "{ 2402, 4, 6 }" in rojo and "{ 2403, 4, 6 }" in rojo, True)
+    yield ("y la palabra sin color no manda ningun tramo",
+           "0, 2" in rojo.split("Array = {")[1].split("}")[0], False)
+    # Sin colores no hay modificador: el camino de siempre se queda como estaba.
+    del negro["words"][1]["color"]
+    cap.to_comp(comp_dest, negro, 1080, 1920, 24, "pop")
+    plano = comp_dest.read_text(encoding="utf-8")
+    yield ("sin colores no se cuela el modificador",
+           "StyledTextCLS" in plano, False)
+    yield ("y el texto vuelve al nodo",
+           'StyledText = Input { Value = "UNO DOS", },' in plano, True)
+    # El texto es AJENO tambien aqui: si al reconstruirlo no cuadra con las
+    # palabras, los tramos apuntarian al caracter equivocado. Antes que pintar
+    # mal, no pinta.
+    torcido = dict(negro, text="OTRA COSA")
+    torcido["words"][1]["color"] = (1.0, 0.0, 0.0)
+    yield ("si el texto no cuadra con las palabras, no pinta",
+           cap._tramos(torcido), [])
+
     # El texto es AJENO (regla AL). Lo que en un ASS son ordenes de formato se
     # quita antes de escribirlo, no despues.
     sucio = {"lineas": [{"t": 1.0, "texto": "x", "palabras": [

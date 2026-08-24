@@ -1,39 +1,20 @@
-r"""Lee un Text+ que Munir haya pintado a mano y dice QUE hace la interfaz.
+r"""Lee un `.setting` escrito por Resolve y dice que operadores lleva dentro.
 
-Por que existe. Un color distinto por palabra dentro de un solo Text+ se aplica
-en Resolve con el modificador Character Level Styling, y desde fuera NO se
-consigue: esta medido el 2026-08-23 que un `Text+` acepta
-`CharacterLevelStyling` y `CharacterLevelStylingBase`, los conserva enteros al
-ir y volver del comp, y los IGNORA al renderizar. Dos intentos, dos fotogramas,
-blanco entero las dos veces (detalle en `docs/FUSION.md`).
+LA PREGUNTA PARA LA QUE NACIO YA ESTA CONTESTADA (2026-08-24). Se escribio para
+averiguar por que un color por palabra no pintaba, y la respuesta fue que el
+estilo por caracteres NO es un campo del `Text+`: es el operador aparte
+`StyledTextCLS`, colgado de su entrada `StyledText`. Escrito dentro del nodo,
+Resolve lo guarda y lo ignora al pintar. Todo el detalle, en `docs/FUSION.md`.
 
-O sea que la pregunta ya no es "como se escribe" (eso se sabe, y esta escrito).
-La pregunta es **que hace la interfaz que no hace escribir el campo**. Y eso
-solo se contesta mirando un fichero que haya escrito Resolve con el modificador
-puesto de verdad.
+Se queda porque el trabajo que hace sigue valiendo, y es el que contesto: un
+fichero escrito por Resolve dice la verdad sobre como monta las cosas, y este
+script separa los NODOS de los envoltorios de valor (que se escriben igual, con
+`X = Tipo {`) y ensena quien alimenta a quien. Cuando algo de Fusion no salga,
+guarda uno hecho a mano y pasaselo por aqui antes de dar nada por imposible.
 
-LOS PASOS, que son de Munir y duran un minuto:
+Se lanza:  python resolve/leer_cls.py [ruta.setting]
 
-  1. Resolve, pestaña **Fusion**.
-  2. Anadir un nodo **Text+** (Shift+Espacio, escribir "Text+", Enter).
-  3. En el Inspector, escribir en el cuadro de texto:  HOLA MUNDO
-  4. **Clic derecho encima del cuadro de texto** -> **Character Level Styling**.
-  5. Seleccionar con el raton solo la palabra **MUNDO**.
-  6. Cambiarle el color (el selector sale en el propio Inspector).
-  7. Comprobar EN EL VISOR que MUNDO se ve de otro color. Si no se ve, no hay
-     nada que leer y hay que decirlo.
-  8. **Clic derecho sobre el nodo** -> **Settings** -> **Save As**, y guardarlo
-     como:
-
-         %USERPROFILE%\Desktop\cls.setting
-
-  9. Decirmelo, o lanzar esto:  python resolve/leer_cls.py
-
-Lo que hace este script: leer ese fichero, sacar TODO lo que tenga que ver con
-el estilo por caracteres, y compararlo con lo que escribe Vidorq hoy, para que
-la diferencia salte a la vista en vez de haber que buscarla.
-
-No toca nada. Solo lee e imprime.
+Sin argumento busca `%USERPROFILE%\Desktop\cls.setting`. No toca nada, solo lee.
 """
 from __future__ import annotations
 

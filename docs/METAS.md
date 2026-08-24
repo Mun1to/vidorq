@@ -340,13 +340,19 @@ Con Resolve 21.0.4.5 Free abierto y el puente puesto. No es "compila", es que se
   blanca al entrar: si un valor no pasa la revisión cae a la plantilla **y se cae de la lista
   de medido**, para que un estilo importado no presuma de algo que perdió por el camino.
 
-**Lo único que NO sale, y ahora está MEDIDO en vez de supuesto:** un color por palabra dentro
-de un solo `Text+`. El nodo acepta `CharacterLevelStyling` y `CharacterLevelStylingBase`, los
-conserva enteros al ir y volver del comp, y **los ignora al renderizar**: se probaron los dos
-campos con cinco códigos de color a la vez sobre seis palabras, y el fotograma salió blanco
-entero las dos veces. Es el mismo caso que `WriteOnStart`. Los tres caminos que quedan
-(un `Text+` por palabra, el overlay con alfa, o mirar qué hace la interfaz al aplicarlo a mano)
-están en `docs/FUSION.md`.
+- **Y un color por palabra dentro de un solo `Text+`, que estuvo dos días dado por imposible**
+  (2026-08-24). No era la sintaxis, era el **operador**: el estilo por caracteres no es un
+  campo del `Text+`, es un modificador aparte, `StyledTextCLS`, colgado de su entrada
+  `StyledText`. Escrito en el nodo, Resolve lo guarda y lo ignora al pintar; colgado del
+  modificador, pinta. El fotograma de `ROJO VERDE AZUL BLANCO` salió con los cuatro colores
+  exactos, y el que genera `captions.to_comp` desde el código, también. Cómo se descifró y la
+  tabla de códigos, en `docs/FUSION.md`.
+
+**Lo único que NO sale, y está MEDIDO en vez de supuesto:** el **barrido de karaoke**, o sea
+que se pinte la palabra que SUENA y vaya cambiando con el audio. El modificador guarda los
+tramos por número de carácter y no acepta splines, así que dentro de un mismo cartel el
+reparto de colores es el mismo del primer fotograma al último. Eso sigue siendo del MP4, donde
+libass tiene `\kf`, y `fusion.faltantes()` lo avisa con esas palabras.
 
 **Decisiones abiertas** (se le enseñaron en el navegador el 2026-08-23 y no ha contestado):
 
