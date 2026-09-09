@@ -32,4 +32,13 @@ yt-dlp>=2026.7          # downloads the reference video behind a link
 #
 # It runs on the onnxruntime already listed above, and brings opencv with it.
 # Apache-2.0, so it is safe inside a paid product.
-rapidocr-onnxruntime>=1.2   # finds and reads text in a frame
+#
+# SINCE 9-sep-2026 IT CARRIES A SECOND THING, and skipping it now costs more
+# than it used to: opencv is also what tracks a subject's mask through a video,
+# which is what puts the captions BEHIND the person. Without opencv the engine
+# reports it cannot do it and the window hides that checkbox, so nothing breaks,
+# but the feature is simply not there.
+#
+# The mask model itself is in skill/models/u2netp.onnx and ships with the repo,
+# so there is nothing else to install for it.
+rapidocr-onnxruntime>=1.2   # finds and reads text in a frame, and brings opencv

@@ -877,7 +877,14 @@ function App() {
                           className={`dest-chip ${exportId === e.id ? "sel" : ""}`}
                           onClick={() => {
                             setExportId(e.id);
-                            if (e.sugiere && e.sugiere !== ratio) setRatio(e.sugiere);
+                            // Solo se mueve la forma cuando el destino pide una
+                            // CONCRETA. "source" no es una forma, es "la que
+                            // sea", y tratarlo como tal pisaba lo elegido: ibas
+                            // a guardar el master de un vertical y te lo dejaba
+                            // en horizontal, perdiendo el encuadre que habias
+                            // decidido dos clics antes.
+                            if (e.sugiere && e.sugiere !== "source"
+                                && e.sugiere !== ratio) setRatio(e.sugiere);
                           }}>
                     {e.label}
                   </button>
