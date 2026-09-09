@@ -62,6 +62,7 @@ import av
 import numpy as np
 
 import captions as cap
+import exportar as ex
 import looks
 import overlays
 
@@ -218,7 +219,7 @@ def _cards_by_kind(cards, desde, hasta):
 
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
                  preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5,
-                 look="", cdl=None, chunks_edited=False, cards=None):
+                 look="", cdl=None, chunks_edited=False, cards=None, sal=None):
     """`chunks_edited` dice en que reloj vienen los subtitulos.
 
     Los que se construyen aqui salen de la transcripcion, o sea del reloj del
@@ -324,10 +325,18 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
             c = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
                  "-ss", f"{s:.3f}", "-t", f"{e - s:.3f}", "-i", source,
                  "-an", "-sn"]
-            if vf:
-                c += ["-vf", ",".join(vf)]
-            return c + ENCODERS[enc] + ["-pix_fmt", "yuv420p",
-                                        "-progress", "pipe:1", "-y", seg_name]
+            # El destino puede pedir menos tamaño del que da la forma elegida
+            # (mandar un 4K por WhatsApp). Se escala AL FINAL de la cadena, o
+            # sea despues de quemar los subtitulos, para que la letra encoja con
+            # la imagen en vez de quedarse gigante sobre un cuadro mas pequeño.
+            paso = list(vf)
+            if sal and (sal["ancho"], sal["alto"]) != (out_w, out_h):
+                paso.append("scale=%d:%d:flags=lanczos" % (sal["ancho"], sal["alto"]))
+            if paso:
+                c += ["-vf", ",".join(paso)]
+            codec = ex.args_video(sal, enc) if sal else ENCODERS[enc]
+            return c + codec + ["-pix_fmt", "yuv420p",
+                                "-progress", "pipe:1", "-y", seg_name]
 
         frames, rc, err = run_ffmpeg_progress(cmd_for(encoder), seg_dir, done, total)
         if rc != 0 and encoder == "h264_nvenc":
@@ -386,7 +395,7 @@ def concat_with_transitions(ffmpeg, seg_dir: Path, seg_files, out_path, kind, du
     cmd += ["-filter_complex", ";".join(steps), "-map", "[%s]" % last,
             "-c:v", "libx264", "-crf", "20", "-preset", "veryfast",
             "-pix_fmt", "yuv420p", "-an", "-y", str(out_path)]
-    r = subprocess.run(cmd, capture_output=True, text=True,
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
                        creationflags=NO_WINDOW)
     if r.returncode != 0:
         print("xfade failed, falling back to hard cuts: %s" % (r.stderr or "")[-200:],
@@ -432,7 +441,7 @@ def concat_and_mux(ffmpeg, seg_dir: Path, seg_files, audio_path, out_path,
                "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", str(audio_path),
                "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
                "-movflags", "+faststart", "-y", str(out_path)]
-    r = subprocess.run(cmd, cwd=str(seg_dir), capture_output=True, text=True,
+    r = subprocess.run(cmd, cwd=str(seg_dir), capture_output=True, text=True, encoding="utf-8", errors="replace",
                        creationflags=NO_WINDOW)
     if r.returncode != 0:
         raise RuntimeError("ffmpeg concat failed: " + (r.stderr or "")[-300:])
@@ -517,7 +526,31 @@ def _mix_voices(flat, voices):
     return flat
 
 
-def render_audio(source, edl, out_path, voices=None):
+def nivelar(ffmpeg, path: Path, sal):
+    """Deja el audio al volumen que espera la plataforma, si el destino lo pide.
+
+    Se hace sobre el audio ya montado y ANTES del mux, para que el mux siga
+    copiando flujos sin recodificar nada, que es la parte que ya estaba probada.
+    Si el paso falla por lo que sea, se deja el audio como estaba y se dice: un
+    video entregado con el volumen sin normalizar es un video entregado, y uno
+    que revienta la exportacion por el volumen no lo es.
+    """
+    if not sal or sal["lufs"] is None:
+        return
+    tmp = path.with_name(path.stem + "_lv" + path.suffix)
+    cmd = ([ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-i", str(path)]
+           + ex.filtro_volumen(sal)
+           + ["-c:a", "aac", "-b:a", "%dk" % sal["audio_kbps"], "-y", str(tmp)])
+    r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
+    if r.returncode == 0 and tmp.exists() and tmp.stat().st_size > 0:
+        tmp.replace(path)
+        print("LOUDNESS_OK: %.1f LUFS" % sal["lufs"], flush=True)
+    else:
+        tmp.unlink(missing_ok=True)
+        print("LOUDNESS_SKIP: " + (r.stderr or "")[-160:], flush=True)
+
+
+def render_audio(source, edl, out_path, voices=None, sal=None):
     src = av.open(source)
     a = src.streams.audio[0]
     rs = av.AudioResampler(format="s16", layout="stereo", rate=AUDIO_RATE)
@@ -553,6 +586,10 @@ def render_audio(source, edl, out_path, voices=None):
     oc = av.open(str(out_path), "w")
     oa = oc.add_stream("aac", rate=AUDIO_RATE)
     oa.codec_context.layout = "stereo"
+    if sal:
+        # El caudal de audio del destino. YouTube pide 384 kbps en estereo y por
+        # defecto PyAV deja bastante menos, que en musica se nota.
+        oa.bit_rate = int(sal["audio_kbps"]) * 1000
     chunk = 1024
     pts = 0
     for i in range(0, len(flat), chunk):
@@ -620,6 +657,12 @@ def main():
     if "--voices" in sys.argv:
         voices = json.loads(
             Path(sys.argv[sys.argv.index("--voices") + 1]).read_text(encoding="utf-8"))
+    # A donde va el video: decide el caudal, el audio y el volumen. Un nombre que
+    # no exista cae al de por defecto en vez de romper la exportacion, que es lo
+    # que hay que hacer con un dato que viene de fuera.
+    export = ex.POR_DEFECTO
+    if "--export" in sys.argv:
+        export = sys.argv[sys.argv.index("--export") + 1]
     edl = json.loads(Path(edl_path).read_text(encoding="utf-8"))["segments"]
     transcript = json.loads(Path(tr_path).read_text(encoding="utf-8"))
     # The line length depends on the frame it has to fit in, so the output shape
@@ -628,7 +671,11 @@ def main():
         _v = _c.streams.video[0]
         _ow, _oh, _cw, _ch = frame_for(ratio, _v.codec_context.width,
                                        _v.codec_context.height)
+        _fps = float(Fraction(_v.average_rate or 30))
     chunks = (given_chunks or cap.build_chunks(transcript, preset, _ow, _oh)) if do_caps else []
+    # El destino de la exportacion. Se resuelve DESPUES de saber el tamaño que
+    # da la forma elegida, porque el preset solo puede bajarlo, nunca decidirlo.
+    sal = ex.salida(export, _ow, _oh, _fps)
 
     ffmpeg = find_ffmpeg()
     out = Path(out)
@@ -639,13 +686,18 @@ def main():
           f"(captions={do_caps}:{preset}/{anim or 'propia'}, zoom={do_zoom}, "
           f"transicion={transition}, formato={ratio}, color={look or 'ninguno'}, "
           f"voces={len(voices or [])})", flush=True)
+    print(f"EXPORT: {sal['preset']} -> {sal['ancho']}x{sal['alto']} "
+          f"{sal['kbps'] or 'cq' + str(sal['cq'])} kbps, audio {sal['audio_kbps']}k"
+          + (f", {sal['lufs']} LUFS" if sal["lufs"] is not None else ", volumen sin tocar"),
+          flush=True)
     seg_dir.mkdir(exist_ok=True)
     try:
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
                                  do_caps, do_zoom, preset, anim, ratio, crop_x,
                                  look, cdl, chunks_edited=bool(given_chunks),
-                                 cards=cards)
-        render_audio(source, edl, tmp_a, voices)
+                                 cards=cards, sal=sal)
+        render_audio(source, edl, tmp_a, voices, sal=sal)
+        nivelar(ffmpeg, tmp_a, sal)
         concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out, transition)
     finally:
         shutil.rmtree(seg_dir, ignore_errors=True)
