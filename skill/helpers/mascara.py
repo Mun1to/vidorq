@@ -59,22 +59,29 @@ except Exception:                                     # pragma: no cover
 # el modelo ahora. 0 = cada fotograma decide solo, 1 = la primera mascara se
 # arrastra para siempre y el objeto se le escapa.
 #
-# MEDIDO EL 2026-09-09 SOBRE DOS ESCENAS, y la leccion vale mas que el numero:
+# MEDIDO EL 2026-09-09, con el modelo bueno (U-2-Net) y antes con GrabCut. La
+# leccion vale mas que el numero:
 #
 #   escena sintetica (sujeto liso, fondo suave, respuesta conocida)
-#     sin memoria   temblor 0.01277   IoU 0.881
-#     con memoria   temblor 0.01285   IoU 0.878      <- la memoria NO hace nada
+#     GrabCut  sin memoria  IoU 0.881   temblor 0.01277
+#     GrabCut  con memoria  IoU 0.878   temblor 0.01285   <- no hace NADA
+#     U-2-Net  con memoria  IoU 0.989   temblor 0.01039   <- el modelo si
 #
 #   metraje real (gameplay, camara moviendose, detalle en todo el cuadro)
-#     sin memoria          temblor 0.03604
-#     con memoria          temblor 0.02571           <- 28,7% menos
-#     memoria + 1 de cada 3 temblor 0.01105          <- 69% menos, y 3,6x mas rapido
+#     GrabCut  sin memoria           temblor 0.03604
+#     U-2-Net  sin memoria           temblor 0.01754      <- la mitad, solo por el modelo
+#     U-2-Net  con memoria           temblor 0.01137      <- 35,2% menos
+#     U-2-Net  memoria + 1 de cada 3 temblor 0.00533      <- 70% menos, y 60% mas rapido
 #
-# Con la escena facil se habria escrito "la memoria es decoracion, quitala", y
-# habria sido falso: en metraje de verdad es lo que sujeta el borde. Por eso el
-# proyecto tiene escrito que esto se prueba con video real y no con fondos de
-# colores. El sintetico sirve para medir el ACIERTO (ahi hay respuesta conocida);
-# el real, para medir el TEMBLOR, que es lo unico que se ve al reproducir.
+# Dos cosas que solo se ven teniendo las dos escenas. **Con la sintetica sola se
+# habria escrito "la memoria es decoracion, quitala", y es falso**: en metraje de
+# verdad es lo que sujeta el borde, con GrabCut y con el modelo. Y **el modelo y
+# la memoria no compiten, se suman**: el modelo parte el temblor por dos, y la
+# memoria vuelve a partir por dos lo que queda.
+#
+# Por eso esto se prueba con video real y no con fondos de colores. El sintetico
+# sirve para medir el ACIERTO (ahi hay respuesta conocida); el real, para medir
+# el TEMBLOR, que es lo unico que se ve al reproducir.
 MEMORIA = 0.45
 
 # Cada cuantos fotogramas se le pregunta al modelo. Los de en medio se rellenan
@@ -171,7 +178,8 @@ def pulir(m):
     return cv2.GaussianBlur(b.astype(np.float32), (0, 0), 1.2)
 
 
-def seguir(fotogramas, segmenta, memoria=MEMORIA, cada=CADA, aviso=None):
+def seguir(fotogramas, segmenta, memoria=MEMORIA, cada=CADA, aviso=None,
+           con_cuadro=False):
     """La mascara de cada fotograma, con memoria del anterior.
 
     `fotogramas` es cualquier cosa que devuelva imagenes BGR una a una, para que
@@ -206,7 +214,13 @@ def seguir(fotogramas, segmenta, memoria=MEMORIA, cada=CADA, aviso=None):
         gris_previo = gris
         if aviso and i % 25 == 0:
             aviso(i)
-        yield pulir(previa)
+        limpia = pulir(previa)
+        # Con `con_cuadro` salen los dos juntos. Quien quiere componer necesita
+        # el fotograma Y su mascara, y volver a leer el video por segunda vez
+        # para reunirlos seria leerlo dos veces; guardarlo en una variable de
+        # modulo, que es lo que estaba escrito aqui antes, rompe en cuanto dos
+        # cosas sigan mascaras a la vez.
+        yield (cuadro, limpia) if con_cuadro else limpia
 
 
 def contorno(m, suave=0.004):
@@ -242,3 +256,76 @@ def a_png_alfa(cuadro, m):
     """
     alfa = np.clip(m * 255.0, 0, 255).astype(np.uint8)
     return np.dstack([cuadro, alfa])
+
+
+def recortar_sujeto(ffmpeg, origen, destino, desde=0.0, dur=None, seg=None,
+                    escala=None, aviso=None):
+    """Escribe un video con SOLO el sujeto y el fondo transparente.
+
+    Esta es la pieza que convierte el seguimiento en un efecto que se ve: con
+    este archivo encima del video y los subtitulos en medio, el texto pasa por
+    DETRAS de la persona. Es el efecto por el que se compra Magic Mask, y aqui
+    sale de un modelo de 4 MB con licencia Apache.
+
+    Sale en `.mov` con QTRLE y no en una secuencia de PNG: es sin perdida, lleva
+    alfa de verdad, y es UN archivo en vez de mil. Una secuencia de 1080p a 30
+    fotogramas por segundo son 1.800 ficheros por minuto, y eso hay que
+    limpiarlo despues, moverlo y no perderlo por el camino.
+
+    `escala` reduce el lado mayor antes de segmentar. El modelo mira a 320x320
+    pase lo que pase, asi que trabajar a 1080p solo cuesta redimensionar dos
+    veces; a 720 el borde sale igual de bueno y el trabajo por fotograma baja.
+    """
+    import subprocess
+    if cv2 is None:
+        raise RuntimeError("OpenCV no esta disponible: no se puede seguir la mascara")
+    if seg is None:
+        import segmentador
+        seg = segmentador.elegir()
+
+    cap = cv2.VideoCapture(str(origen))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    if desde:
+        cap.set(cv2.CAP_PROP_POS_MSEC, desde * 1000.0)
+    tope = int(round(dur * fps)) if dur else None
+
+    def leer():
+        n = 0
+        while True:
+            ok, f = cap.read()
+            if not ok or (tope and n >= tope):
+                break
+            if escala:
+                h, w = f.shape[:2]
+                k = escala / float(max(w, h))
+                if k < 1.0:
+                    f = cv2.resize(f, (int(w * k) // 2 * 2, int(h * k) // 2 * 2),
+                                   interpolation=cv2.INTER_AREA)
+            yield f
+            n += 1
+
+    # Se abre ffmpeg ANTES del primer fotograma para no tener que guardar el
+    # video entero en memoria: se le va dando BGRA por la tuberia segun sale.
+    p = None
+    try:
+        for cuadro, m in seguir(leer(), seg, aviso=aviso, con_cuadro=True):
+            bgra = a_png_alfa(cuadro, m)
+            if p is None:
+                h, w = bgra.shape[:2]
+                p = subprocess.Popen(
+                    [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                     "-f", "rawvideo", "-pix_fmt", "bgra", "-s", "%dx%d" % (w, h),
+                     "-r", "%.6f" % fps, "-i", "pipe:0",
+                     # QTRLE guarda el alfa sin perdida. Un H.264 normal NO tiene
+                     # canal alfa y el recorte saldria con fondo negro, que es
+                     # exactamente lo contrario de lo que hace falta.
+                     "-c:v", "qtrle", "-pix_fmt", "argb", "-y", str(destino)],
+                    stdin=subprocess.PIPE,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            p.stdin.write(bgra.tobytes())
+    finally:
+        cap.release()
+        if p is not None:
+            p.stdin.close()
+            p.wait()
+    return str(destino)
