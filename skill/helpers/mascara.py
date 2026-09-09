@@ -47,6 +47,8 @@ Dos, y las dos del mismo sitio:
 """
 from __future__ import annotations
 
+from collections import deque
+
 import numpy as np
 
 try:
@@ -298,8 +300,28 @@ def parece_sujeto(areas):
     return True, ""
 
 
+# Lado mayor al que encoger la imagen antes de seguirla. **Apagado**, y esto es
+# una optimizacion que se midio y NO salio, escrita aqui para que no se vuelva a
+# intentar sin datos.
+#
+# La idea era buena: el modelo mira a 320x320 pase lo que pase, asi que seguir a
+# 1920 parecia trabajo tirado. Midiendo SOLO el seguimiento, a 960 iba un 30%
+# mas rapido (0,219 s/fotograma contra 0,312). Pero midiendo el trabajo ENTERO,
+# que es el que espera el usuario, sale igual o peor: 22,8 segundos con escala
+# contra 21,8 sin ella, sobre el mismo clip de 1920x1200.
+#
+# Lo que se ahorra en el modelo se gasta estirando la mascara de vuelta al
+# tamaño del fotograma, que hay que hacerlo si o si para componer. La leccion es
+# la de siempre: medir la mitad de una funcion dice lo que tarda esa mitad, no lo
+# que tarda el trabajo.
+#
+# Se deja el parametro porque en una maquina mas lenta el reparto puede cambiar,
+# pero por defecto no se toca nada.
+ESCALA = None
+
+
 def recortar_sujeto(ffmpeg, origen, destino, desde=0.0, dur=None, seg=None,
-                    escala=None, aviso=None):
+                    escala=ESCALA, aviso=None):
     """Escribe un video con SOLO el sujeto y el fondo transparente.
 
     Esta es la pieza que convierte el seguimiento en un efecto que se ve: con
@@ -333,19 +355,34 @@ def recortar_sujeto(ffmpeg, origen, destino, desde=0.0, dur=None, seg=None,
         cap.set(cv2.CAP_PROP_POS_MSEC, desde * 1000.0)
     tope = int(round(dur * fps)) if dur else None
 
+    # Se sigue la mascara en PEQUEÑO y se compone en GRANDE, que es lo que da la
+    # velocidad de uno con la calidad del otro.
+    #
+    # Antes esto encogia el fotograma de salida tambien, y eso era un fallo
+    # esperando: el `.mov` salia mas pequeño que el video sobre el que se iba a
+    # poner, asi que el recorte habria quedado descuadrado encima de la imagen.
+    #
+    # En una COLA y no en una lista: `seguir` consume un fotograma y devuelve una
+    # mascara, en orden, asi que aqui nunca hay mas de uno o dos esperando.
+    # Guardarlos todos serian 1,8 GB en un segmento de diez segundos a 1080p, que
+    # es como se tumba una maquina de 32 GB con cuatro segmentos.
+    grandes = deque()
+
     def leer():
         n = 0
         while True:
             ok, f = cap.read()
             if not ok or (tope and n >= tope):
                 break
+            grandes.append(f)
+            chico = f
             if escala:
                 h, w = f.shape[:2]
                 k = escala / float(max(w, h))
                 if k < 1.0:
-                    f = cv2.resize(f, (int(w * k) // 2 * 2, int(h * k) // 2 * 2),
-                                   interpolation=cv2.INTER_AREA)
-            yield f
+                    chico = cv2.resize(f, (int(w * k) // 2 * 2, int(h * k) // 2 * 2),
+                                       interpolation=cv2.INTER_AREA)
+            yield chico
             n += 1
 
     # Se abre ffmpeg ANTES del primer fotograma para no tener que guardar el
@@ -353,10 +390,17 @@ def recortar_sujeto(ffmpeg, origen, destino, desde=0.0, dur=None, seg=None,
     p = None
     areas = []
     try:
-        for cuadro, m in seguir(leer(), seg, aviso=aviso, con_cuadro=True):
+        for chico, m in seguir(leer(), seg, aviso=aviso, con_cuadro=True):
             # Se apunta de paso: recorrer el video otra vez solo para medir el
             # tamaño del sujeto seria pagar dos veces por el mismo trabajo.
             areas.append(float((m > CORTE).mean()))
+            # El fotograma de VERDAD, al tamaño que tenia. La mascara se estira
+            # hasta el, y no al reves: la mascara ya sale suave de `pulir`, asi
+            # que agrandarla no se nota, mientras que encoger la imagen si.
+            cuadro = grandes.popleft() if grandes else chico
+            if cuadro.shape[:2] != m.shape[:2]:
+                m = cv2.resize(m, (cuadro.shape[1], cuadro.shape[0]),
+                               interpolation=cv2.INTER_LINEAR)
             bgra = a_png_alfa(cuadro, m)
             if p is None:
                 h, w = bgra.shape[:2]
