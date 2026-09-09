@@ -31,7 +31,28 @@ PY="$PWD/.venv/Scripts/python.exe"
 
 # 3) Renderizar
 "$PY" skill/helpers/vidorq_render.py "<video>" "<out_dir>/edl.json" "<out_dir>/transcript.json" "<out_dir>/final.mp4"
-#    flags: --no-captions  --no-zoom
+#
+#    Los que casi siempre importan:
+#      --export <destino>   a dónde va el archivo, y con eso el caudal, el audio
+#                           y el volumen ya puestos. Uno de: youtube, youtube4k,
+#                           shorts, instagram, x, mensajeria, master.
+#                           Sin esto se usa `youtube`.
+#      --ratio <forma>      source | vertical | portrait | square | wide
+#      --preset <estilo>    el estilo de subtítulo (pop, punch, brasa...)
+#      --detras             los subtítulos POR DETRÁS del sujeto. Cuesta unos
+#                           6 minutos por minuto de vídeo, así que se pide.
+#                           Si el vídeo no tiene un sujeto que recortar lo dice
+#                           por `MASCARA_NO:` y entrega el vídeo con los
+#                           subtítulos delante, en vez de con manchas encima.
+#      --no-captions        sin subtítulos
+#      --no-zoom            sin punch zoom
+#
+#    Escribe en stdout, una línea por cosa, para poder seguirlo desde fuera:
+#      PROGRESS <hechos> <total>   avance; con --detras el total es el doble,
+#                                  porque cada fotograma se toca dos veces
+#      EXPORT: ...                 qué tamaño y qué caudal se van a usar
+#      VIDEO_OK / AUDIO_OK / MUX_OK / DONE
+#      SIN_AUDIO:                  el vídeo de origen es mudo y sale mudo
 ```
 
 ## helpers/
@@ -45,9 +66,26 @@ PY="$PWD/.venv/Scripts/python.exe"
     frontera (sin pops).
   - **Punch zoom**: `zoom` por segmento (p. ej. 1.06) = crop central estático + reescalado.
     Sin keyframes (respeta la filosofía del MVP).
-  - **Captions**: chunks Hormozi de 2 palabras UPPERCASE renderizados con PIL (Arial Black,
-    contorno + sombra) y compositados como overlay. Este build de PyAV no trae drawtext/libass.
-  - Salida vídeo con **h264_nvenc** (GPU). Vídeo y audio se renderizan por separado y se muxean.
+  - **Captions**: se escriben como un `.ass` por segmento y los quema libass dentro de
+    ffmpeg, con el estilo que diga `--preset`. (Aquí ponía que se componían con PIL: eso
+    era la v1 del motor, que tardaba 170 ms por fotograma y se cambió hace tiempo.)
+  - **Destino de exportación**: `--export` decide tamaño, caudal, audio y volumen con los
+    números que pide cada plataforma, normalizando a -14 LUFS donde toca. La tabla vive en
+    `helpers/exportar.py` y es la MISMA para el MP4 y para los ajustes de Deliver de Resolve.
+  - **Texto por detrás del sujeto**: `--detras` sigue la máscara de la persona y la compone
+    encima de los subtítulos. Ver `helpers/mascara.py`.
+  - Salida vídeo con **h264_nvenc** (GPU), cayendo a libx264 si falla. Vídeo y audio se
+    renderizan por separado y se muxean.
+- **mascara.py** — sigue una máscara por el vídeo: el fotograma anterior se arrastra con el
+  flujo óptico y se mezcla con lo que propone el modelo, que es lo que evita el parpadeo.
+  `recortar_sujeto()` escribe un `.mov` con canal alfa y devuelve cuánto ocupaba el sujeto en
+  cada fotograma, para poder saber si el efecto merece la pena.
+- **segmentador.py** — qué píxeles son el objeto en UN fotograma. Va aparte a propósito:
+  seguir un objeto no cambia, y de modelos de segmentación sale uno mejor cada seis meses.
+  Usa **U-2-Net (Apache 2.0)**, en `skill/models/`. Ojo con las licencias aquí:
+  RobustVideoMatting es GPL-3.0 y YOLO-seg es AGPL, así que ninguno de los dos vale dentro de
+  un producto que se vende.
+- **exportar.py** — los siete destinos, con sus números y de dónde salen.
 
 ## Requisitos
 
