@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiGet, apiPost, CaptionStyle, ENGINE, Workspaces } from "./api";
+import { apiGet, apiPost, CaptionStyle, ENGINE, ExportPreset, Workspaces } from "./api";
 import { useLang, Key } from "./i18n";
 import Brand from "./Brand";
 import Aprende from "./Aprende";
@@ -97,6 +97,10 @@ function App() {
   const [colour, setColour] = useState("");
   const [ratio, setRatio] = useState("source");
   const [ratios, setRatios] = useState<Record<string, string>>({});
+  // A donde va el video. Decide el caudal, el audio y el volumen; la forma
+  // sigue siendo del selector de arriba, y al elegir destino se le sugiere una.
+  const [exports, setExports] = useState<ExportPreset[]>([]);
+  const [exportId, setExportId] = useState("youtube");
   // El recorte no sigue a la persona (no es fiable), asi que se mueve a mano.
   const [cropX, setCropX] = useState(0.5);
   // Cuantas previews se han pedido ya. Solo sirve para saber si esta la primera.
@@ -200,6 +204,7 @@ function App() {
       resolveTransitions?: string[];
       ratios?: Record<string, string>; looks?: CaptionStyle[];
       cards?: CaptionStyle[];
+      exports?: ExportPreset[]; defaultExport?: string;
     }>(`/captions/presets?lang=${lang}`)
       .then((c) => {
         if (!c || !Array.isArray(c.list)) return;
@@ -211,6 +216,13 @@ function App() {
         if (c.transitions) setTransitions(c.transitions);
         if (c.resolveTransitions) setResolveTrans(c.resolveTransitions);
         if (c.ratios) setRatios(c.ratios);
+        if (Array.isArray(c.exports)) {
+          setExports(c.exports);
+          // Se conserva lo que el usuario tuviera elegido si sigue existiendo:
+          // recargar el catalogo no es motivo para cambiarle el destino.
+          setExportId((cur) =>
+            c.exports!.some((e) => e.id === cur) ? cur : (c.defaultExport || "youtube"));
+        }
         if (Array.isArray(c.looks)) setColours(c.looks);
         if (Array.isArray(c.cards)) setCards(c.cards);
       })
@@ -521,7 +533,7 @@ function App() {
         ...(extra || {}),
         captionPreset: capStyle, captionAnim: capAnim,
         vision: seeVideo, shake, translate: transLang, translateCaptions: burnTrans,
-        transition, ratio, cropX, look: colour,
+        transition, ratio, cropX, look: colour, export: exportId,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
     } catch {
@@ -833,6 +845,40 @@ function App() {
             ))}
           </div>
 
+          {/* A donde va el archivo. Se elige el SITIO, no el codec: el caudal, el
+              audio y el volumen salen de ahi ya puestos.
+
+              Esta a la vista y no dentro de "Mas ajustes" porque no es un ajuste
+              fino, es la segunda decision del encargo despues de elegir el video,
+              y va justo debajo de que le hacemos porque es la misma pregunta
+              seguida: que le hago, y para donde va.
+
+              Elegir destino MUEVE el selector de forma, que sigue viviendo abajo:
+              un vertical para YouTube o un horizontal para TikTok casi siempre son
+              un descuido. Se mueve a la vista y se puede volver a cambiar. */}
+          {exports.length > 0 && (
+            <div className="dest">
+              <span className="dest-label">{t("export")}</span>
+              <div className="dest-opts">
+                {exports.map((e) => (
+                  <button key={e.id} title={e.hint}
+                          className={`dest-chip ${exportId === e.id ? "sel" : ""}`}
+                          onClick={() => {
+                            setExportId(e.id);
+                            if (e.sugiere && e.sugiere !== ratio) setRatio(e.sugiere);
+                          }}>
+                    {e.label}
+                  </button>
+                ))}
+              </div>
+              <small className="dest-note">
+                {output === "resolve"
+                  ? t("export.resolveNote")
+                  : (exports.find((e) => e.id === exportId)?.hint || t("export.note"))}
+              </small>
+            </div>
+          )}
+
           <div className="optrow">
             <button
               className={`chk ${captions ? "on" : ""}`}
@@ -888,7 +934,12 @@ function App() {
                   </button>
                 )}
               </span>
-              <div className={`preview-box ${previewReady ? "" : "loading"}`}>
+              {/* Mas pequeña mientras no hay video: sin uno elegido esto es una
+                  MUESTRA, y una muestra ocupando 340 px de alto empuja fuera de
+                  pantalla los estilos que estas eligiendo, que es lo que de
+                  verdad estas mirando. En cuanto el video es tuyo, se agranda,
+                  porque entonces si es la foto que decide. */}
+              <div className={`preview-box ${previewReady ? "" : "loading"} ${video ? "" : "muestra"}`}>
                 <img
                   src={previewUrl}
                   alt=""
@@ -1012,6 +1063,7 @@ function App() {
                   )}
                 </div>
               )}
+
 
               {/* Con salida a Resolve esta fila estaba escondida entera, y no era
                   verdad: el fundido a negro y el de a blanco SI se hacen ahi, con

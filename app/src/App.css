@@ -265,6 +265,35 @@ body {
    dos pantallas hacia abajo. Encender esa casilla abria un agujero. */
 .capnote.solo { flex: none; }
 
+/* ---------- a donde va el video ----------
+   Esta fila NO usa `.capstyle` aunque se le parezca, y es a proposito: los chips
+   de subtitulo eligen una PINTA entre diez parecidas, y ahi da igual cual mires
+   primero. Aqui se elige un DESTINO, que es una decision del encargo, asi que la
+   etiqueta va arriba en su linea y las fichas debajo, sin competir por el sitio
+   con un texto largo al lado. */
+.dest { display: flex; flex-direction: column; gap: 7px; }
+.dest-label {
+  color: var(--muted); font-size: 12px; letter-spacing: .3px; text-transform: uppercase;
+}
+.dest-opts { display: flex; flex-wrap: wrap; gap: 7px; }
+.dest-chip {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px;
+  padding: 7px 14px; font-size: 12.5px; letter-spacing: .1px; cursor: pointer;
+  color: var(--muted); font-family: inherit;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.dest-chip:hover { border-color: var(--accent); color: var(--text); }
+.dest-chip.sel {
+  border-color: var(--accent); background: var(--accent-fill); color: var(--text);
+  font-weight: var(--w-fuerte);
+}
+/* Alto fijo para que cambiar de destino no mueva media pantalla: las notas de
+   los siete destinos no miden lo mismo y sin esto la fila de abajo salta. */
+.dest-note {
+  color: var(--muted); font-size: 11.5px; line-height: 1.45; letter-spacing: .1px;
+  min-height: 17px;
+}
+
 /* ---------- opciones ---------- */
 .optrow { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .chk {
@@ -959,6 +988,10 @@ select:focus-visible,
   min-height: 120px; display: grid; place-items: center; position: relative;
 }
 .preview-box img { display: block; max-width: 100%; max-height: 340px; }
+/* La foto de muestra, la de antes de elegir video, se queda a la mitad. Con los
+   340 px de la de verdad, los estilos de subtitulo caian por debajo del borde de
+   la ventana y habia que buscarlos con la rueda para elegir uno. */
+.preview-box.muestra img { max-height: 170px; }
 /* Mientras llega, la caja se queda en su sitio en vez de dar un salto. */
 .preview-box.loading { min-width: 220px; }
 .preview-box.loading::after {
