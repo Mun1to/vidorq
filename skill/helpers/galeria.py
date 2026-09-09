@@ -294,7 +294,7 @@ def caption_de(sub, base, nombre, video="", cuando=""):
         # pedirle ademas una descripcion para una tarjeta que solo ve el es
         # trabajo que no le sirve a nadie. Y dice el numero de verdad, que es
         # lo que separa esta pantalla de la de antes.
-        "note": {"es": "Copiado de un video: %d de %d cosas medidas."
+        "note": {"es": "Copiado de un vídeo: %d de %d cosas medidas."
                        % (len(medido), len(CAMPOS)),
                  "en": "Copied from a video: %d of %d values measured."
                        % (len(medido), len(CAMPOS))},
