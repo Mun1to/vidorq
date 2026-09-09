@@ -261,6 +261,7 @@ TEXT = {
         "said_undo": "deshacer el último cambio",
         "voice_making": "Poniendo voz a la línea %d de %d...",
         "voice_only_mp4": "%d voz(es) generadas, pero en Resolve no se pueden meter por API: salen solo en el MP4.",
+        "behind_only_mp4": "El texto por detras de ti todavia solo sale en el MP4: en Resolve el recorte llega como una capa, y eso aun no esta puesto. El timeline sale con los subtitulos delante.",
         "nesting": "Poniendo los subtítulos encima de tu edición...",
     },
     "en": {
@@ -387,6 +388,7 @@ TEXT = {
         "said_undo": "undo the last change",
         "voice_making": "Voicing line %d of %d...",
         "voice_only_mp4": "%d voice line(s) made, but Resolve takes no audio over its API: they only come out in the MP4.",
+        "behind_only_mp4": "Text behind you still only comes out in the MP4: in Resolve the cutout arrives as a layer and that is not wired up yet. The timeline comes out with the captions in front.",
         "nesting": "Laying the captions over your edit...",
     },
 }
@@ -3471,6 +3473,11 @@ def run_job(req):
                 look=colour, transition=transition, cdl=auto_cdl,
                 cards=cards, card_style=card_style, card_color=card_color,
                 export=export)
+            # Dicho, no saltado en silencio. Marcar una casilla y que no pase
+            # nada es peor que no tener la casilla: te enteras mirando el
+            # resultado, cuando ya has esperado.
+            if detras:
+                result += "  |  " + tr("behind_only_mp4")
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
                 # come back looking finished and be missing the voice, which is

@@ -70,10 +70,10 @@ vidorq_render.py         → mp4 directo (GPU)
 | `GET /tramos` | el montaje partido en tramos, con lo que se dice en cada uno |
 | `GET /history` | todas las ediciones hechas, la última primero |
 | `GET /preview` | una foto de lo que hace una elección, sobre tu propio metraje |
-| `GET /captions/presets` | el catálogo: estilos, entradas, colores, formatos, transiciones y cuáles sabe hacer Resolve |
+| `GET /captions/presets` | el catálogo: estilos, entradas, colores, formatos, transiciones, **destinos de exportación** y cuáles sabe hacer Resolve |
 | `GET /providers` · `/models` · `/voices` | quién puede pensar tu frase y quién puede ponerle voz |
 | `GET /workspaces` · `/profile` | el workspace activo y el perfil de marca |
-| `POST /edit` | `{video, preset, captions, output, prompt, ...}` → trabajo en un hilo |
+| `POST /edit` | `{video, preset, captions, output, prompt, export, behind, ...}` → trabajo en un hilo. `export` es a dónde va el archivo (YouTube, TikTok, WhatsApp, máster...) y decide el caudal, el audio y el volumen; `behind` pone los subtítulos por detrás del sujeto, y solo cuenta con subtítulos puestos |
 | `POST /stop` | corta el trabajo en marcha; lo ya hecho se queda |
 | `POST /seek` | mueve el cabezal de Resolve a un segundo del montaje |
 | `POST /config` · `/profile` · `/workspaces` | guardan ajustes, marca y workspaces |

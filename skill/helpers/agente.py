@@ -57,10 +57,24 @@ def capacidades():
             "mp4": ["subtitulos con un color fijo por palabra",
                     "sin contorno o con el, segun lo medido",
                     "sombra difusa o halo", "la posicion y el tamaño medidos",
-                    "cortes, zooms y reencuadre vertical"],
+                    "cortes, zooms y reencuadre vertical",
+                    "el texto POR DETRAS del sujeto, siguiendole la mascara",
+                    "el archivo con el caudal, el audio y el volumen del sitio "
+                    "al que va (YouTube, TikTok, Instagram, X, WhatsApp o un "
+                    "master), normalizado a -14 LUFS donde toca"],
             "resolve": ["subtitulos como comps de Fusion, con su animacion",
-                        "un CDL de color basico", "el montaje con sus cortes"],
+                        "un CDL de color basico", "el montaje con sus cortes",
+                        "los ajustes de la pestaña Deliver ya puestos segun el "
+                        "destino elegido"],
         },
+        # Lo que hace falta saber ANTES de pedirlo, no despues de esperar.
+        "cuesta_tiempo": [
+            "Seguir la mascara del sujeto (el texto por detras) va a 0,43 "
+            "segundos por fotograma, o sea unos 6 minutos por cada minuto de "
+            "video. Viene apagado y hay que pedirlo.",
+            "Transcribir es lo otro lento, y solo pasa la primera vez de cada "
+            "video: los retoques no vuelven a escuchar.",
+        ],
         "no": [
             "No sabe QUE TIPOGRAFIA usa un video. El catalogo entero esta en "
             "Arial, asi que un subtitulo copiado sale en Arial aunque el "
@@ -82,6 +96,18 @@ def capacidades():
             "Los tiempos de los subtitulos leidos son aproximados: se leen "
             "fotogramas sueltos, no el video seguido.",
             "El lector se come letras en palabras cortas o muy juntas.",
+            "El texto por detras del sujeto sale HOY solo en el MP4. En Resolve "
+            "el recorte tendria que entrar como una capa mas y eso no esta "
+            "puesto, asi que el timeline sale con los subtitulos delante.",
+            "La mascara no se puede RETOCAR a mano en Resolve: llega como un "
+            "recorte con alfa, no como un poligono con puntos que arrastrar. "
+            "Escribir un `Polygon` animado de Fusion es lo que lo abriria, y la "
+            "sintaxis hay que sacarsela a Fusion con Resolve abierto "
+            "(`resolve/VidorqPoly.py`): de las 417 plantillas de fabrica de "
+            "Blackmagic, 75 traen una `Polyline` y NINGUNA un nodo `Polygon`.",
+            "La mascara se lleva bien con un sujeto claro sobre un fondo "
+            "distinto. No hay medida de que aguante con varias personas, con "
+            "humo o con el sujeto saliendose del cuadro.",
         ],
         "puente": {
             "endpoints_totales": 152,

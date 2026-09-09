@@ -911,10 +911,14 @@ function App() {
                 onClick={() => setBehind(!behind)}
                 role="switch"
                 aria-checked={behind}
-                title={t("behind.note")}
+                title={output === "resolve" ? t("behind.mp4only") : t("behind.note")}
               >
                 <span className="box"><IconCheck size={12} className="icon" /></span>
                 {t("behind")}
+                {/* La marca va ANTES de esperar, no en el resultado. Enterarte
+                    de que tu efecto no salia despues de cinco minutos de
+                    seguimiento es la peor forma de enterarse. */}
+                {output === "resolve" && <span className="tag">MP4</span>}
               </button>
             )}
             {/* Solo aparece con la vista puesta: el temblor va sobre los golpes
