@@ -249,8 +249,14 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
     if look_vf:
         print("LOOK: %s%s" % (look, " (medido en tu video)" if cdl else ""), flush=True)
 
-    total = sum(max(1, round((float(s["end"]) - float(s["start"])) * fps))
-                for s in edl)
+    fotogramas = sum(max(1, round((float(s["end"]) - float(s["start"])) * fps))
+                     for s in edl)
+    # Con el texto por detras cada fotograma se toca DOS veces: una para
+    # renderizarlo y otra para seguirle la mascara. Contarlo una sola vez dejaba
+    # la barra clavada minutos entre segmento y segmento, que es exactamente
+    # como se ve un programa colgado. El total dice la verdad del trabajo, no
+    # del video.
+    total = fotogramas * 2 if detras else fotogramas
     print(f"PROGRESS 0 {total}", flush=True)
 
     encoder = "h264_nvenc"
@@ -364,13 +370,39 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
             base = seg_dir / f"base_{i:04d}.mp4"
             suj = seg_dir / f"suj_{i:04d}.mov"
             print(f"MASCARA: segmento {i + 1}, siguiendo al sujeto...", flush=True)
-            mascara.recortar_sujeto(ffmpeg, base, suj)
-            capas = "[0:v]" + ",".join(vf_subs) + "[txt];[txt][1:v]overlay=0:0"
+            # La barra sigue moviendose mientras dura el seguimiento, que es la
+            # parte lenta: sin esto se queda quieta minutos y parece colgado.
+            #
+            # `done + frames` y no `done` a secas: el render de ESTE segmento ya
+            # ha terminado, y su contador se suma abajo. Partiendo de `done` la
+            # barra RETROCEDIA al empezar la mascara (medido: iba a 60 de 120 y
+            # volvia a 15), que se lee como que algo ha salido mal.
+            hecho = done + frames
+            _, areas = mascara.recortar_sujeto(
+                ffmpeg, base, suj,
+                aviso=lambda n: print("PROGRESS %d %d" % (min(hecho + n, total), total),
+                                      flush=True))
+            done += frames
+            # Si lo que se ha seguido no se parece a un sujeto, poner el recorte
+            # encima deja el texto tapado por manchas o no lo tapa en absoluto, y
+            # las dos cosas se leen como un fallo del programa. Se abandona el
+            # EFECTO, no los subtitulos: el segmento se compone igual, solo que
+            # sin la capa del sujeto. Entregar el video sin texto seria arreglar
+            # un problema pequeño creando uno grande.
+            vale, motivo = mascara.parece_sujeto(areas)
+            if not vale:
+                print("MASCARA_NO: segmento %d, %s" % (i + 1, motivo), flush=True)
+                suj.unlink(missing_ok=True)
+            capas = "[0:v]" + ",".join(vf_subs)
+            entradas = ["-i", str(base)]
+            if vale:
+                entradas += ["-i", str(suj)]
+                capas += "[txt];[txt][1:v]overlay=0:0"
             capas += ("," + ",".join(fin) + "[out]") if fin else "[out]"
             r = subprocess.run(
-                [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
-                 "-i", str(base), "-i", str(suj),
-                 "-filter_complex", capas, "-map", "[out]"]
+                [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin"]
+                + entradas
+                + ["-filter_complex", capas, "-map", "[out]"]
                 + (ex.args_video(sal, encoder) if sal else ENCODERS[encoder])
                 + ["-pix_fmt", "yuv420p", "-y", seg_name],
                 cwd=str(seg_dir), capture_output=True, text=True,
@@ -383,7 +415,12 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
 
         done += frames
         seg_files.append(seg_name)
-    print(f"VIDEO_OK: {done} frames, {done / float(fps):.1f}s", flush=True)
+    # Los fotogramas del VIDEO, no el trabajo hecho. Con el texto por detras cada
+    # fotograma se cuenta dos veces en la barra (render y mascara), y usando ese
+    # contador aqui el resumen decia "120 frames, 4.0s" de un video de 60
+    # fotogramas y 2 segundos. La barra mide esfuerzo, este mensaje mide video.
+    hechos = done // 2 if detras else done
+    print(f"VIDEO_OK: {hechos} frames, {hechos / float(fps):.1f}s", flush=True)
     return seg_files
 
 

@@ -212,7 +212,9 @@ def seguir(fotogramas, segmenta, memoria=MEMORIA, cada=CADA, aviso=None,
                 actual = movida
         previa = np.clip(actual, 0.0, 1.0)
         gris_previo = gris
-        if aviso and i % 25 == 0:
+        # Cada 5 y no cada 25: un segmento corto son 60 fotogramas, asi que
+        # con 25 la barra daba dos saltos y con 5 se mueve de verdad.
+        if aviso and i % 5 == 0:
             aviso(i)
         limpia = pulir(previa)
         # Con `con_cuadro` salen los dos juntos. Quien quiere componer necesita
@@ -258,6 +260,44 @@ def a_png_alfa(cuadro, m):
     return np.dstack([cuadro, alfa])
 
 
+# Cuanto del cuadro tiene que ocupar la mascara para que "el texto por detras"
+# signifique algo. Debajo del suelo no tapa nada y el efecto no se ve; encima del
+# techo tapa el texto entero y lo que se lee es un subtitulo roto.
+#
+# Los dos numeros salen de mirar lo que hay: en metraje real de gameplay, donde
+# NO hay un sujeto que recortar, la mascara media daba 0,052 del cuadro; una
+# persona hablando a camara ocupa entre 0,15 y 0,45. El suelo se pone en 0,03
+# para no rechazar a alguien que sale pequeño de verdad, y el techo en 0,75
+# porque a partir de ahi ya no queda fondo donde poner el texto.
+#
+# Es el mismo trato que `aprende.GORDA`: mejor decir "esto no lo se hacer con
+# este video" que entregar algo que parece un fallo del programa.
+SUELO_SUJETO = 0.03
+TECHO_SUJETO = 0.75
+
+
+def parece_sujeto(areas):
+    """Si lo que se ha seguido se parece a un sujeto, y por que no si no.
+
+    Devuelve (vale, motivo). El motivo se enseña, no se traga: alguien que marca
+    la casilla, espera seis minutos y recibe el video sin el efecto merece saber
+    que su video no tenia un sujeto que recortar, y no quedarse pensando que el
+    programa esta roto.
+    """
+    if not areas:
+        return False, "no pude seguir nada en este video"
+    media = float(sum(areas)) / len(areas)
+    if media < SUELO_SUJETO:
+        return False, ("no encontre un sujeto que recortar: lo que sigue ocupa "
+                       "el %.1f%% del cuadro, y por debajo del %.0f%% no tapa "
+                       "nada" % (media * 100, SUELO_SUJETO * 100))
+    if media > TECHO_SUJETO:
+        return False, ("lo que sigue ocupa el %.0f%% del cuadro, asi que taparia "
+                       "el texto entero en vez de pasar por detras"
+                       % (media * 100))
+    return True, ""
+
+
 def recortar_sujeto(ffmpeg, origen, destino, desde=0.0, dur=None, seg=None,
                     escala=None, aviso=None):
     """Escribe un video con SOLO el sujeto y el fondo transparente.
@@ -271,6 +311,10 @@ def recortar_sujeto(ffmpeg, origen, destino, desde=0.0, dur=None, seg=None,
     alfa de verdad, y es UN archivo en vez de mil. Una secuencia de 1080p a 30
     fotogramas por segundo son 1.800 ficheros por minuto, y eso hay que
     limpiarlo despues, moverlo y no perderlo por el camino.
+
+    Devuelve `(ruta, areas)`, donde `areas` es lo que ocupaba el sujeto en cada
+    fotograma. Sirve para que quien compone pueda preguntarle a `parece_sujeto`
+    si esto merece la pena antes de dar el efecto por hecho.
 
     `escala` reduce el lado mayor antes de segmentar. El modelo mira a 320x320
     pase lo que pase, asi que trabajar a 1080p solo cuesta redimensionar dos
@@ -307,8 +351,12 @@ def recortar_sujeto(ffmpeg, origen, destino, desde=0.0, dur=None, seg=None,
     # Se abre ffmpeg ANTES del primer fotograma para no tener que guardar el
     # video entero en memoria: se le va dando BGRA por la tuberia segun sale.
     p = None
+    areas = []
     try:
         for cuadro, m in seguir(leer(), seg, aviso=aviso, con_cuadro=True):
+            # Se apunta de paso: recorrer el video otra vez solo para medir el
+            # tamaño del sujeto seria pagar dos veces por el mismo trabajo.
+            areas.append(float((m > CORTE).mean()))
             bgra = a_png_alfa(cuadro, m)
             if p is None:
                 h, w = bgra.shape[:2]
@@ -328,4 +376,4 @@ def recortar_sujeto(ffmpeg, origen, destino, desde=0.0, dur=None, seg=None,
         if p is not None:
             p.stdin.close()
             p.wait()
-    return str(destino)
+    return str(destino), areas
