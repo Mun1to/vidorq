@@ -64,6 +64,7 @@ import numpy as np
 import captions as cap
 import exportar as ex
 import looks
+import mascara
 import overlays
 
 AUDIO_RATE = 48000
@@ -219,7 +220,7 @@ def _cards_by_kind(cards, desde, hasta):
 
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
                  preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5,
-                 look="", cdl=None, chunks_edited=False, cards=None, sal=None):
+                 look="", cdl=None, chunks_edited=False, cards=None, sal=None, detras=False):
     """`chunks_edited` dice en que reloj vienen los subtitulos.
 
     Los que se construyen aqui salen de la transcripcion, o sea del reloj del
@@ -321,22 +322,31 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
         ed_at += e - s
         seg_name = f"seg_{i:04d}.mp4"
 
+        # El escalado del destino va SIEMPRE al final de la cadena, o sea
+        # despues de quemar los subtitulos, para que la letra encoja con la
+        # imagen en vez de quedarse gigante sobre un cuadro mas pequeño.
+        fin = []
+        if sal and (sal["ancho"], sal["alto"]) != (out_w, out_h):
+            fin = ["scale=%d:%d:flags=lanczos" % (sal["ancho"], sal["alto"])]
+
+        # Los subtitulos se separan del resto de filtros porque en el modo
+        # "detras" tienen que ir en medio: imagen, luego texto, luego el sujeto
+        # recortado encima. Mezclados en una sola lista no hay donde meter nada.
+        vf_subs = [f for f in vf if f.startswith("subtitles=")]
+        vf_imagen = [f for f in vf if not f.startswith("subtitles=")]
+        con_detras = detras and vf_subs
+
         def cmd_for(enc):
             c = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
                  "-ss", f"{s:.3f}", "-t", f"{e - s:.3f}", "-i", source,
                  "-an", "-sn"]
-            # El destino puede pedir menos tamaño del que da la forma elegida
-            # (mandar un 4K por WhatsApp). Se escala AL FINAL de la cadena, o
-            # sea despues de quemar los subtitulos, para que la letra encoja con
-            # la imagen en vez de quedarse gigante sobre un cuadro mas pequeño.
-            paso = list(vf)
-            if sal and (sal["ancho"], sal["alto"]) != (out_w, out_h):
-                paso.append("scale=%d:%d:flags=lanczos" % (sal["ancho"], sal["alto"]))
+            paso = (vf_imagen if con_detras else list(vf)) + ([] if con_detras else fin)
             if paso:
                 c += ["-vf", ",".join(paso)]
             codec = ex.args_video(sal, enc) if sal else ENCODERS[enc]
+            salida = f"base_{i:04d}.mp4" if con_detras else seg_name
             return c + codec + ["-pix_fmt", "yuv420p",
-                                "-progress", "pipe:1", "-y", seg_name]
+                                "-progress", "pipe:1", "-y", salida]
 
         frames, rc, err = run_ffmpeg_progress(cmd_for(encoder), seg_dir, done, total)
         if rc != 0 and encoder == "h264_nvenc":
@@ -345,6 +355,32 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
             frames, rc, err = run_ffmpeg_progress(cmd_for(encoder), seg_dir, done, total)
         if rc != 0:
             raise RuntimeError(f"ffmpeg failed on segment {i} [{s:.2f}-{e:.2f}]: {err[-300:]}")
+
+        if con_detras:
+            # El texto por DETRAS del sujeto. Se sigue la mascara sobre el
+            # segmento YA montado (recortado, con su zoom y su color), y no
+            # sobre el original, porque si no las coordenadas no coinciden y el
+            # recorte sale desplazado respecto a la imagen que hay debajo.
+            base = seg_dir / f"base_{i:04d}.mp4"
+            suj = seg_dir / f"suj_{i:04d}.mov"
+            print(f"MASCARA: segmento {i + 1}, siguiendo al sujeto...", flush=True)
+            mascara.recortar_sujeto(ffmpeg, base, suj)
+            capas = "[0:v]" + ",".join(vf_subs) + "[txt];[txt][1:v]overlay=0:0"
+            capas += ("," + ",".join(fin) + "[out]") if fin else "[out]"
+            r = subprocess.run(
+                [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                 "-i", str(base), "-i", str(suj),
+                 "-filter_complex", capas, "-map", "[out]"]
+                + (ex.args_video(sal, encoder) if sal else ENCODERS[encoder])
+                + ["-pix_fmt", "yuv420p", "-y", seg_name],
+                cwd=str(seg_dir), capture_output=True, text=True,
+                encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
+            if r.returncode != 0:
+                raise RuntimeError("fallo componiendo el sujeto en el segmento "
+                                   f"{i}: {(r.stderr or '')[-300:]}")
+            base.unlink(missing_ok=True)
+            suj.unlink(missing_ok=True)
+
         done += frames
         seg_files.append(seg_name)
     print(f"VIDEO_OK: {done} frames, {done / float(fps):.1f}s", flush=True)
@@ -429,18 +465,22 @@ def concat_and_mux(ffmpeg, seg_dir: Path, seg_files, audio_path, out_path,
                                        transition, trans_dur):
             joined = None
 
+    # `audio_path` a None es un video mudo, que es un caso normal (grabacion de
+    # pantalla, timelapse) y no un error: se entrega solo el video.
+    entrada_audio = ["-i", str(audio_path)] if audio_path else []
+    mapa = (["-map", "0:v:0", "-map", "1:a:0"] if audio_path
+            else ["-map", "0:v:0"])
     if joined:
-        cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
-               "-i", str(joined), "-i", str(audio_path),
-               "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "copy",
-               "-shortest", "-movflags", "+faststart", "-y", str(out_path)]
+        cmd = ([ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                "-i", str(joined)] + entrada_audio + mapa
+               + ["-c:v", "copy"] + (["-c:a", "copy", "-shortest"] if audio_path else [])
+               + ["-movflags", "+faststart", "-y", str(out_path)])
     else:
         (seg_dir / "concat.txt").write_text(
             "".join(f"file '{n}'\n" for n in seg_files), encoding="utf-8")
-        cmd = [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
-               "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", str(audio_path),
-               "-map", "0:v:0", "-map", "1:a:0", "-c", "copy",
-               "-movflags", "+faststart", "-y", str(out_path)]
+        cmd = ([ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+                "-f", "concat", "-safe", "0", "-i", "concat.txt"] + entrada_audio
+               + mapa + ["-c", "copy", "-movflags", "+faststart", "-y", str(out_path)])
     r = subprocess.run(cmd, cwd=str(seg_dir), capture_output=True, text=True, encoding="utf-8", errors="replace",
                        creationflags=NO_WINDOW)
     if r.returncode != 0:
@@ -548,6 +588,23 @@ def nivelar(ffmpeg, path: Path, sal):
     else:
         tmp.unlink(missing_ok=True)
         print("LOUDNESS_SKIP: " + (r.stderr or "")[-160:], flush=True)
+
+
+def tiene_audio(source):
+    """True si el archivo trae pista de sonido.
+
+    Se pregunta antes de intentar montarla porque un video MUDO existe y es
+    normal: una grabacion de pantalla sin microfono, un timelapse, un clip de
+    stock. Sin esta comprobacion, `streams.audio[0]` lanza IndexError DESPUES de
+    haber renderizado todo el video, o sea que se pierde el trabajo entero en el
+    ultimo paso y el mensaje que se ve es "tuple index out of range", que no le
+    dice a nadie que a su video le falta el sonido.
+    """
+    try:
+        with av.open(source) as c:
+            return bool(c.streams.audio)
+    except Exception:
+        return False
 
 
 def render_audio(source, edl, out_path, voices=None, sal=None):
@@ -663,6 +720,9 @@ def main():
     export = ex.POR_DEFECTO
     if "--export" in sys.argv:
         export = sys.argv[sys.argv.index("--export") + 1]
+    # El texto por detras del sujeto. Cuesta caro (hay que seguir la mascara
+    # fotograma a fotograma), asi que se pide, no viene puesto.
+    detras = "--detras" in sys.argv
     edl = json.loads(Path(edl_path).read_text(encoding="utf-8"))["segments"]
     transcript = json.loads(Path(tr_path).read_text(encoding="utf-8"))
     # The line length depends on the frame it has to fit in, so the output shape
@@ -695,10 +755,18 @@ def main():
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
                                  do_caps, do_zoom, preset, anim, ratio, crop_x,
                                  look, cdl, chunks_edited=bool(given_chunks),
-                                 cards=cards, sal=sal)
-        render_audio(source, edl, tmp_a, voices, sal=sal)
-        nivelar(ffmpeg, tmp_a, sal)
-        concat_and_mux(ffmpeg, seg_dir, seg_files, tmp_a, out, transition)
+                                 cards=cards, sal=sal, detras=detras)
+        # Un video mudo se entrega mudo, no se pierde. Antes reventaba aqui, con
+        # el video ya renderizado entero y un IndexError por mensaje.
+        hay_audio = tiene_audio(source) or bool(voices)
+        if hay_audio:
+            render_audio(source, edl, tmp_a, voices, sal=sal)
+            nivelar(ffmpeg, tmp_a, sal)
+        else:
+            print("SIN_AUDIO: el video de origen no trae sonido, sale mudo",
+                  flush=True)
+        concat_and_mux(ffmpeg, seg_dir, seg_files,
+                       tmp_a if hay_audio else None, out, transition)
     finally:
         shutil.rmtree(seg_dir, ignore_errors=True)
         tmp_a.unlink(missing_ok=True)

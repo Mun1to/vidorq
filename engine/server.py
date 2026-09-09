@@ -1272,7 +1272,7 @@ def paint_clips(look, n, log=None, numbers=None):
 def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PRESET,
                    workdir=None, anim="", chunks=None, ratio="source",
                    drop=None, look="", transition="none", cdl=None,
-                   cards=None, card_style="", card_color=""):
+                   cards=None, card_style="", card_color="", export=None):
     """Builds the edit in Resolve. Returns (what to tell the user, names made)."""
     name = Path(video).stem[:40]
     # La version anterior se va ANTES de crear la nueva, para que el nombre bueno
@@ -1475,8 +1475,36 @@ def output_resolve(video, edl, transcript, captions=False, preset=cap.DEFAULT_PR
     # frame of the show and it costs two calls.
     bridge_post("/page", {"page": "edit"})
     bridge_post("/playhead", {"timecode": start_tc})
+    dejar_deliver_puesto(export, out_w, out_h, tl_fps, name)
     bridge_post("/project/save", {})
     return made, mine
+
+
+def dejar_deliver_puesto(nombre, ancho, alto, fps, archivo):
+    """Deja la pestaña Deliver de Resolve con el destino elegido ya rellenado.
+
+    Con salida a Resolve, Vidorq no exporta el archivo: monta el timeline y lo
+    exportas tu. Pero el destino que elegiste en la ventana vale igual, porque
+    los mismos numeros (tamaño, caudal, formato) se pueden dejar puestos en los
+    ajustes de render del proyecto. Asi le das a Deliver y ya esta todo, en vez
+    de tener que acordarte de lo que pediste hace veinte minutos.
+
+    Es lo que hace que el destino signifique lo mismo por los dos caminos, que
+    es la misma decision que sostiene los looks y los subtitulos.
+
+    Se traga cualquier fallo a proposito: si Resolve no acepta alguna clave, el
+    timeline YA esta montado y bien, y perder eso por unos ajustes de exportacion
+    que se pueden tocar a mano seria un cambio pesimo. Se dice y se sigue.
+    """
+    try:
+        sal = exp.salida(nombre, ancho, alto, fps)
+        formato, codec = exp.formato_resolve(sal)
+        bridge_post("/render/format", {"format": formato, "codec": codec})
+        ajustes = exp.ajustes_resolve(sal, str(Path.home() / "Videos"), archivo)
+        bridge_post("/render/settings", {"settings": ajustes})
+    except Exception:
+        # Sin traceback entero: esto es un extra, no el trabajo.
+        print("[Vidorq] No pude dejar puestos los ajustes de Deliver.")
 
 
 def to_edited(t, edl):
@@ -2918,6 +2946,9 @@ def run_job(req):
         caption_preset = preset_de(req, marca)
         caption_anim = anim_de(req, marca)
         export = export_de(req, marca)
+        # El texto por detras del sujeto. Solo tiene sentido con subtitulos
+        # puestos: sin texto que tapar, seguir la mascara es trabajo tirado.
+        detras = bool(req.get("behind")) and bool(captions)
 
         if not Path(video).is_file():
             raise ValueError(tr("no_video", video))
@@ -2970,6 +3001,7 @@ def run_job(req):
             caption_preset = fresh.get("captionPreset") or caption_preset
             caption_anim = fresh.get("captionAnim", caption_anim)
             export = fresh.get("export") or export
+            detras = fresh.get("behind", detras) and captions
             colour = fresh.get("look", colour)
             output = fresh.get("output") or output
             # El desplegable manda... salvo cuando el boton que acabas de pulsar
@@ -3437,7 +3469,8 @@ def run_job(req):
                 # timeline equivocado en Resolve ya se ha visto lo que hace.
                 drop=(past0.get("timelines") or []) if again else [],
                 look=colour, transition=transition, cdl=auto_cdl,
-                cards=cards, card_style=card_style, card_color=card_color)
+                cards=cards, card_style=card_style, card_color=card_color,
+                export=export)
             if voice_files:
                 # Said out loud instead of quietly skipped. The timeline would
                 # come back looking finished and be missing the voice, which is
@@ -3450,6 +3483,8 @@ def run_job(req):
             cmd = [PYTHON, str(HELPERS / "vidorq_render.py"), video, str(edl_path),
                    str(tr_path), str(out_file), "--preset", caption_preset,
                    "--export", export]
+            if detras:
+                cmd.append("--detras")
             if transition and transition != "none":
                 cmd += ["--transition", str(transition)]
             if ratio and ratio != "source":

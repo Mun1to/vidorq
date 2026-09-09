@@ -101,6 +101,9 @@ function App() {
   // sigue siendo del selector de arriba, y al elegir destino se le sugiere una.
   const [exports, setExports] = useState<ExportPreset[]>([]);
   const [exportId, setExportId] = useState("youtube");
+  // El texto por detras del sujeto. Cuesta tiempo (hay que seguir la mascara
+  // fotograma a fotograma), asi que se pide, no viene puesto.
+  const [behind, setBehind] = useState(false);
   // El recorte no sigue a la persona (no es fiable), asi que se mueve a mano.
   const [cropX, setCropX] = useState(0.5);
   // Cuantas previews se han pedido ya. Solo sirve para saber si esta la primera.
@@ -533,7 +536,7 @@ function App() {
         ...(extra || {}),
         captionPreset: capStyle, captionAnim: capAnim,
         vision: seeVideo, shake, translate: transLang, translateCaptions: burnTrans,
-        transition, ratio, cropX, look: colour, export: exportId,
+        transition, ratio, cropX, look: colour, export: exportId, behind,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
     } catch {
@@ -899,6 +902,21 @@ function App() {
               <span className="box"><IconCheck size={12} className="icon" /></span>
               {t("vision")}
             </button>
+            {/* Solo con subtitulos puestos: sin texto que tapar, seguir la
+                mascara es trabajo tirado. Un boton que no puede hacer nada no
+                se enseña apagado, se quita, como el temblor de arriba. */}
+            {captions && (
+              <button
+                className={`chk ${behind ? "on" : ""}`}
+                onClick={() => setBehind(!behind)}
+                role="switch"
+                aria-checked={behind}
+                title={t("behind.note")}
+              >
+                <span className="box"><IconCheck size={12} className="icon" /></span>
+                {t("behind")}
+              </button>
+            )}
             {/* Solo aparece con la vista puesta: el temblor va sobre los golpes
                 del movimiento, y sin mirar el video no hay golpes que encontrar.
                 Ofrecerlo apagado seria ofrecer un boton que no hace nada. */}
