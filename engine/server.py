@@ -82,6 +82,7 @@ import autocolor  # noqa: E402
 import overlays  # noqa: E402
 import previews  # noqa: E402
 import speech  # noqa: E402
+import exportar as exp  # noqa: E402
 
 _lock = threading.Lock()
 _progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": "",
@@ -1070,8 +1071,16 @@ def resolve_corriendo():
     if time.time() - _resolve_visto["cuando"] < RESOLVE_TTL:
         return _resolve_visto["abierto"]
     try:
+        # `errors="replace"` no es adorno: `tasklist` escribe en la pagina de
+        # codigos de la consola de Windows, que en un sistema en español NO es
+        # UTF-8, y el hilo que lee la salida moria con UnicodeDecodeError. Como
+        # esto se llama cada pocos segundos para saber si Resolve esta abierto,
+        # la consola del motor se llenaba de trazas: 940 hilos rotos medidos en
+        # una sola tarde del 2026-09-09. Aqui solo se busca "Resolve.exe", que
+        # es ASCII, asi que sustituir los bytes raros no pierde nada.
         out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq Resolve.exe", "/NH"],
                              capture_output=True, text=True, timeout=5,
+                             encoding="utf-8", errors="replace",
                              creationflags=NO_WINDOW)
         abierto = "Resolve.exe" in (out.stdout or "")
     except Exception:
@@ -1993,6 +2002,18 @@ def preset_de(req, marca):
     return nombre if cap.known(nombre) else cap.DEFAULT_PRESET
 
 
+def export_de(req, marca):
+    """A donde va el video: el destino de la exportacion.
+
+    Mismo orden de mando que el estilo de subtitulo (`preset_de`): lo pedido
+    manda, luego la marca, y si nadie dice nada, el de la casa. Un nombre que no
+    existe cae al de la casa en vez de tumbar una edicion, porque este dato
+    llega de fuera y una exportacion no se pierde por una cadena mal escrita.
+    """
+    nombre = (req or {}).get("export") or (marca or {}).get("export")
+    return nombre if exp.conocido(nombre) else exp.POR_DEFECTO
+
+
 def anim_de(req, marca):
     """La entrada del subtitulo. Vacio significa "la que traiga el estilo",
     que no es lo mismo que la de la casa."""
@@ -2896,6 +2917,7 @@ def run_job(req):
         marca = profile_load()
         caption_preset = preset_de(req, marca)
         caption_anim = anim_de(req, marca)
+        export = export_de(req, marca)
 
         if not Path(video).is_file():
             raise ValueError(tr("no_video", video))
@@ -2947,6 +2969,7 @@ def run_job(req):
             shake_on = fresh.get("shake", shake_on)
             caption_preset = fresh.get("captionPreset") or caption_preset
             caption_anim = fresh.get("captionAnim", caption_anim)
+            export = fresh.get("export") or export
             colour = fresh.get("look", colour)
             output = fresh.get("output") or output
             # El desplegable manda... salvo cuando el boton que acabas de pulsar
@@ -3425,7 +3448,8 @@ def run_job(req):
                          tr("cuts_zooms") + (tr("and_captions") if captions else ""))
             out_file = workdir / f"{Path(video).stem[:40]}_vidorq.mp4"
             cmd = [PYTHON, str(HELPERS / "vidorq_render.py"), video, str(edl_path),
-                   str(tr_path), str(out_file), "--preset", caption_preset]
+                   str(tr_path), str(out_file), "--preset", caption_preset,
+                   "--export", export]
             if transition and transition != "none":
                 cmd += ["--transition", str(transition)]
             if ratio and ratio != "source":
@@ -4053,7 +4077,12 @@ class Handler(BaseHTTPRequestHandler):
                             t for t in TRANSITION_LABELS.get(
                                 lang, TRANSITION_LABELS["es"])
                             if t == "none" or can_do("resolve", "transition", t)],
-                        "ratios": RATIO_LABELS.get(lang, RATIO_LABELS["es"])})
+                        "ratios": RATIO_LABELS.get(lang, RATIO_LABELS["es"]),
+                        # A donde va el video: caudal, audio y volumen ya
+                        # puestos. Va aqui y no en una ruta propia porque la
+                        # ventana pide todos los catalogos de una vez al abrir.
+                        "exports": exp.catalogo(lang),
+                        "defaultExport": exp.POR_DEFECTO})
         else:
             self._send({"error": "not found"}, 404)
 

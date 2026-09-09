@@ -98,7 +98,7 @@ def _duration(video):
     if not probe:
         return 0.0
     r = subprocess.run([probe, "-v", "0", "-show_entries", "format=duration",
-                        "-of", "csv=p=0", video], capture_output=True, text=True,
+                        "-of", "csv=p=0", video], capture_output=True, text=True, encoding="utf-8", errors="replace",
                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     try:
         return float(r.stdout.strip())

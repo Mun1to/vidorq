@@ -93,7 +93,7 @@ def _ffprobe(video, campos):
     r = subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "v:0",
          "-show_entries", campos, "-of", "csv=p=0:s=x", str(video)],
-        capture_output=True, text=True, creationflags=NO_WINDOW,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW,
         timeout=TIMEOUT)
     return r.stdout.strip()
 
@@ -104,7 +104,7 @@ def medidas(video):
     r = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
          "-of", "default=nw=1:nk=1", str(video)],
-        capture_output=True, text=True, creationflags=NO_WINDOW,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", creationflags=NO_WINDOW,
         timeout=TIMEOUT)
     try:
         w, h = [int(v) for v in forma.split("x")[:2]]
