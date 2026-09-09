@@ -83,6 +83,8 @@ import overlays  # noqa: E402
 import previews  # noqa: E402
 import speech  # noqa: E402
 import exportar as exp  # noqa: E402
+import mascara  # noqa: E402
+import segmentador  # noqa: E402
 
 _lock = threading.Lock()
 _progress = {"step": "", "percent": 0, "detail": "", "result": "", "error": "",
@@ -4124,7 +4126,14 @@ class Handler(BaseHTTPRequestHandler):
                         # puestos. Va aqui y no en una ruta propia porque la
                         # ventana pide todos los catalogos de una vez al abrir.
                         "exports": exp.catalogo(lang),
-                        "defaultExport": exp.POR_DEFECTO})
+                        "defaultExport": exp.POR_DEFECTO,
+                        # Si esta maquina puede seguir una mascara. Sin OpenCV
+                        # no se puede, y una casilla que aparece y luego falla
+                        # es peor que una que no aparece.
+                        "canBehind": mascara.disponible(),
+                        # Con cual de los dos motores, para poder avisar de que
+                        # con el de repuesto va doce veces mas lento.
+                        "behindEngine": segmentador.motor()})
         else:
             self._send({"error": "not found"}, 404)
 

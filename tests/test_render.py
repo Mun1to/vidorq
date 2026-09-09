@@ -227,6 +227,48 @@ def casos(casa, fuente):
         yield ("render: la transicion acorta el resultado",
                _duracion(dis) < 5.9, True)
 
+    # --- el destino manda sobre el tamaño y el volumen ---------------------
+    # WhatsApp es el que mas se nota: encoge de verdad y no toca el audio,
+    # mientras que YouTube deja el tamaño y normaliza a -14 LUFS. Si los dos
+    # salieran iguales, el selector seria decoracion.
+    wa, log3 = _render(fuente, casa, "wa.mp4", "--export", "mensajeria",
+                       "--no-captions")
+    yield "render: el destino de mensajeria sale", wa.exists(), True
+    if wa.exists():
+        yield ("render: y encoge a 720 por el lado corto",
+               min(_forma(wa)) <= 720, True)
+        yield ("render: sin tocarle el volumen", "LOUDNESS_OK" not in log3, True)
+    yt, log4 = _render(fuente, casa, "yt.mp4", "--export", "youtube",
+                       "--no-captions")
+    if yt.exists():
+        yield ("render: YouTube deja el tamaño del original",
+               _forma(yt), _forma(plano))
+        yield ("render: y si nivela el volumen a -14", "LOUDNESS_OK" in log4, True)
+
+    # --- el texto por detras del sujeto ------------------------------------
+    # Aqui NO hay sujeto: el video de prueba son bloques de color plano. Eso es
+    # justo lo que hay que comprobar, porque es el caso que se lleva a alguien
+    # por delante: pedir el efecto sobre un video sin nadie dentro tiene que
+    # decirlo y entregar el video CON sus subtitulos, no sin ellos ni con
+    # manchas encima. El efecto en si, con un sujeto de verdad, se mide en
+    # test_mascara.py, que tiene la respuesta conocida.
+    det, log5 = _render(fuente, casa, "detras.mp4", "--detras")
+    yield "render: pedir el texto por detras no rompe nada", det.exists(), True
+    if det.exists():
+        yield ("render: lo intenta y lo dice", "MASCARA:" in log5, True)
+        yield ("render: sin sujeto que recortar, lo avisa",
+               "MASCARA_NO:" in log5, True)
+        # Lo que de verdad importa del rechazo: el video sale con su texto.
+        yield ("render: y el subtitulo sigue puesto",
+               _hay_subtitulo(det, 1.0), True)
+        yield ("render: sin perder el corte", _duracion(det) > 5.5, True)
+        # La barra no puede ir hacia atras. Fallo real: iba a 60 de 120 y
+        # volvia a 15, porque el render del propio segmento no se habia contado.
+        pasos = [int(l.split()[1]) for l in log5.splitlines()
+                 if l.startswith("PROGRESS ") and len(l.split()) > 2]
+        yield ("render: la barra nunca retrocede",
+               all(b >= a for a, b in zip(pasos, pasos[1:])), True)
+
 
 def main():
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):

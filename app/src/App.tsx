@@ -104,6 +104,9 @@ function App() {
   // El texto por detras del sujeto. Cuesta tiempo (hay que seguir la mascara
   // fotograma a fotograma), asi que se pide, no viene puesto.
   const [behind, setBehind] = useState(false);
+  // Si esta maquina puede seguir una mascara. null mientras no se ha
+  // preguntado: no se esconde lo que todavia no se sabe.
+  const [canBehind, setCanBehind] = useState<boolean | null>(null);
   // El recorte no sigue a la persona (no es fiable), asi que se mueve a mano.
   const [cropX, setCropX] = useState(0.5);
   // Cuantas previews se han pedido ya. Solo sirve para saber si esta la primera.
@@ -208,6 +211,7 @@ function App() {
       ratios?: Record<string, string>; looks?: CaptionStyle[];
       cards?: CaptionStyle[];
       exports?: ExportPreset[]; defaultExport?: string;
+      canBehind?: boolean; behindEngine?: string;
     }>(`/captions/presets?lang=${lang}`)
       .then((c) => {
         if (!c || !Array.isArray(c.list)) return;
@@ -225,6 +229,11 @@ function App() {
           // recargar el catalogo no es motivo para cambiarle el destino.
           setExportId((cur) =>
             c.exports!.some((e) => e.id === cur) ? cur : (c.defaultExport || "youtube"));
+        }
+        if (typeof c.canBehind === "boolean") {
+          setCanBehind(c.canBehind);
+          // Y si no se puede, no se deja marcado de una sesion anterior.
+          if (!c.canBehind) setBehind(false);
         }
         if (Array.isArray(c.looks)) setColours(c.looks);
         if (Array.isArray(c.cards)) setCards(c.cards);
@@ -905,7 +914,7 @@ function App() {
             {/* Solo con subtitulos puestos: sin texto que tapar, seguir la
                 mascara es trabajo tirado. Un boton que no puede hacer nada no
                 se enseña apagado, se quita, como el temblor de arriba. */}
-            {captions && (
+            {captions && canBehind !== false && (
               <button
                 className={`chk ${behind ? "on" : ""}`}
                 onClick={() => setBehind(!behind)}

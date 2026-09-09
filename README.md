@@ -8,7 +8,7 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-2013%20checks-00b359.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-2024%20checks-00b359.svg)](tests/)
 
 **[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
 
@@ -367,7 +367,7 @@ test_castellano.py        565 strings    every accent in the Spanish the app sho
 test_idiomas.py            22 checks     Spanish and English say the same things
 test_exportar.py           24 cases      the export numbers, pinned where they were measured
 test_promesas.py           25 promises   this README matches the code
-test_render.py             18 cases      a real video in, a real MP4 out
+test_render.py             29 cases      a real video in, a real MP4 out, destination and all
 test_aprende.py           126 cases      reads a video back and names its style
 test_galeria.py           101 cases      a copied style keeps what was measured
 test_leer.py               76 cases      reads burned-in captions, colour by word
