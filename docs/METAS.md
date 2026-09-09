@@ -100,6 +100,42 @@ con cortes, zooms y **captions nativos**, y todo se ve pasar en pantalla en dire
       0,75 gana ×1.06 (10,17), que es justo donde acaba la curva. Si el comp no entra, el
       zoom se queda quieto como antes en vez de perderse.
 
+- [x] **Seguir una máscara, que es lo que Blackmagic cobra a 295 dólares** (2026-09-09).
+      Comprobado ese día: **Magic Mask no está en la versión Free**, y es una de las tres
+      cosas por las que se compra Studio. Vidorq la hace en la gratis.
+      Piezas: `skill/helpers/mascara.py` (el seguimiento) y `skill/helpers/segmentador.py`
+      (qué píxeles son el objeto), separadas a propósito porque segmentar cambia de modelo
+      cada seis meses y seguir no.
+      **El modelo es U-2-Net, Apache 2.0**, 4,36 MB, en `skill/models/u2netp.onnx` con su
+      licencia y su sha256 al lado. Se descartó `RobustVideoMatting`, que es mejor y trae
+      memoria temporal de fábrica, **porque es GPL-3.0** y una dependencia copyleft dentro
+      de algo que se cobra obliga a abrir el producto entero (regla AG). YOLO-seg es AGPL,
+      también fuera.
+      **Medido sobre dos escenas, y el par es lo que enseña:**
+      con la escena sintética sola se habría escrito «la memoria entre fotogramas es
+      decoración, quítala» (temblor 0,01277 sin ella contra 0,01285 con ella), y es FALSO:
+      en metraje real baja el temblor un 35,2%, y sumada a preguntar 1 de cada 3 lo baja un
+      70% y va un 60% más rápido. El modelo y la memoria no compiten, se suman: el modelo
+      parte el temblor por dos y la memoria vuelve a partir lo que queda.
+      Acierto contra respuesta conocida: **IoU 0,989** (GrabCut daba 0,881), y **0,43 s por
+      fotograma contra 5,3**, o sea de 36 minutos por minuto de vídeo a 6.
+- [x] **El texto por detrás de ti** (2026-09-09): el efecto que se hace con Magic Mask, y el
+      primero que usa el seguimiento. `--detras` en el renderizador recorta al sujeto sobre
+      el segmento ya montado y lo compone encima de los subtítulos, así que el texto pasa por
+      detrás. **Visto en pantalla**, comparando el mismo fotograma con y sin el efecto: sin
+      él se lee «ESTO PASA» entero, con él se lee «ES…SA» y el centro queda tapado por la
+      figura. En la ventana es la casilla «Texto por detrás de ti», que solo aparece con
+      subtítulos puestos.
+- [~] **La máscara como polígono EDITABLE dentro de Resolve**: pendiente, y con el camino
+      abierto. Hoy la máscara llega como recorte con alfa, que es el camino ya probado
+      (`place_overlays` lleva meses metiendo PNG con alfa en su pista). Lo que falta es
+      escribir un `Polygon` de Fusion animado, que la dejaría retocable a mano en el timeline.
+      **Condición de desbloqueo**: correr `resolve/VidorqPoly.py` con Resolve abierto. La
+      sintaxis no se puede sacar de fuera: se leyeron las 417 plantillas de fábrica de
+      Blackmagic el 2026-09-09 y hay **75 ficheros con `Polyline` y CERO con un nodo
+      `Polygon`**. Se le pregunta a Fusion desde dentro, que es el método que resolvió
+      Character Level Styling.
+
 **Sesión**: 🎬 Sesión 3 de `Vidorq-Core/SESIONES.md`. Solo está bloqueada por 2 clics de UI.
 
 ## META B: existe para alguien
@@ -133,6 +169,24 @@ menos de 30 minutos.
       contestaba a cualquier web (`Access-Control-Allow-Origin: *`); el estilo y el ritmo de
       "Tu marca" no llegaban a la edición; pedir un rótulo encendía los subtítulos; y el
       rótulo salía o no según el humor del modelo local.
+- [x] **Elegir a dónde va el vídeo, no qué significa un códec** (2026-09-09): siete destinos
+      (`skill/helpers/exportar.py`), de YouTube 1080p a un máster que guardas, cada uno con el
+      caudal, el audio y el volumen que ese sitio pide. Los números son los de YouTube,
+      comprobados ese día en su documentación: 8 Mbps a 1080p, 12 a partir de 50 fps, 40 a
+      2160p, audio estéreo a 384 kbps. Las plataformas normalizan a **-14 LUFS**, así que el
+      archivo sale ya en su sitio en vez de que lo bajen ellas después de comprimir, que suena
+      peor; el máster no se toca a propósito.
+      **Tres cosas que NO hace, y cada una salió de medir:** no decide la forma (eso ya tenía
+      dueño, y dos mandos para lo mismo acaban diciendo cosas distintas: el preset solo
+      sugiere y mueve el selector a la vista); solo BAJA el tamaño, nunca lo agranda; y el
+      caudal sigue a los píxeles de salida y no a la altura, porque un vertical de 1080x1920
+      y un horizontal de 1920x1080 tienen la misma superficie y por altura el vertical pedía
+      20 Mbps para hacer lo que el otro hace con 8.
+      **Medido de punta a punta**: cuatro renders reales dan 1080x1920, 1920x1080, 1280x720 y
+      1920x1080 a 4,90 / 7,92 / 2,49 / 10,51 MB, los dos que lo piden clavan -14,0 LUFS y los
+      otros dos se quedan en el -21,8 del original. Con salida a Resolve el destino también
+      cuenta: deja los ajustes de Deliver puestos, así que le das a exportar y ya está.
+      Fijado en `tests/test_exportar.py` (24 casos).
 - [x] **README público al día** (2026-08-19): ya cuenta la instalación de un clic
       (`resolve\instalar.ps1` + `Workspace > Scripts > Vidorq`), no la vieja de tres scripts,
       y lleva editar leyendo, reordenar, deshacer e historial con sus medidas.
