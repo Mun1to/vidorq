@@ -96,6 +96,30 @@ def casos():
         yield ("el detector pesa lo que dice el README",
                abs(real - int(m.group(1))) <= 1, True)
 
+    # "with a 4.36 MB model". Igual que el detector: el archivo esta en el repo
+    # y se pesa, en vez de creerse la cifra. Un modelo que se cambia por otro y
+    # deja el numero viejo puesto es la misma clase de mentira barata.
+    u2net = RAIZ / "skill" / "models" / "u2netp.onnx"
+    m = re.search(r"([\d.]+)\s*MB\s+model", readme)
+    yield ("el README cuenta lo que pesa el modelo de mascara", bool(m), True)
+    if m and u2net.exists():
+        real_mb = u2net.stat().st_size / 1048576.0
+        yield ("el modelo de mascara pesa lo que dice el README",
+               abs(real_mb - float(m.group(1))) <= 0.05, True)
+    # Y va con su licencia al lado, que es lo que separa "lo use" de "lo puedo
+    # vender". Sin esto, el dia que se cambie de modelo nadie se acuerda.
+    yield ("el modelo de mascara viaja con su licencia",
+           (RAIZ / "skill" / "models" / "LICENSE.u2net.txt").exists(), True)
+
+    # "Seven of them". Los destinos de exportacion envejecen igual que los
+    # estilos: se añade uno y el README se queda contando los de antes.
+    import exportar
+    m = re.search(r"\*\*Export destinations\.\*\*\s+(\w+)\s+of them", readme)
+    yield ("el README cuenta los destinos de exportacion", bool(m), True)
+    if m:
+        yield ("destinos que promete el README", cifra(m.group(1)),
+               len(exportar.PRESETS))
+
     # La landing dice lo mismo con otras palabras, y envejece igual. Ahi la
     # frase es "diez estilos y ocho entradas", con los numeros escritos con
     # letra porque es prosa y no una tabla.

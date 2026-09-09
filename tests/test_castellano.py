@@ -105,6 +105,19 @@ def textos_de_catalogos():
 
     def suelta(origen, items):
         for x in items:
+            # Los estilos que el usuario ha copiado de sus videos NO se miran, y
+            # esto no es dejar un hueco: sus textos son DATOS de su disco, no
+            # codigo de este repo. Mirandolos, esta prueba daba rojo en la
+            # maquina de quien tuviera un estilo guardado con una falta y verde
+            # en cualquier otra, o sea que dejaba de medir el repo y pasaba a
+            # medir el ordenador. Una prueba que sale distinta segun la maquina
+            # se acaba ignorando, y entonces ya no protege nada.
+            #
+            # Lo que SI se vigila es el molde que los genera: si `galeria.py`
+            # escribe la nota sin una tilde, la falta aparece en cada estilo
+            # nuevo, y eso lo cazan los textos de `galeria` mas abajo.
+            if x.get("propio"):
+                continue
             yield (origen, x.get("id", "?"), x.get("label", ""))
             yield (origen, x.get("id", "?"), x.get("note", ""))
 

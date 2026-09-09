@@ -8,7 +8,7 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1943%20checks-00b359.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-2013%20checks-00b359.svg)](tests/)
 
 **[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
 
@@ -121,6 +121,43 @@ picture.
 **Vertical.** 9:16, 4:5, 1:1 or 16:9. The crop is aimed at the **face** by a
 227 KB detector that runs on the CPU, so a vertical short does not cut the
 speaker out of frame. There is a manual slider when you would rather choose.
+
+**Text behind you.** The captions pass *behind* the person, which is the effect
+people buy DaVinci Resolve Studio for: **Magic Mask is not in the free edition**,
+checked on 9-sep-2026. Vidorq does it in the free one, with a 4.36 MB model.
+Segmenting and tracking are kept apart on purpose, because they are different
+problems: which pixels are the subject in this frame is a question where a better
+model appears every six months, and whether that is the same subject as before is
+what has to be built. Segment each frame on its own and the outline flickers, so
+the previous mask is dragged along the measured motion of the picture and mixed
+with what the model proposes.
+
+Measured on two scenes, and the pair is the point. On a synthetic one with a known
+answer, the frame-to-frame memory does nothing at all (0.01277 wobble without it,
+0.01285 with it) and on that evidence alone it should be dropped. On real footage
+it takes 35.2% off, and asking the model one frame in three takes off 70% while
+running 60% faster. Accuracy against the known answer is **0.989 IoU**, at 0.43
+seconds per frame.
+
+The model is **U-2-Net, Apache 2.0**, shipped in `skill/models/` with its licence
+and its sha256, the same deal as the face detector: it runs on the CPU and works
+with the network unplugged. `RobustVideoMatting` is better and comes with temporal
+memory built in, but it is GPL-3.0, and a copyleft dependency inside something
+that gets sold forces the whole thing open, so it is out. YOLO-seg is AGPL, also
+out.
+
+**Export destinations.** Seven of them, from YouTube 1080p to a master you keep,
+and each one carries the bitrate, the audio rate and the loudness that place
+actually asks for. The numbers are YouTube's own: 8 Mbps at 1080p, 12 from 50 fps
+up, 40 at 2160p, 384 kbps stereo. Platforms normalise to about **-14 LUFS**, so
+the file leaves at -14 instead of being turned down after compression, which
+sounds worse; a master is left alone. Picking a destination does not take over the
+frame shape, which already has its own control - it suggests one and moves that
+control where you can see it. Size only ever goes down, never up. And the bitrate
+follows the pixel count rather than the height, because a 1080x1920 vertical and a
+1920x1080 wide are the same surface: by height the vertical asked for 20 Mbps to
+do what the other does with 8. With Resolve as the output the destination still
+counts, since the same numbers are left sitting in the Deliver page.
 
 **It keeps editing, and it answers.** The screen at the end is not a dead end,
 it is a conversation: type the next change and it is applied on top of the edit
@@ -297,6 +334,16 @@ your afternoon. Measured on 21.0.4.5:
   attempted.
 - Keyframes are not settable by API. Vidorq works around this by writing the
   animation into a `.comp` file, which Resolve imports splines and all.
+- **The mask is not editable by hand yet.** "Text behind you" reaches Resolve as
+  an alpha cutout, which works, but you cannot grab a point and drag it the way
+  you would with a real mask. Writing it as an animated Fusion `Polygon` is what
+  would allow that, and the syntax cannot be worked out from outside: all 417
+  factory templates Blackmagic ships were read on 9-sep-2026 and **75 carry a
+  `Polyline`, none carries a `Polygon` node**. `resolve/VidorqPoly.py` asks Fusion
+  from the inside, which is the method that solved character-level styling.
+- **Tracking a mask is the slow part**: 0.43 s per frame, so roughly six minutes
+  of waiting per minute of video. It is off by default and says so before you
+  wait, rather than after.
 
 Everything above was checked by rendering it and looking at the frame. The
 details are in [docs/SUBTITULOS.md](docs/SUBTITULOS.md) and
@@ -314,17 +361,19 @@ python tests/todas.py
 ```
 
 ```
-test_relojes.py          411 cases          the two clocks, the cut engine, the safety nets
-test_understanding.py    533 cases          what a sentence means, and what a button does
-test_castellano.py       558 strings        every accent in the Spanish the app shows
-test_idiomas.py           22 checks         Spanish and English say the same things
-test_promesas.py          20 promises       this README matches the code
-test_render.py            18 cases          a real video in, a real MP4 out
-test_aprende.py          126 cases          reads a video back and names its style
-test_galeria.py          101 cases          a copied style keeps what was measured
-test_leer.py              76 cases          reads burned-in captions, colour by word
-test_efectos.py           48 cases          hard cut vs dissolve, and how the text enters
-test_agente.py            30 cases          what it tells another agent, limits included
+test_relojes.py           411 cases      the two clocks, the cut engine, the safety nets
+test_understanding.py     549 cases      what a sentence means, and what a button does
+test_castellano.py        565 strings    every accent in the Spanish the app shows
+test_idiomas.py            22 checks     Spanish and English say the same things
+test_exportar.py           24 cases      the export numbers, pinned where they were measured
+test_promesas.py           25 promises   this README matches the code
+test_render.py             18 cases      a real video in, a real MP4 out
+test_aprende.py           126 cases      reads a video back and names its style
+test_galeria.py           101 cases      a copied style keeps what was measured
+test_leer.py               76 cases      reads burned-in captions, colour by word
+test_efectos.py            48 cases      hard cut vs dissolve, and how the text enters
+test_agente.py             30 cases      what it tells another agent, limits included
+test_mascara.py            18 cases      tracks a mask against a known answer
 ```
 
 Eleven seconds, no model, no network, no API key.

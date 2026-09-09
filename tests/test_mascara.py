@@ -121,8 +121,19 @@ def casos(carpeta):
 
     # El recorte con alfa, que es lo que hace el efecto de texto por detras.
     mov = carpeta / "sujeto.mov"
-    mk.recortar_sujeto("ffmpeg", path, mov, dur=0.4)
+    _, areas = mk.recortar_sujeto("ffmpeg", path, mov, dur=0.4)
     out.append(("escribe el recorte con alfa", mov.exists() and mov.stat().st_size > 0, True))
+    # Y de paso dice cuanto ocupaba, que es lo que deja decidir si el efecto
+    # merece la pena antes de componerlo.
+    out.append(("devuelve el area de cada fotograma", len(areas) > 0, True))
+    out.append(("y aqui hay sujeto de sobra", mk.parece_sujeto(areas)[0], True))
+    # Los dos extremos que hay que rechazar, sin depender de ningun video.
+    out.append(("una mascara diminuta se rechaza",
+                mk.parece_sujeto([0.001] * 10)[0], False))
+    out.append(("una que tapa el cuadro entero tambien",
+                mk.parece_sujeto([0.95] * 10)[0], False))
+    out.append(("y el rechazo viene con su motivo escrito",
+                bool(mk.parece_sujeto([0.001] * 10)[1]), True))
     png = carpeta / "f.png"
     import subprocess
     subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(mov),
