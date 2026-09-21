@@ -77,6 +77,26 @@ Write-Host "Configuracion escrita en $confDir\resolve.json"
 Copy-Item (Join-Path $PSScriptRoot "Vidorq.py") (Join-Path $scripts "Vidorq.py") -Force
 Write-Host "Instalado: Workspace > Scripts > Vidorq"
 
+# 2b. DaVinci gratis 21.1 o posterior ya no ejecuta Python, y el menu no ensena
+# Vidorq.py. Ahi va Vidorq.lua, que trae al timeline el ultimo video editado (el
+# motor le escribe la ruta al terminar cada edicion). Solo en esas versiones: donde
+# Python si corre, dos entradas "Vidorq" en el menu no se sabria cual es cual.
+# Y solo si no esta ya, para no pisar la ruta que haya dejado el motor.
+$lua = Join-Path $scripts "Vidorq.lua"
+$resolveExe = $null
+$lnk = Join-Path $env:USERPROFILE "Desktop\DaVinci Resolve.lnk"
+if (Test-Path $lnk) { $resolveExe = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk).TargetPath }
+if (-not ($resolveExe -and (Test-Path $resolveExe))) { $resolveExe = "C:\Program Files\Blackmagic Design\DaVinci Resolve\Resolve.exe" }
+if (Test-Path $resolveExe) {
+    $info = (Get-Item $resolveExe).VersionInfo
+    $partes = "$($info.ProductVersion)".Split(".")
+    $sinPython = ($info.ProductName -notmatch "Studio") -and ([int]$partes[0] -gt 21 -or ([int]$partes[0] -eq 21 -and [int]$partes[1] -ge 1))
+    if ($sinPython -and -not (Test-Path $lua)) {
+        Copy-Item (Join-Path $PSScriptRoot "Vidorq.lua") $lua
+        Write-Host "DaVinci $($info.ProductVersion) gratis no ejecuta Python: instalado tambien Vidorq.lua"
+    }
+}
+
 # 3. Las entradas viejas se apartan, no se borran. Tres Vidorq en el menu confunden.
 foreach ($viejo in "VidorqBridge.py", "VidorqPanel.py", "VidorqProbe.py", "CursorBridge.py") {
     $ruta = Join-Path $scripts $viejo

@@ -1132,6 +1132,55 @@ def _exe_de_resolve():
     return None
 
 
+# Donde DaVinci busca los scripts del menu de este usuario, y la plantilla del
+# script Lua que se deja ahi. Ver `dejar_en_davinci`.
+_SCRIPTS_DAVINCI = (Path(os.environ.get("APPDATA", "")) / "Blackmagic Design"
+                    / "DaVinci Resolve" / "Support" / "Fusion" / "Scripts" / "Utility")
+_PLANTILLA_LUA = Path(__file__).resolve().parent.parent / "resolve" / "Vidorq.lua"
+_MARCA_LUA = 'local RUTA = "__VIDEO__"'
+
+
+def dejar_en_davinci(video):
+    """Deja este video a un clic desde Workspace > Scripts > Vidorq.
+
+    En DaVinci gratis 21.1 el puente de Python ya no corre, asi que el timeline no
+    se puede montar desde fuera. Lo que SI corre es un script Lua, capado: no lee
+    archivos, pero puede importar un video y ponerlo en el timeline. Como no puede
+    leer cual es el ultimo, se lo escribimos dentro: este archivo se reescribe
+    despues de cada edicion con la ruta de ESE video. DaVinci lee el contenido al
+    pulsarlo, asi que siempre trae el ultimo.
+
+    La ruta va en una cadena larga de Lua (`[==[ ... ]==]`), que no interpreta
+    barras ni comillas: una ruta con espacios, tildes o una barra invertida no
+    rompe el script. Se escribe con barras normales, que DaVinci acepta.
+
+    Nunca borra nada. Solo escribe `Vidorq.lua` al lado de `Vidorq.py`, que no se
+    toca, y se lo salta en silencio si algo falla: un video editado bien no puede
+    darse por fallido porque no se pudo dejar el atajo.
+
+    Solo en las versiones sin Python. Donde `Vidorq.py` si corre, el menu ya tiene
+    su Vidorq, y un segundo con el mismo nombre no se sabria cual es cual.
+    """
+    try:
+        if resolve_sin_python()[0] is not True:
+            return None
+        if not _PLANTILLA_LUA.exists() or not _SCRIPTS_DAVINCI.parent.exists():
+            return None
+        ruta = str(Path(video)).replace("\\", "/")
+        if "]==]" in ruta:
+            return None                # no cabe en la cadena larga; mejor nada
+        texto = _PLANTILLA_LUA.read_text(encoding="utf-8")
+        if _MARCA_LUA not in texto:
+            return None
+        texto = texto.replace(_MARCA_LUA, "local RUTA = [==[%s]==]" % ruta)
+        _SCRIPTS_DAVINCI.mkdir(parents=True, exist_ok=True)
+        destino = _SCRIPTS_DAVINCI / "Vidorq.lua"
+        destino.write_text(texto, encoding="utf-8")
+        return destino
+    except Exception:
+        return None
+
+
 def resolve_sin_python():
     """(sin_python, version) del DaVinci instalado.
 
@@ -3632,6 +3681,9 @@ def run_job(req):
                 cmd.append("--no-captions")
             run_render(cmd, out_file)
             result = str(out_file)
+            # Deja el video a un clic desde el menu de DaVinci, que en la gratis
+            # 21.1 es la unica forma de meterlo ahi (ver `dejar_en_davinci`).
+            dejar_en_davinci(out_file)
 
         # Lo que hace falta para que la SIGUIENTE frase sea un retoque y no una
         # edicion desde cero. Se guarda al final, con el EDL ya definitivo.
