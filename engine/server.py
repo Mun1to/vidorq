@@ -83,6 +83,7 @@ import overlays  # noqa: E402
 import previews  # noqa: E402
 import speech  # noqa: E402
 import exportar as exp  # noqa: E402
+import curvas as crv  # noqa: E402
 import mascara  # noqa: E402
 import segmentador  # noqa: E402
 
@@ -3038,6 +3039,9 @@ def run_job(req):
         caption_preset = preset_de(req, marca)
         caption_anim = anim_de(req, marca)
         export = export_de(req, marca)
+        # Vacia = la curva propia de cada animacion, que ya es de calidad. Un
+        # nombre que no existe tambien cae ahi, en vez de tumbar la edicion.
+        curva = req.get("curve") if crv.conocida(req.get("curve")) else ""
         # El texto por detras del sujeto. Solo tiene sentido con subtitulos
         # puestos: sin texto que tapar, seguir la mascara es trabajo tirado.
         detras = bool(req.get("behind")) and bool(captions)
@@ -3093,6 +3097,7 @@ def run_job(req):
             caption_preset = fresh.get("captionPreset") or caption_preset
             caption_anim = fresh.get("captionAnim", caption_anim)
             export = fresh.get("export") or export
+            curva = fresh.get("curve", curva) if crv.conocida(fresh.get("curve", curva)) else curva
             detras = fresh.get("behind", detras) and captions
             colour = fresh.get("look", colour)
             output = fresh.get("output") or output
@@ -3588,6 +3593,8 @@ def run_job(req):
                    "--export", export]
             if detras:
                 cmd.append("--detras")
+            if curva:
+                cmd += ["--curva", curva]
             if transition and transition != "none":
                 cmd += ["--transition", str(transition)]
             if ratio and ratio != "source":
@@ -4221,6 +4228,10 @@ class Handler(BaseHTTPRequestHandler):
                         # ventana pide todos los catalogos de una vez al abrir.
                         "exports": exp.catalogo(lang),
                         "defaultExport": exp.POR_DEFECTO,
+                        # COMO se mueve lo que entra: subtitulos y rotulos. La
+                        # animacion dice de donde sale; la curva, con que ritmo.
+                        "curves": crv.catalogo(lang),
+                        "defaultCurve": crv.POR_DEFECTO,
                         # Si esta maquina puede seguir una mascara. Sin OpenCV
                         # no se puede, y una casilla que aparece y luego falla
                         # es peor que una que no aparece.

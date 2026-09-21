@@ -220,7 +220,7 @@ def _cards_by_kind(cards, desde, hasta):
 
 def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
                  preset=cap.DEFAULT_PRESET, anim=None, ratio="source", crop_x=0.5,
-                 look="", cdl=None, chunks_edited=False, cards=None, sal=None, detras=False):
+                 look="", cdl=None, chunks_edited=False, cards=None, sal=None, detras=False, curva=None):
     """`chunks_edited` dice en que reloj vienen los subtitulos.
 
     Los que se construyen aqui salen de la transcripcion, o sea del reloj del
@@ -307,7 +307,7 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
         if do_caps:
             a0, b0 = (ed_at, ed_at + (e - s)) if chunks_edited else (s, e)
             cap.to_ass(seg_dir / f"seg_{i:04d}.ass", chunks, a0, b0, out_w, out_h,
-                       preset, anim)
+                       preset, anim, curva=curva)
             vf.append(f"subtitles=seg_{i:04d}.ass")
         # Los rotulos y las chapas van en su PROPIO archivo .ass, uno por tipo:
         # un ASS lleva un estilo por nombre y aqui hacen falta dos pintas
@@ -323,7 +323,7 @@ def render_video(ffmpeg, source, edl, chunks, seg_dir: Path, do_caps, do_zoom,
                 continue
             name = f"seg_{i:04d}_c{j}.ass"
             cap.to_ass(seg_dir / name, trozo, ed_at, ed_at + (e - s),
-                       out_w, out_h, p=p_ov)
+                       out_w, out_h, p=p_ov, curva=curva)
             vf.append(f"subtitles={name}")
         ed_at += e - s
         seg_name = f"seg_{i:04d}.mp4"
@@ -711,6 +711,12 @@ def main():
     anim = None
     if "--anim" in sys.argv:
         anim = sys.argv[sys.argv.index("--anim") + 1]
+    # COMO se mueve lo que entra (subtitulos y rotulos): la curva. La animacion
+    # dice de donde sale; esto dice con que ritmo llega. Vacio = la que traiga
+    # cada animacion, que ya es una curva de calidad.
+    curva = None
+    if "--curva" in sys.argv:
+        curva = sys.argv[sys.argv.index("--curva") + 1]
     # Ready-made chunks win over the transcript: this is how a translation gets
     # burned in, since translated words have no per-word timings to rebuild from.
     ratio = "source"
@@ -792,7 +798,7 @@ def main():
         seg_files = render_video(ffmpeg, source, edl, chunks, seg_dir,
                                  do_caps, do_zoom, preset, anim, ratio, crop_x,
                                  look, cdl, chunks_edited=bool(given_chunks),
-                                 cards=cards, sal=sal, detras=detras)
+                                 cards=cards, sal=sal, detras=detras, curva=curva)
         # Un video mudo se entrega mudo, no se pierde. Antes reventaba aqui, con
         # el video ya renderizado entero y un IndexError por mensaje.
         hay_audio = tiene_audio(source) or bool(voices)

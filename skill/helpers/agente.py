@@ -59,6 +59,9 @@ def capacidades():
                     "sombra difusa o halo", "la posicion y el tamaño medidos",
                     "cortes, zooms y reencuadre vertical",
                     "el texto POR DETRAS del sujeto, siguiendole la mascara",
+                    "el RITMO con que entra lo que entra (subtitulos y rotulos): "
+                    "suave, rapida, muelle, salto, elastica, rebote o lineal. "
+                    "La animacion dice de donde sale; la curva, como llega",
                     "el archivo con el caudal, el audio y el volumen del sitio "
                     "al que va (YouTube, TikTok, Instagram, X, WhatsApp o un "
                     "master), normalizado a -14 LUFS donde toca"],

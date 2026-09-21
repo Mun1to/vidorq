@@ -8,7 +8,7 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-2025%20checks-00b359.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-2081%20checks-00b359.svg)](tests/)
 
 **[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
 
@@ -117,6 +117,23 @@ than mid-gesture, and jump cuts get hidden with a small alternating zoom.
 freely, in both outputs. Three styles carry a real halo from Fusion's Glow node. In Resolve they
 arrive as **editable** Text+ titles on their own track, not burned into the
 picture.
+
+**Motion curves.** How the text arrives is its own choice, separate from where it
+comes from: smooth, snappy, spring, back, elastic, bounce, or linear. It applies to
+the captions and to the titles and badges, so everything entering the frame keeps
+one rhythm. The curves are the standard ones (Penner's easings, and the damped
+spring SwiftUI and Framer Motion use), because the eye already knows them from
+every phone.
+
+This fixed something measured, not a matter of taste. Counting the pixels of the
+text frame by frame, every entrance used to move at **constant speed**: the pop
+grew +0.10, +0.11, +0.10, +0.10 per frame and then stopped dead, which is exactly
+what reads as a cheap animation. Each entrance was three hand-placed keyframes
+joined by straight lines. Now each one names a curve and the keyframes are
+generated from it, one per frame at 60, so every frame shown carries the exact
+value and the MP4 and Fusion paths draw from the same curve. The spring had to be
+tuned twice: its first version was still 4% short of its final size at 95% of
+the entrance, and jumped the rest on the last frame.
 
 **Vertical.** 9:16, 4:5, 1:1 or 16:9. The crop is aimed at the **face** by a
 227 KB detector that runs on the CPU, so a vertical short does not cut the
@@ -363,9 +380,10 @@ python tests/todas.py
 ```
 test_relojes.py           411 cases      the two clocks, the cut engine, the safety nets
 test_understanding.py     549 cases      what a sentence means, and what a button does
-test_castellano.py        566 strings    every accent in the Spanish the app shows
+test_castellano.py        569 strings    every accent in the Spanish the app shows
 test_idiomas.py            22 checks     Spanish and English say the same things
 test_exportar.py           24 cases      the export numbers, pinned where they were measured
+test_curvas.py             53 cases      text eases in and out, never at constant speed
 test_promesas.py           25 promises   this README matches the code
 test_render.py             29 cases      a real video in, a real MP4 out, destination and all
 test_aprende.py           126 cases      reads a video back and names its style

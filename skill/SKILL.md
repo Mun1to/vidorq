@@ -44,6 +44,9 @@ PY="$PWD/.venv/Scripts/python.exe"
 #                           Si el vídeo no tiene un sujeto que recortar lo dice
 #                           por `MASCARA_NO:` y entrega el vídeo con los
 #                           subtítulos delante, en vez de con manchas encima.
+#      --curva <nombre>     CÓMO entran el texto y los rótulos: suave, rapida,
+#                           muelle, atras, elastica, rebote o lineal. Sin esto,
+#                           cada animación usa la suya, que ya es de calidad.
 #      --no-captions        sin subtítulos
 #      --no-zoom            sin punch zoom
 #
@@ -86,6 +89,10 @@ PY="$PWD/.venv/Scripts/python.exe"
   RobustVideoMatting es GPL-3.0 y YOLO-seg es AGPL, así que ninguno de los dos vale dentro de
   un producto que se vende.
 - **exportar.py** — los siete destinos, con sus números y de dónde salen.
+- **curvas.py** — las curvas de movimiento: las de Penner y el muelle físico de SwiftUI y
+  Framer Motion. Funciones puras de `t` en [0, 1]. `claves()` las convierte en la lista de
+  `(momento, valor)` que ya entendían el MP4 y Fusion, así que los dos caminos salen de la
+  misma curva. Existe porque se midió que las entradas iban a velocidad constante.
 
 ## Requisitos
 

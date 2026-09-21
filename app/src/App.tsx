@@ -109,6 +109,11 @@ function App() {
   // El texto por detras del sujeto. Cuesta tiempo (hay que seguir la mascara
   // fotograma a fotograma), asi que se pide, no viene puesto.
   const [behind, setBehind] = useState(false);
+  // COMO entra lo que entra (subtitulos y rotulos): la curva de movimiento.
+  // Vacia = la propia de cada animacion, que ya es de calidad; se elige solo
+  // para cambiar el ritmo, no para arreglarlo.
+  const [curves, setCurves] = useState<CaptionStyle[]>([]);
+  const [curveId, setCurveId] = useState("");
   // Si esta maquina puede seguir una mascara. null mientras no se ha
   // preguntado: no se esconde lo que todavia no se sabe.
   const [canBehind, setCanBehind] = useState<boolean | null>(null);
@@ -217,6 +222,7 @@ function App() {
       cards?: CaptionStyle[];
       exports?: ExportPreset[]; defaultExport?: string;
       canBehind?: boolean; behindEngine?: string;
+      curves?: CaptionStyle[]; defaultCurve?: string;
     }>(`/captions/presets?lang=${lang}`)
       .then((c) => {
         if (!c || !Array.isArray(c.list)) return;
@@ -240,6 +246,7 @@ function App() {
           // Y si no se puede, no se deja marcado de una sesion anterior.
           if (!c.canBehind) setBehind(false);
         }
+        if (Array.isArray(c.curves)) setCurves(c.curves);
         if (Array.isArray(c.looks)) setColours(c.looks);
         if (Array.isArray(c.cards)) setCards(c.cards);
       })
@@ -561,7 +568,7 @@ function App() {
         ...(extra || {}),
         captionPreset: capStyle, captionAnim: capAnim,
         vision: seeVideo, shake, translate: transLang, translateCaptions: burnTrans,
-        transition, ratio, cropX, look: colour, export: exportId, behind,
+        transition, ratio, cropX, look: colour, export: exportId, behind, curve: curveId,
       });
       if (j.error) { setProgress({ step: "", percent: 0, error: j.error }); setPhase("error"); }
     } catch {
@@ -1075,6 +1082,36 @@ function App() {
                   ))}
                   <small className="capnote">
                     {capAnim ? capAnims.find((a) => a.id === capAnim)?.note : t("captions.anim.ownNote")}
+                  </small>
+                </div>
+              )}
+
+              {/* La curva va aparte de la animacion y justo debajo: la animacion
+                  dice DE DONDE sale el texto y la curva CON QUE RITMO llega, y
+                  son dos preguntas distintas. Vale tambien para los rotulos, asi
+                  que todo lo que entra en el plano lleva el mismo ritmo. */}
+              {captions && curves.length > 0 && (
+                <div className="capstyles anims">
+                  <span className="caplabel">{t("captions.curve")}</span>
+                  <button
+                    className={`capstyle ${curveId === "" ? "sel" : ""}`}
+                    onClick={() => setCurveId("")}
+                    title={t("captions.curve.ownNote")}
+                  >
+                    {t("captions.curve.own")}
+                  </button>
+                  {curves.map((c) => (
+                    <button
+                      key={c.id}
+                      className={`capstyle ${curveId === c.id ? "sel" : ""}`}
+                      onClick={() => setCurveId(c.id)}
+                      title={c.note}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                  <small className="capnote">
+                    {curveId ? curves.find((c) => c.id === curveId)?.note : t("captions.curve.ownNote")}
                   </small>
                 </div>
               )}
