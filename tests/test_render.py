@@ -254,7 +254,22 @@ def casos(casa, fuente):
     # test_mascara.py, que tiene la respuesta conocida.
     det, log5 = _render(fuente, casa, "detras.mp4", "--detras")
     yield "render: pedir el texto por detras no rompe nada", det.exists(), True
-    if det.exists():
+    # Lo mismo que mira mascara.disponible(), con el mismo interprete que el
+    # render, que se lanza con sys.executable.
+    try:
+        import cv2  # noqa: F401
+        hay_opencv = True
+    except ImportError:
+        hay_opencv = False
+    if not hay_opencv:
+        # Sin OpenCV no hay seguimiento: lo que se exige es que lo diga y que
+        # el video salga con su texto, que antes se caia el render entero.
+        yield ("render: sin OpenCV, lo dice",
+               "no tiene OpenCV" in log5, True)
+        if det.exists():
+            yield ("render: y el subtitulo sale delante",
+                   _hay_subtitulo(det, 1.0), True)
+    elif det.exists():
         yield ("render: lo intenta y lo dice", "MASCARA:" in log5, True)
         yield ("render: sin sujeto que recortar, lo avisa",
                "MASCARA_NO:" in log5, True)

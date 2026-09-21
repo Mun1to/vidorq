@@ -766,6 +766,12 @@ def main():
     # El texto por detras del sujeto. Cuesta caro (hay que seguir la mascara
     # fotograma a fotograma), asi que se pide, no viene puesto.
     detras = "--detras" in sys.argv
+    if detras and not mascara.disponible():
+        # Sin OpenCV no hay con que seguir al sujeto. La ventana ya esconde la
+        # casilla, pero un agente puede pedirlo por aqui: se dice y el video sale
+        # con el texto DELANTE, en vez de tirar el render entero.
+        print("MASCARA_NO: esta maquina no tiene OpenCV, el texto va delante", flush=True)
+        detras = False
     edl = json.loads(Path(edl_path).read_text(encoding="utf-8"))["segments"]
     transcript = json.loads(Path(tr_path).read_text(encoding="utf-8"))
     # The line length depends on the frame it has to fit in, so the output shape
