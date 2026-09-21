@@ -204,11 +204,23 @@ DEFAULT_PRESET = "pop"
 # A look and a movement are two separate choices, the way CapCut splits style
 # from animation, so any preset can be asked for with any of these.
 #
-# scale : keyframes as (fraction_of_the_entrance, multiplier_of_the_size).
-#         Everything here is a spline on a NUMBER input, which is the only kind
-#         of animation both renderers can actually deliver: a point input needs
-#         a path tool and Text+ ignores its own WriteOn, so no slide and no
-#         typing. What is left still covers the entrances people use.
+# desde : the size the entrance starts at, as a multiple of the final size.
+# curva : HOW it gets from there to 1.0, by name from curvas.CURVAS. This is the
+#         part that decides whether it looks expensive or cheap. Before
+#         2026-09-21 every entrance was three hand-placed keyframes joined by
+#         straight lines, which is constant speed and a dead stop at each one:
+#         measured frame by frame, the "pop" grew at +0.10 per frame four frames
+#         running and then stopped cold. A curve accelerates and eases in.
+# rebote: only for curva "muelle", how much it overshoots (0 = none).
+# dur   : how long the entrance lasts, in beats (one beat is ~70 ms in the MP4).
+# scale : hand keyframes, (fraction_of_the_entrance, multiplier). Only for moves
+#         that are NOT an entrance from one size to another, like the throb,
+#         which goes out and comes back. Everything else is generated from its
+#         curve by `escala_de`, so the MP4 and Fusion can never disagree.
+#
+# Everything here is still a spline on a NUMBER input, which is the only kind of
+# animation both renderers can deliver: a point input needs a path tool and Text+
+# ignores its own WriteOn, so no slide and no typing in the Resolve path.
 # fade  : True to bring every shading element up from transparent.
 # blur  : starting blur in pixels, focused to 0 (Fusion Blur node / libass \blur).
 # glow  : starting glow size multiplier, for looks that carry a halo.
@@ -217,28 +229,32 @@ ANIMS = {
         "label": {"es": "Pop", "en": "Pop"},
         "note": {"es": "Entra pequeña, se pasa un poco y se asienta.",
                  "en": "Comes in small, overshoots a little, settles."},
-        "scale": [(0.0, 0.62), (1.0, 1.06), (1.45, 1.0)],
+        # Muelle con poco rebote: se pasa un 5% y vuelve, como algo que salta.
+        "desde": 0.62, "curva": "muelle", "rebote": 0.30, "dur": 1.6,
         "fade": False, "blur": 0.0, "glow": 0.0,
     },
     "bounce": {
         "label": {"es": "Rebote", "en": "Bounce"},
         "note": {"es": "Muelle de tres tiempos, la de CapCut. La más enérgica.",
                  "en": "Three-beat spring, the CapCut one. The most energetic."},
-        "scale": [(0.0, 0.35), (0.75, 1.14), (1.25, 0.93), (1.7, 1.0)],
+        # El mismo muelle con mas rebote. Antes eran cuatro claves a mano que
+        # llegaban al 114%; este llega al 110% pero oscila de verdad, con la
+        # proporcion de un objeto fisico, en vez de tres rectas.
+        "desde": 0.35, "curva": "muelle", "rebote": 0.55, "dur": 2.2,
         "fade": False, "blur": 0.0, "glow": 0.0,
     },
     "zoom": {
         "label": {"es": "Zoom", "en": "Zoom"},
         "note": {"es": "Entra grande y se cierra hasta su tamaño. Cinematográfica.",
                  "en": "Starts big and closes down to size. Cinematic."},
-        "scale": [(0.0, 1.38), (1.3, 1.0)],
+        "desde": 1.38, "curva": "suave", "dur": 1.4,
         "fade": True, "blur": 0.0, "glow": 0.0,
     },
     "rise": {
         "label": {"es": "Subida", "en": "Rise"},
         "note": {"es": "Crece un poco mientras aparece. Discreta.",
                  "en": "Grows slightly as it appears. Discreet."},
-        "scale": [(0.0, 0.93), (1.3, 1.0)],
+        "desde": 0.93, "curva": "suave", "dur": 1.4,
         "fade": True, "blur": 0.0, "glow": 0.0,
     },
     "fade": {
@@ -260,7 +276,7 @@ ANIMS = {
                        "vende como premium.",
                  "en": "Arrives out of focus and snaps sharp. The effect the shop sells "
                        "as premium."},
-        "scale": [(0.0, 1.04), (1.4, 1.0)],
+        "desde": 1.04, "curva": "suave", "dur": 1.5,
         "fade": True, "blur": 15.0, "glow": 0.0,
     },
     "ignite": {
@@ -268,7 +284,7 @@ ANIMS = {
         "note": {"es": "El halo se enciende de golpe y baja. Solo se nota en los estilos "
                        "con glow.",
                  "en": "The halo flares up and settles. Only shows on looks with a glow."},
-        "scale": [(0.0, 0.72), (0.9, 1.04), (1.4, 1.0)],
+        "desde": 0.72, "curva": "muelle", "rebote": 0.30, "dur": 1.6,
         "fade": False, "blur": 0.0, "glow": 2.4,
     },
     "none": {
@@ -292,8 +308,51 @@ FIT = 0.94
 
 
 def anim(name):
-    """An animation by name, falling back to the preset's own rather than dying."""
+    """An animation by name, falling back to the preset's own rather than dying.
+
+    Tambien acepta la animacion ya escrita, como diccionario. Es lo que usa la
+    chapa: aterriza desde un tamaño que depende de cada tipo de rotulo, y crear
+    un nombre en ANIMS por cada tamaño seria llenar el selector de animaciones
+    que nadie puede elegir.
+    """
+    if isinstance(name, dict):
+        return name
     return ANIMS.get(name)
+
+
+def escala_de(a, pasos, curva=None):
+    """Las claves de tamaño de una animacion, como `(momento_en_beats, tamaño)`.
+
+    La UNICA fuente de las claves para los dos caminos de salida. Una entrada
+    trae de donde sale (`desde`) y con que curva, y de ahi se generan tantas
+    claves como pida quien las va a pintar: el MP4 una por fotograma, Fusion una
+    por fotograma de la suya. Asi los dos se mueven con la misma curva y no puede
+    pasar que uno se separe del otro, que es lo que pasa en cuanto hay dos listas
+    de numeros para lo mismo.
+
+    `curva` es la que ha elegido el usuario, si ha elegido: cambia COMO se mueve,
+    no de donde sale. El rebote propio de la animacion solo se aplica con su
+    propia curva, porque esta pensado para ella: el de "rebote" en otra curva no
+    significa nada.
+
+    Lo que no es una entrada de un tamaño a otro (el latido, que va y vuelve)
+    sigue con sus claves a mano en `scale`, y se devuelven tal cual.
+    """
+    import curvas
+    if a.get("desde") is not None:
+        propia = a.get("curva") or curvas.POR_DEFECTO
+        nombre = curva if curvas.conocida(curva) else propia
+        rebote = a.get("rebote") if nombre == propia else None
+        return curvas.claves(a["desde"], 1.0, nombre, a["dur"], pasos, rebote)
+    return list(a.get("scale") or [])
+
+
+def duracion_de(a):
+    """Cuanto dura la entrada, en beats, sea de curva o de claves a mano."""
+    if a.get("desde") is not None:
+        return float(a.get("dur") or 1.0)
+    esc = a.get("scale") or []
+    return float(esc[-1][0]) if esc else 0.0
 
 
 def anim_list(lang="es"):
@@ -489,7 +548,7 @@ def ass_time(t):
 
 
 def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET,
-           anim_name=None, still=False, p=None):
+           anim_name=None, still=False, p=None, curva=None):
     """Write one ASS file for one EDL segment, times shifted to segment-local.
 
     libass measures Fontsize as the GDI cell height, so the preset's cap-height
@@ -526,7 +585,7 @@ def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET,
         line_col = _ass_colour(p["outline"]) if p["outline"] else _ass_colour((0, 0, 0))
         out_w = max(1, int(em * p["outline"][3])) if p["outline"] else 0
         border_style = 1
-    # libass has no glow node, but a thick outline in the glow colour plus lur
+    # libass has no glow node, but a thick outline in the glow colour plus \blur
     # is the same picture. It replaces the outline rather than stacking on it,
     # because two borders cannot both be drawn.
     if p["glow"] and not p["panel"]:
@@ -570,13 +629,54 @@ def to_ass(path, chunks, seg_start, seg_end, w, h, name=DEFAULT_PRESET,
         if e - s < 0.01:
             continue
         body = _ass_body(c, p)
-        move = _ass_anim(p, a, x, y, sh_x, sh_y, h, still)
+        move = _ass_anim(p, a, x, y, sh_x, sh_y, h, still, curva)
         lines.append("Dialogue: 0,%s,%s,Vidorq,,0,0,0,,%s%s\n"
                      % (ass_time(s), ass_time(e), move, body))
     path.write_text("".join(lines), encoding="utf-8-sig")
 
 
-def _ass_anim(p, a, x, y, sh_x, sh_y, h, still=False):
+def curvas_mod():
+    """El modulo de curvas, cargado cuando hace falta y no al importar este.
+
+    captions.py lo importa medio proyecto, muchas veces solo para leer un
+    catalogo, y no hay por que cargar las curvas para eso.
+    """
+    import curvas
+    return curvas
+
+
+def _pasos(dur_beats, beat_ms):
+    """Cuantas claves para una entrada: una por fotograma a 60, y nunca menos de 4.
+
+    Una por fotograma porque asi cada fotograma que se ve tiene el valor EXACTO de
+    la curva, y entre dos claves seguidas de 17 ms no hay nada que ver. Menos de
+    cuatro ya no dibuja una curva, dibuja una esquina.
+    """
+    import math
+    return max(4, int(math.ceil(dur_beats * beat_ms / curvas_mod().PASO_MS)))
+
+
+def _por_tramos(claves, beat, fmt, valor):
+    """Las claves como etiquetas ASS: el valor de partida y un `\\t` por tramo.
+
+    Cada `\\t` va de su momento al siguiente y deja la propiedad en el valor de la
+    clave. libass los encadena, asi que con un tramo por fotograma la curva sale
+    entera. Los momentos se redondean a milisegundos enteros y nunca se repiten:
+    dos tramos con el mismo inicio se pisan y libass se queda con el ultimo.
+    """
+    def f(v):
+        r = valor(v)
+        return fmt % (r if isinstance(r, tuple) else (r,))
+    out = f(claves[0][1])
+    prev = 0
+    for at, v in claves[1:]:
+        ms = max(prev + 1, int(round(at * beat)))
+        out += "\\t(%d,%d,%s)" % (prev, ms, f(v))
+        prev = ms
+    return out
+
+
+def _ass_anim(p, a, x, y, sh_x, sh_y, h, still=False, curva=None):
     """Override tags that place the line and give it the chosen entrance.
 
     The scale keyframes are the same numbers the Fusion side uses, replayed as
@@ -605,24 +705,24 @@ def _ass_anim(p, a, x, y, sh_x, sh_y, h, still=False):
         else:
             tags += "\\blur%.1f" % base
     if a["blur"] > 0 and not still:
-        tags += "\\blur%.1f\\t(0,%d,\\blur0)" % (a["blur"] * 0.6, int(beat * 1.6))
+        # El enfoque tambien sigue su curva: con una recta el texto se aclara a
+        # ritmo fijo, y lo que se ve caro es que se enfoque de golpe y afine
+        # despacio al final.
+        tags += _por_tramos(curvas_mod().claves(a["blur"] * 0.6, 0.0, curva or "suave",
+                                                1.6, _pasos(1.6, beat)),
+                            beat, "\\blur%.1f", lambda v: v)
 
-    if a["scale"]:
+    esc = escala_de(a, _pasos(duracion_de(a), beat), curva)
+    if esc:
         if still:
             # El tamaño en el que acaba, no en el que empieza: "pop" arranca al
             # 62% y una foto de eso enseña unas letras mas pequeñas de lo que
             # este estilo es en realidad.
-            last = a["scale"][-1][1] * 100
+            last = esc[-1][1] * 100
             tags += "\\fscx%.0f\\fscy%.0f" % (last, last)
         else:
-            first = a["scale"][0][1] * 100
-            tags += "\\fscx%.0f\\fscy%.0f" % (first, first)
-            prev = 0
-            for at, mult in a["scale"][1:]:
-                ms = max(prev + 20, int(at * beat))
-                tags += "\\t(%d,%d,\\fscx%.0f\\fscy%.0f)" % (prev, ms,
-                                                             mult * 100, mult * 100)
-                prev = ms
+            tags += _por_tramos(esc, beat, "\\fscx%.1f\\fscy%.1f",
+                                lambda v: (v * 100, v * 100))
     if a["fade"] and not still:
         tags += "\\fad(%d,60)" % int(beat * 1.2)
     return "{%s}" % tags
@@ -796,7 +896,7 @@ def _elements(p):
     return els
 
 
-def _anim_splines(a, dur, size, els):
+def _anim_splines(a, dur, size, els, curva=None):
     """The chosen animation as splines over the clip's own frames.
 
     Returns (spline_tool_text, {input_name: spline_name}, extra) where extra
@@ -821,8 +921,13 @@ def _anim_splines(a, dur, size, els):
             out.append((f, val * scale))
         return out
 
-    if a["scale"]:
-        k = keys(a["scale"], size)
+    # Las claves salen de la misma curva que las del MP4 (`escala_de`), con una
+    # por fotograma de la entrada: asi los dos caminos se mueven igual. Mas de
+    # una por fotograma no sirve aqui, porque `keys` empuja las que chocan al
+    # fotograma siguiente y alargaria la entrada.
+    esc = escala_de(a, max(2, int(round(duracion_de(a) * beat))), curva)
+    if esc:
+        k = keys(esc, size)
         if len(k) > 1:
             tools += _spline("AnimSize", k)
             wires["Size"] = "AnimSize"
@@ -1002,7 +1107,7 @@ def _glow_tool(src, glow, spline, x, keep_edge=False):
             % ("\n\t\t\t\t".join(lines), x))
 
 
-def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None):
+def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None, curva=None):
     """Write the Fusion composition for one caption chunk.
 
     `dur` is the clip length in frames; the entrance is authored against it so a
@@ -1035,7 +1140,7 @@ def to_comp(path, chunk, w, h, dur, name=DEFAULT_PRESET, anim_name=None):
     size = min(size, FIT / (CHAR_ADVANCE * max(1, longest)))
     y = float(p["y"])
     els = _elements(p)
-    anim_tools, wires, extra = _anim_splines(a, dur, size, els)
+    anim_tools, wires, extra = _anim_splines(a, dur, size, els, curva)
     tramos = _tramos(chunk)
     if tramos:
         anim_tools += _cls_tool(chunk["text"], tramos)
