@@ -8,7 +8,7 @@
 
 [![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-2024%20checks-00b359.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-2025%20checks-00b359.svg)](tests/)
 
 **[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
 
@@ -363,7 +363,7 @@ python tests/todas.py
 ```
 test_relojes.py           411 cases      the two clocks, the cut engine, the safety nets
 test_understanding.py     549 cases      what a sentence means, and what a button does
-test_castellano.py        565 strings    every accent in the Spanish the app shows
+test_castellano.py        566 strings    every accent in the Spanish the app shows
 test_idiomas.py            22 checks     Spanish and English say the same things
 test_exportar.py           24 cases      the export numbers, pinned where they were measured
 test_promesas.py           25 promises   this README matches the code

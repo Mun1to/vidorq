@@ -35,9 +35,10 @@ const es = {
   "out.mp4": "MP4 directo",
   "out.resolve": "Timeline en Resolve",
   "out.noBridge": "Falta el puente: ábrelo en Resolve con Workspace > Scripts > Vidorq, o edita a MP4.",
+  "out.noPython": "Tu DaVinci es la versión gratis {v}, y desde la 21.1 Blackmagic ya no deja ejecutar scripts de Python en la gratis, así que el timeline no se puede montar dentro. Te he pasado a MP4: sale igual, con los mismos subtítulos, y lo puedes meter en DaVinci después.",
 
-  "alert.engineOff": "El motor está apagado. Se enciende solo desde Resolve:",
-  "alert.engineOff2": "Y si trabajas desde el código, con",
+  "alert.engineOff": "El motor está apagado. La ventana lo enciende sola al abrirse, así que si sigue así falta configurarlo una vez con",
+  "alert.engineOff2": "Y si trabajas desde el código, a mano con",
   "alert.noEngine": "No se pudo hablar con el motor. ¿Está encendido?",
 
   "drop.inproject": "O elige uno de este proyecto de Resolve",
@@ -367,9 +368,10 @@ const en: Record<keyof typeof es, string> = {
   "out.mp4": "Direct MP4",
   "out.resolve": "Timeline in Resolve",
   "out.noBridge": "The bridge is not running: start it in Resolve with Workspace > Scripts > Vidorq, or edit to MP4.",
+  "out.noPython": "Your DaVinci is the free version {v}, and since 21.1 Blackmagic no longer runs Python scripts in the free edition, so the timeline cannot be built inside it. You are on MP4 now: it comes out the same, with the same captions, and you can drop it into DaVinci afterwards.",
 
-  "alert.engineOff": "The engine is off. Resolve turns it on for you:",
-  "alert.engineOff2": "Or, if you run it from the source, with",
+  "alert.engineOff": "The engine is off. This window starts it by itself when it opens, so if it stays off it needs setting up once with",
+  "alert.engineOff2": "Or, from the source, by hand with",
   "alert.noEngine": "Could not reach the engine. Is it running?",
 
   "drop.inproject": "Or pick one from this Resolve project",

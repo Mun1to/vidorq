@@ -201,6 +201,15 @@ body {
   border-radius: 9px; padding: 10px 13px;
 }
 .alert code { color: color-mix(in srgb, var(--bad) 55%, var(--text)); font-family: Consolas, "Cascadia Mono", monospace; font-size: 11.5px; }
+/* La misma franja, pero para contar algo, no para decir que algo va mal. Con el
+   rojo de error, "tu DaVinci no deja montar el timeline, sigue a MP4" se leia
+   como que Vidorq estaba roto, cuando a MP4 funciona todo. Sale del acento y no
+   de un color nuevo, para no escribir a mano nada fuera del tema. */
+.alert.info {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--bg));
+  color: var(--text);
+}
 
 /* ---------- zona de arrastre ---------- */
 .drop {

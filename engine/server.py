@@ -1093,6 +1093,87 @@ def resolve_corriendo():
     return abierto
 
 
+# Donde se busca el DaVinci instalado para saber que version es. El acceso
+# directo del escritorio va primero porque es lo que abre Munir de verdad: su
+# DaVinci NO esta en Program Files, esta en `C:\Apps\Random APPS\Davinci`, y
+# mirar solo la ruta de fabrica lleva a concluir que no esta instalado.
+_RESOLVE_EXES = (
+    r"C:\Program Files\Blackmagic Design\DaVinci Resolve\Resolve.exe",
+    r"C:\Apps\Random APPS\Davinci\Resolve.exe",
+)
+_version_vista = {"hecho": False, "sin_python": None, "version": None}
+
+
+def _exe_de_resolve():
+    """La ruta del Resolve.exe que se usa, o None."""
+    if os.name != "nt":
+        return None
+    lnk = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop",
+                       "DaVinci Resolve.lnk")
+    candidatos = []
+    if os.path.isfile(lnk):
+        try:
+            r = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "(New-Object -ComObject WScript.Shell).CreateShortcut('%s').TargetPath"
+                 % lnk.replace("'", "''")],
+                capture_output=True, text=True, timeout=5,
+                encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
+            destino = (r.stdout or "").strip()
+            if destino:
+                candidatos.append(destino)
+        except Exception:
+            pass
+    candidatos += list(_RESOLVE_EXES)
+    for c in candidatos:
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+def resolve_sin_python():
+    """(sin_python, version) del DaVinci instalado.
+
+    `sin_python` es True cuando es la version GRATIS 21.1 o posterior, que ya no
+    ejecuta scripts de Python. Verificado el 2026-09-21 en la guia de scripting
+    que trae la propia instalacion y en xere.my/journal (14-sep-2026): Blackmagic
+    lo quito a proposito, porque se estaba usando el puente de Python para meter
+    funciones de Studio en la gratis. Sin Python no hay puente, y sin puente no
+    hay timeline en Resolve.
+
+    Se distingue por el nombre del producto que lleva el ejecutable: la gratis
+    dice "DaVinci Resolve" y la de pago "DaVinci Resolve Studio". None cuando no
+    se ha podido mirar, que NO es lo mismo que False: no se avisa de lo que no se
+    sabe. Se mira una vez por arranque del motor, porque leer la version del exe
+    no cambia mientras el programa esta abierto.
+    """
+    if _version_vista["hecho"]:
+        return _version_vista["sin_python"], _version_vista["version"]
+    _version_vista["hecho"] = True
+    exe = _exe_de_resolve()
+    if not exe:
+        return None, None
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             "$v=(Get-Item '%s').VersionInfo; $v.ProductName; $v.ProductVersion"
+             % exe.replace("'", "''")],
+            capture_output=True, text=True, timeout=8,
+            encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
+        lineas = [l.strip() for l in (r.stdout or "").splitlines() if l.strip()]
+        nombre, version = lineas[0], lineas[1]
+    except Exception:
+        return None, None
+    try:
+        mayor, menor = (int(x) for x in version.split(".")[:2])
+    except ValueError:
+        return None, version
+    gratis = "studio" not in nombre.lower()
+    sin = gratis and (mayor, menor) >= (21, 1)
+    _version_vista.update(sin_python=sin, version=version)
+    return sin, version
+
+
 def bridge_status():
     """What the guided setup needs to know: is the bridge up, and is a project open?
 
@@ -1112,8 +1193,15 @@ def bridge_status():
         # `app`: si el programa esta abierto, aunque el puente no conteste. Sin
         # esto los tres pasos salian sin hacer y el segundo mandaba a abrir un
         # Resolve que ya estaba abierto.
+        #
+        # `sinPython`: si el puente NO PUEDE arrancar en este DaVinci, que no es
+        # lo mismo que "no esta arrancado". En la gratis 21.1 el menu ya no
+        # enseña scripts de Python, asi que mandar a la gente a
+        # `Workspace > Scripts > Vidorq` es mandarla a un sitio que no existe.
+        sin, version = resolve_sin_python()
         return {"bridge": False, "project": None, "timeline": None,
-                "app": resolve_corriendo()}
+                "app": resolve_corriendo(), "sinPython": sin,
+                "resolveVersion": version}
     project = bridge_get("/project") or {}
     timeline = bridge_get("/timeline") or {}
     return {
@@ -3459,6 +3547,12 @@ def run_job(req):
         if output == "resolve":
             set_progress(tr("building"), 65, tr("needs_bridge"))
             if not bridge_status()["bridge"]:
+                if resolve_sin_python()[0]:
+                    raise RuntimeError(
+                        "Tu DaVinci es la version gratis 21.1, y desde esa version "
+                        "Blackmagic ya no deja ejecutar scripts de Python, asi que el "
+                        "timeline no se puede montar dentro. Edita a MP4: sale igual, "
+                        "con los mismos subtitulos, y lo puedes meter en DaVinci despues.")
                 raise RuntimeError("No pude hablar con Resolve. Abre Resolve, un proyecto, "
                                    "y Workspace > Scripts > Vidorq")
             # En un retoque lo que hay que ver es la version nueva, no una

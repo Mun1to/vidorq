@@ -57,6 +57,11 @@ function App() {
      elegida es el timeline, que es la unica que lo necesita: con MP4 esa
      pregunta no le importa a nadie y no hay que gastarla. */
   const [bridgeUp, setBridgeUp] = useState<boolean | null>(null);
+  /* Si ESTE DaVinci no puede arrancar el puente, que no es lo mismo que "no lo
+     has arrancado todavia". La gratis 21.1 dejo de ejecutar Python, y con ella
+     el menu Workspace > Scripts > Vidorq no existe: mandar ahi a la gente era
+     mandarla a un sitio que no esta. La version sale con el, para decirla. */
+  const [sinPython, setSinPython] = useState<{ version: string } | null>(null);
   /* El efecto que escucha el arrastre se monta una sola vez, asi que si
      llamara a pickVideo directamente se quedaria con el idioma del primer
      render y contestaria en castellano a quien ya se paso al ingles. */
@@ -484,8 +489,19 @@ function App() {
   useEffect(() => {
     if (output !== "resolve") { setBridgeUp(null); return; }
     let vivo = true;
-    const mirar = () => apiGet<{ bridge: boolean }>("/resolve")
-      .then((d) => { if (vivo) setBridgeUp(!!d.bridge); })
+    const mirar = () => apiGet<{ bridge: boolean; sinPython?: boolean;
+                                 resolveVersion?: string }>("/resolve")
+      .then((d) => {
+        if (!vivo) return;
+        setBridgeUp(!!d.bridge);
+        if (d.sinPython) {
+          setSinPython({ version: d.resolveVersion || "21.1" });
+          // Se pasa a MP4 solo, una vez. Quedarse en una salida que en esta
+          // maquina NO puede funcionar es dejar el boton de editar puesto para
+          // que falle despues de transcribir, que es lo que mas tarda.
+          setOutput("mp4");
+        }
+      })
       .catch(() => { if (vivo) setBridgeUp(null); });
     mirar();
     const t = setInterval(mirar, 5000);
@@ -760,8 +776,19 @@ function App() {
              aviso de "te va a faltar el puente" y el fallo de "te ha faltado
              el puente" apilados son la misma frase dos veces, y leer dos
              veces lo mismo hace dudar de si son dos problemas. */}
-          {output === "resolve" && bridgeUp === false && engineUp !== false
-            && phase !== "error" && (
+          {/* Este DaVinci no puede montar el timeline. Va APARTE del aviso de
+              "falta el puente" y se queda puesto aunque la salida ya sea MP4:
+              la ventana te pasa a MP4 sola, y cambiarte de salida sin decirte
+              por que se lee como un fallo, no como una ayuda. Es informativo, no
+              un error, porque a MP4 todo funciona. */}
+          {sinPython && engineUp !== false && phase !== "error" && (
+            <div className="alert info">
+              <IconAlert size={16} className="icon" />
+              <span>{t("out.noPython").replace("{v}", sinPython.version)}</span>
+            </div>
+          )}
+          {!sinPython && output === "resolve" && bridgeUp === false
+            && engineUp !== false && phase !== "error" && (
             <div className="alert">
               <IconAlert size={16} className="icon" />
               <span>{t("out.noBridge")}</span>
@@ -774,7 +801,7 @@ function App() {
                   Resolve; el .bat es para quien tiene el repositorio delante.
                   Al reves mandaba a todo el mundo a buscar un archivo suelto. */}
               <span>
-                {t("alert.engineOff")} <code>Workspace &gt; Scripts &gt; Vidorq</code>.{" "}
+                {t("alert.engineOff")} <code>resolve\instalar.ps1</code>.{" "}
                 {t("alert.engineOff2")} <code>engine\start_engine.bat</code>
               </span>
             </div>
