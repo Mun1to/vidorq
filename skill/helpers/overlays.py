@@ -204,8 +204,33 @@ def as_preset(kind, color=None):
     return {"words": 12, "max_chars": 90, "upper": False,
             "font": k["font"], "style": k["style"], "size": k["size"],
             "fill": k["fill"], "outline": None, "shadow": None,
-            "y": k["y"], "anim": "fade", "glow": None, "panel": k["panel"],
+            "y": k["y"], "anim": entrada(k), "glow": None, "panel": k["panel"],
             "word_fx": None, "accent": k["fill"], "tracking": k["tracking"]}
+
+
+def entrada(k):
+    """Como aparece un rotulo: siempre la misma para su tipo, y con curva.
+
+    Hasta el 2026-09-21 el MP4 le ponia a TODOS un fundido a secas, mientras que
+    en Resolve la chapa aterrizaba (empezaba al 118% y se asentaba). La misma
+    chapa hacia cosas distintas segun por donde saliera, que es justo lo que este
+    proyecto evita. Ahora las dos salidas la hacen aterrizar, y con el muelle, no
+    con una recta de dos puntos.
+
+    Sigue sin haber eleccion por rotulo, y a proposito: un rotulo que entra
+    distinto cada vez distrae del video en vez de rotularlo. Lo que se elige es
+    la CURVA, que es la misma para todo lo que entra en el plano, subtitulos
+    incluidos, y asi el video tiene un solo ritmo.
+
+    El rotulo (sin `pop`) entra solo con el fundido: es el de las entrevistas y
+    tiene que ser sobrio. Y el aterrizaje baja DESDE arriba hasta su tamaño y no
+    lo pasa por encima, para que no se salga del cuadro al entrar.
+    """
+    salto = float(k.get("pop") or 0.0)
+    if salto <= 0.0:
+        return "fade"
+    return {"desde": 1.0 + salto, "curva": "muelle", "rebote": 0.30, "dur": 1.6,
+            "fade": True, "blur": 0.0, "glow": 0.0}
 
 
 def seconds(kind):
@@ -268,8 +293,22 @@ def _text_comp(path, k, kind, w, h, dur, text):
     if k.get("pop"):
         # La chapa aterriza: empieza mas grande y se asienta. El valor final es
         # el de arriba y no uno mayor, para que no se salga del cuadro al entrar.
-        tools += _cap._spline("Salta", [(0, size * (1.0 + float(k["pop"]))),
-                                        (beat, size)])
+        #
+        # Con la MISMA curva que en el MP4 (`entrada`), una clave por fotograma.
+        # Antes eran dos claves, o sea una recta: el ritmo fijo y el frenazo seco
+        # que se midieron en los subtitulos. Dura lo mismo que antes, `beat`
+        # fotogramas, para no cambiar cuanto tarda en aparecer.
+        import curvas
+        a = entrada(k)
+        claves = curvas.claves(size * a["desde"], size, a["curva"], beat, beat,
+                               a.get("rebote"))
+        pares, visto = [], set()
+        for fr, v in claves:
+            fr = int(round(fr))
+            if fr not in visto:
+                visto.add(fr)
+                pares.append((fr, v))
+        tools += _cap._spline("Salta", pares)
         wires["Size"] = "Salta"
 
     els = [(1, 0, k["fill"], 1.0, [])]
