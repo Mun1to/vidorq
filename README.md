@@ -16,6 +16,15 @@ That is the whole workflow. You describe the edit. Vidorq does it.
 
 </div>
 
+## How it works
+
+<p align="center"><picture>
+<source media="(prefers-color-scheme: dark) and (max-width: 600px)" srcset=".github/readme/how-it-works-dark-narrow.svg">
+<source media="(max-width: 600px)" srcset=".github/readme/how-it-works-light-narrow.svg">
+<source media="(prefers-color-scheme: dark)" srcset=".github/readme/how-it-works-dark.svg">
+<img src=".github/readme/how-it-works-light.svg" alt="Drag your video: Drag your video onto the window. Choose the output: Choose MP4 or Timeline in Resolve as the output. Write what you want: Write what you want, or pick a preset. Hit Edit video: Hit Edit video. If the timeline is the output, you will watch it build itself inside Resolve.">
+</picture></p>
+
 ## What it actually does
 
 |  |  |
@@ -40,7 +49,8 @@ That is the whole workflow. You describe the edit. Vidorq does it.
 
 Five steps. About ten minutes, most of it downloading.
 
-## 1. What you need first
+<details>
+<summary><b>1. What you need first</b></summary>
 
 | | |
 | --- | --- |
@@ -50,7 +60,10 @@ Five steps. About ten minutes, most of it downloading.
 | **ffmpeg** | `ffmpeg -version` has to answer. [Download](https://www.gyan.dev/ffmpeg/builds/) |
 | **Ollama** *(optional)* | only if you want prompts to work with no API key. [ollama.com](https://ollama.com) |
 
-## 2. Get the two repositories, side by side
+</details>
+
+<details>
+<summary><b>2. Get the two repositories, side by side</b></summary>
 
 Vidorq talks to Resolve through a bridge that lives in its own project, so clone both into the **same folder**:
 
@@ -67,7 +80,10 @@ your-folder/
 
 The installer finds its neighbour on its own. If you keep the bridge somewhere else, set `VIDORQ_BRIDGE` to the full path of its `src/CursorBridge.py`.
 
-## 3. Install the Python side
+</details>
+
+<details>
+<summary><b>3. Install the Python side</b></summary>
 
 ```
 cd vidorq
@@ -83,7 +99,10 @@ python -m venv .venv
 
 Measured on one 10 minute 43 second video: **16 minutes** transcribing on the CPU, **42 seconds** on the card, and on the card it uses the big model instead of the small one, so it is more accurate as well. Skip it and everything still works, just slower.
 
-## 4. Put Vidorq in Resolve's menu
+</details>
+
+<details>
+<summary><b>4. Put Vidorq in Resolve's menu</b></summary>
 
 ```
 powershell -ExecutionPolicy Bypass -File resolve\instalar.ps1
@@ -91,7 +110,10 @@ powershell -ExecutionPolicy Bypass -File resolve\instalar.ps1
 
 Once, not once per project. It prints where it found the bridge and which Python it will use, and it adds a single entry to Resolve.
 
-## 5. Use it
+</details>
+
+<details>
+<summary><b>5. Use it</b></summary>
 
 Open DaVinci Resolve, open a project, then click:
 
@@ -105,6 +127,8 @@ That one click starts the engine, opens the Vidorq window and leaves the bridge 
 4. Hit **Edit video**.
 
 If the timeline is the output, you will watch it build itself inside Resolve.
+
+</details>
 
 ## Which AI thinks about your prompt
 
