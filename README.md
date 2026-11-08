@@ -1,36 +1,46 @@
+<div align="center">
+
+<img src="app/src/assets/logo.png" alt="Vidorq" height="88">
+
 # Vidorq
 
-### The open-source AI video editor that lives inside DaVinci Resolve Free.
+**The open-source AI video editor that lives inside DaVinci Resolve Free.**
 
-> "Edit this in vertical, YouTube-short style, cut it well, and give the subtitles animations."
->
-> That is the whole workflow. You describe the edit. Vidorq does it.
+"Edit this in vertical, YouTube-short style, cut it well, and give the subtitles animations."
 
-[![DaVinci Resolve](https://img.shields.io/badge/DaVinci%20Resolve-Free-00b359.svg)](https://www.blackmagicdesign.com/products/davinciresolve)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-2081%20checks-00b359.svg)](tests/)
+That is the whole workflow. You describe the edit. Vidorq does it.
 
-**[vidorq site](https://mun1to.github.io/vidorq/)** (Spanish)
+[DaVinci Resolve Free](https://www.blackmagicdesign.com/products/davinciresolve) · [License MIT](LICENSE) · [Tests 2081 checks](tests/) · Windows
 
-| | |
-| --- | --- |
-| **[Quick start](#quick-start)** | five steps, about ten minutes |
-| **[What it actually does](#what-it-actually-does)** | cuts, subtitles, vertical, prompts, colour, voice |
-| **[Which AI thinks about your prompt](#which-ai-thinks-about-your-prompt)** | Ollama, your existing CLI agent, or a key |
-| **[From the AI agent you already use](#from-the-ai-agent-you-already-use)** | Vidorq as a skill |
-| **[Where your stuff goes](#where-your-stuff-goes)** | what leaves the machine, and what does not |
-| **[Honest limits](#honest-limits)** | what Resolve Free will not do, measured |
-| **[How it is checked](#how-it-is-checked)** | the test suite, and what it proves |
-| **[Something broke](#something-broke)** | the three usual ones |
-| **[Don't trust it, check it](#dont-trust-it-check-it)** | audit this repo with your own AI |
+[vidorq site (Spanish)](https://mun1to.github.io/vidorq/)
 
----
+</div>
 
-## Quick start
+## What it actually does
+
+|  |  |
+|---|---|
+| **Cuts** | Word-level transcription with local Whisper (`large-v3-turbo` on a graphics card, `small` on a CPU), then dead air, isolated filler sounds and repeated takes come out. Cuts land on a still moment rather than mid-gesture, and jump cuts get hidden with a small alternating zoom. |
+| **Subtitles** | Ten styles and eight entrance animations (plus none), mixed freely, in both outputs. Three styles carry a real halo from Fusion's Glow node. In Resolve they arrive as **editable** Text+ titles on their own track, not burned into the picture. |
+| **Motion curves** | How the text arrives is its own choice, separate from where it comes from: smooth, snappy, spring, back, elastic, bounce, or linear. It applies to the captions and to the titles and badges, so everything entering the frame keeps one rhythm. The curves are the standard ones (Penner's easings, and the damped spring SwiftUI and Framer Motion use), because the eye already knows them from every phone.  This fixed something measured, not a matter of taste. Counting the pixels of the text frame by frame, every entrance used to move at **constant speed**: the pop grew +0.10, +0.11, +0.10, +0.10 per frame and then stopped dead, which is exactly what reads as a cheap animation. Each entrance was three hand-placed keyframes joined by straight lines. Now each one names a curve and the keyframes are generated from it, one per frame at 60, so every frame shown carries the exact value and the MP4 and Fusion paths draw from the same curve. The spring had to be tuned twice: its first version was still 4% short of its final size at 95% of the entrance, and jumped the rest on the last frame. |
+| **Vertical** | 9:16, 4:5, 1:1 or 16:9. The crop is aimed at the **face** by a 227 KB detector that runs on the CPU, so a vertical short does not cut the speaker out of frame. There is a manual slider when you would rather choose. |
+| **Text behind you** | The captions pass *behind* the person, which is the effect people buy DaVinci Resolve Studio for: **Magic Mask is not in the free edition**, checked on 9-sep-2026. Vidorq does it in the free one, with a 4.36 MB model. Segmenting and tracking are kept apart on purpose, because they are different problems: which pixels are the subject in this frame is a question where a better model appears every six months, and whether that is the same subject as before is what has to be built. Segment each frame on its own and the outline flickers, so the previous mask is dragged along the measured motion of the picture and mixed with what the model proposes.  Measured on two scenes, and the pair is the point. On a synthetic one with a known answer, the frame-to-frame memory does nothing at all (0.01277 wobble without it, 0.01285 with it) and on that evidence alone it should be dropped. On real footage it takes 35.2% off, and asking the model one frame in three takes off 70% while running 60% faster. Accuracy against the known answer is **0.989 IoU**, at 0.43 seconds per frame.  The model is **U-2-Net, Apache 2.0**, shipped in `skill/models/` with its licence and its sha256, the same deal as the face detector: it runs on the CPU and works with the network unplugged. `RobustVideoMatting` is better and comes with temporal memory built in, but it is GPL-3.0, and a copyleft dependency inside something that gets sold forces the whole thing open, so it is out. YOLO-seg is AGPL, also out. |
+| **Export destinations** | Seven of them, from YouTube 1080p to a master you keep, and each one carries the bitrate, the audio rate and the loudness that place actually asks for. The numbers are YouTube's own: 8 Mbps at 1080p, 12 from 50 fps up, 40 at 2160p, 384 kbps stereo. Platforms normalise to about **-14 LUFS**, so the file leaves at -14 instead of being turned down after compression, which sounds worse; a master is left alone. Picking a destination does not take over the frame shape, which already has its own control - it suggests one and moves that control where you can see it. Size only ever goes down, never up. And the bitrate follows the pixel count rather than the height, because a 1080x1920 vertical and a 1920x1080 wide are the same surface: by height the vertical asked for 20 Mbps to do what the other does with 8. With Resolve as the output the destination still counts, since the same numbers are left sitting in the Deliver page. |
+| **It keeps editing, and it answers** | The screen at the end is not a dead end, it is a conversation: type the next change and it is applied on top of the edit that exists, and every turn comes back saying what it did, what it could not do here and why, and what it did not understand. When something only works in the other output it offers to switch, instead of quietly doing nothing. No re-transcribing, no re-deciding the cuts, and the settings carry over. Re-measured on 20-aug-2026, 30 s clip, captions on, MP4 out, on a laptop with an RTX 5060: the first pass took 26 s and three changes on top of it took 11.2 s, 13.7 s and 12.7 s. The first pass is the one that transcribes; a change re-renders but does not re-listen. Times are read on the clock of the EDIT, not the original file, because that is what you are looking at by then. In Resolve the previous version is replaced rather than piled up next to it. |
+| **Edit by reading** | The transcription already carries the second of every word, so the panel paints all of them and you find a moment by reading instead of dragging the playhead at it. Mark two words and it writes the same sentence you could have typed ("cut the bit from second 12 to 19"), so there is one cutting mechanism and not two. What the automatic cut already took out is shown struck through, and clicking a word moves Resolve's playhead there, which is the part a web page cannot do. The other half is **order**: the same panel lists the edit as segments with what is said in each one, and you drag them somewhere else. That is a permutation of the montage, so no model is asked anything. |
+| **Undo** | The session keeps the montage *and* the settings from before each turn, and one button goes back to both. Undoing the cut and leaving you with the setting that same turn applied would not be undoing anything. One step, not a stack: pressing it twice puts you back where you were. |
+| **History** | Every edit leaves a row: when, which video, which project, what it did and how long it took. The ones you stopped and the ones that failed go in too, because a list that only kept the successes would tell a false story of the day. Clicking a row reopens that video with its whole conversation behind it. |
+| **Prompts** | "vertical, short style, animated subtitles" sets the frame shape, the subtitle style, the animation, the transition and the kind of cut. It also takes instructions aimed at **one moment**: "put a card saying SUBSCRIBE at second 12", "zoom in where he talks about the price", "cut that bit out", "put a voice at second 5 saying watch this". It works with **no API key** on a local model, and it never trusts the model blindly: verbs come from a closed list, times are checked against the real length, and anything invented produces nothing at all. |
+| **Previews and the gallery** | Every look, entrance and crop is shown as a picture before you commit to it, made by the same renderer that makes the final video, on your own footage, with the crop aimed where it will really be aimed. The gallery puts all ten looks on one wall and the nine entrances animating over the one you picked, so choosing is looking rather than reading names. |
+| **Colour** | Eight filters, each defined once as ASC CDL numbers, and both outputs read that one definition. They are not pixel for pixel identical, and saying they were would be easy and wrong: measured on the same frame with the warm filter, the MP4 moves it R+11.77 G+3.42 B-10.27 and the file Resolve renders moves it R+14.87 G+5.54 B-6.92. Same direction, same intent, about three levels out of 255 apart, because Resolve applies it inside its own colour-managed pipeline and ffmpeg applies it to the encoded values. In Resolve they land as an ordinary primary correction you can keep adjusting by hand, not a baked-in look. |
+| **Transitions** | Dissolve, wipe, slide and the rest in the MP4. In Resolve, the three that only cover the cut - dip to black, dip to white and a short flash - are built as animated layers on their own track, because Resolve's API has no transitions of its own. Measured on three seams: the frame at each one comes out pure black, against 102.60 average brightness two seconds earlier, and it fades rather than jumping (138.60, 92.81, 22.78, 56.03, 139.57 across one seam). Each one lasts the same in both outputs, off the same table, so a dip is not half a second in the timeline and a third of one in the file. The ones that need both shots blended stay MP4-only, and the picker says where each one lands and switches the output for you rather than refusing after you press it. |
+| **Voice** | A prompt can ask for a voice-over at a given second. Windows' own synthesiser ships as the default, so it works with no key and no internet; **ElevenLabs**, **OpenAI** and any OpenAI-compatible `/audio/speech` endpoint are there when it needs to sound like a person. The original audio ducks underneath the line. MP4 output only. |
+
+## Quick start: five steps, about ten minutes
 
 Five steps. About ten minutes, most of it downloading.
 
-### 1. What you need first
+## 1. What you need first
 
 | | |
 | --- | --- |
@@ -40,10 +50,9 @@ Five steps. About ten minutes, most of it downloading.
 | **ffmpeg** | `ffmpeg -version` has to answer. [Download](https://www.gyan.dev/ffmpeg/builds/) |
 | **Ollama** *(optional)* | only if you want prompts to work with no API key. [ollama.com](https://ollama.com) |
 
-### 2. Get the two repositories, side by side
+## 2. Get the two repositories, side by side
 
-Vidorq talks to Resolve through a bridge that lives in its own project, so clone
-both into the **same folder**:
+Vidorq talks to Resolve through a bridge that lives in its own project, so clone both into the **same folder**:
 
 ```
 git clone https://github.com/Mun1to/vidorq
@@ -56,10 +65,9 @@ your-folder/
   davinci-resolve-mcp/
 ```
 
-The installer finds its neighbour on its own. If you keep the bridge somewhere
-else, set `VIDORQ_BRIDGE` to the full path of its `src/CursorBridge.py`.
+The installer finds its neighbour on its own. If you keep the bridge somewhere else, set `VIDORQ_BRIDGE` to the full path of its `src/CursorBridge.py`.
 
-### 3. Install the Python side
+## 3. Install the Python side
 
 ```
 cd vidorq
@@ -67,35 +75,29 @@ python -m venv .venv
 .venv\Scripts\pip install -r requirements.txt
 ```
 
-**Got an NVIDIA card?** One more line, and it is the difference between waiting
-and not waiting:
+**Got an NVIDIA card?** One more line, and it is the difference between waiting and not waiting:
 
 ```
 .venv\Scripts\pip install -r requirements-gpu.txt
 ```
 
-Measured on one 10 minute 43 second video: **16 minutes** transcribing on the
-CPU, **42 seconds** on the card, and on the card it uses the big model instead
-of the small one, so it is more accurate as well. Skip it and everything still
-works, just slower.
+Measured on one 10 minute 43 second video: **16 minutes** transcribing on the CPU, **42 seconds** on the card, and on the card it uses the big model instead of the small one, so it is more accurate as well. Skip it and everything still works, just slower.
 
-### 4. Put Vidorq in Resolve's menu
+## 4. Put Vidorq in Resolve's menu
 
 ```
 powershell -ExecutionPolicy Bypass -File resolve\instalar.ps1
 ```
 
-Once, not once per project. It prints where it found the bridge and which Python
-it will use, and it adds a single entry to Resolve.
+Once, not once per project. It prints where it found the bridge and which Python it will use, and it adds a single entry to Resolve.
 
-### 5. Use it
+## 5. Use it
 
 Open DaVinci Resolve, open a project, then click:
 
 **`Workspace > Scripts > Vidorq`**
 
-That one click starts the engine, opens the Vidorq window and leaves the bridge
-listening. Then:
+That one click starts the engine, opens the Vidorq window and leaves the bridge listening. Then:
 
 1. Drag your video onto the window.
 2. Choose **MP4** or **Timeline in Resolve** as the output.
@@ -104,157 +106,9 @@ listening. Then:
 
 If the timeline is the output, you will watch it build itself inside Resolve.
 
----
-
-## What it actually does
-
-**Cuts.** Word-level transcription with local Whisper (`large-v3-turbo` on a
-graphics card, `small` on a CPU), then dead air, isolated
-filler sounds and repeated takes come out. Cuts land on a still moment rather
-than mid-gesture, and jump cuts get hidden with a small alternating zoom.
-
-**Subtitles.** Ten styles and eight entrance animations (plus none), mixed
-freely, in both outputs. Three styles carry a real halo from Fusion's Glow node. In Resolve they
-arrive as **editable** Text+ titles on their own track, not burned into the
-picture.
-
-**Motion curves.** How the text arrives is its own choice, separate from where it
-comes from: smooth, snappy, spring, back, elastic, bounce, or linear. It applies to
-the captions and to the titles and badges, so everything entering the frame keeps
-one rhythm. The curves are the standard ones (Penner's easings, and the damped
-spring SwiftUI and Framer Motion use), because the eye already knows them from
-every phone.
-
-This fixed something measured, not a matter of taste. Counting the pixels of the
-text frame by frame, every entrance used to move at **constant speed**: the pop
-grew +0.10, +0.11, +0.10, +0.10 per frame and then stopped dead, which is exactly
-what reads as a cheap animation. Each entrance was three hand-placed keyframes
-joined by straight lines. Now each one names a curve and the keyframes are
-generated from it, one per frame at 60, so every frame shown carries the exact
-value and the MP4 and Fusion paths draw from the same curve. The spring had to be
-tuned twice: its first version was still 4% short of its final size at 95% of
-the entrance, and jumped the rest on the last frame.
-
-**Vertical.** 9:16, 4:5, 1:1 or 16:9. The crop is aimed at the **face** by a
-227 KB detector that runs on the CPU, so a vertical short does not cut the
-speaker out of frame. There is a manual slider when you would rather choose.
-
-**Text behind you.** The captions pass *behind* the person, which is the effect
-people buy DaVinci Resolve Studio for: **Magic Mask is not in the free edition**,
-checked on 9-sep-2026. Vidorq does it in the free one, with a 4.36 MB model.
-Segmenting and tracking are kept apart on purpose, because they are different
-problems: which pixels are the subject in this frame is a question where a better
-model appears every six months, and whether that is the same subject as before is
-what has to be built. Segment each frame on its own and the outline flickers, so
-the previous mask is dragged along the measured motion of the picture and mixed
-with what the model proposes.
-
-Measured on two scenes, and the pair is the point. On a synthetic one with a known
-answer, the frame-to-frame memory does nothing at all (0.01277 wobble without it,
-0.01285 with it) and on that evidence alone it should be dropped. On real footage
-it takes 35.2% off, and asking the model one frame in three takes off 70% while
-running 60% faster. Accuracy against the known answer is **0.989 IoU**, at 0.43
-seconds per frame.
-
-The model is **U-2-Net, Apache 2.0**, shipped in `skill/models/` with its licence
-and its sha256, the same deal as the face detector: it runs on the CPU and works
-with the network unplugged. `RobustVideoMatting` is better and comes with temporal
-memory built in, but it is GPL-3.0, and a copyleft dependency inside something
-that gets sold forces the whole thing open, so it is out. YOLO-seg is AGPL, also
-out.
-
-**Export destinations.** Seven of them, from YouTube 1080p to a master you keep,
-and each one carries the bitrate, the audio rate and the loudness that place
-actually asks for. The numbers are YouTube's own: 8 Mbps at 1080p, 12 from 50 fps
-up, 40 at 2160p, 384 kbps stereo. Platforms normalise to about **-14 LUFS**, so
-the file leaves at -14 instead of being turned down after compression, which
-sounds worse; a master is left alone. Picking a destination does not take over the
-frame shape, which already has its own control - it suggests one and moves that
-control where you can see it. Size only ever goes down, never up. And the bitrate
-follows the pixel count rather than the height, because a 1080x1920 vertical and a
-1920x1080 wide are the same surface: by height the vertical asked for 20 Mbps to
-do what the other does with 8. With Resolve as the output the destination still
-counts, since the same numbers are left sitting in the Deliver page.
-
-**It keeps editing, and it answers.** The screen at the end is not a dead end,
-it is a conversation: type the next change and it is applied on top of the edit
-that exists, and every turn comes back saying what it did, what it could not do
-here and why, and what it did not understand. When something only works in the
-other output it offers to switch, instead of quietly doing nothing. No re-transcribing, no re-deciding the cuts, and the settings carry
-over. Re-measured on 20-aug-2026, 30 s clip, captions on, MP4 out, on a laptop
-with an RTX 5060: the first pass took 26 s and three changes on top of it took
-11.2 s, 13.7 s and 12.7 s. The first pass is the one that transcribes; a change
-re-renders but does not re-listen. Times are read on the clock of the EDIT, not
-the original file, because
-that is what you are looking at by then. In Resolve the previous version is
-replaced rather than piled up next to it.
-
-**Edit by reading.** The transcription already carries the second of every word,
-so the panel paints all of them and you find a moment by reading instead of
-dragging the playhead at it. Mark two words and it writes the same sentence you
-could have typed ("cut the bit from second 12 to 19"), so there is one cutting
-mechanism and not two. What the automatic cut already took out is shown struck
-through, and clicking a word moves Resolve's playhead there, which is the part a
-web page cannot do. The other half is **order**: the same panel lists the edit as
-segments with what is said in each one, and you drag them somewhere else. That
-is a permutation of the montage, so no model is asked anything.
-
-**Undo.** The session keeps the montage *and* the settings from before each
-turn, and one button goes back to both. Undoing the cut and leaving you with the
-setting that same turn applied would not be undoing anything. One step, not a
-stack: pressing it twice puts you back where you were.
-
-**History.** Every edit leaves a row: when, which video, which project, what it
-did and how long it took. The ones you stopped and the ones that failed go in
-too, because a list that only kept the successes would tell a false story of the
-day. Clicking a row reopens that video with its whole conversation behind it.
-
-**Prompts.** "vertical, short style, animated subtitles" sets the frame shape,
-the subtitle style, the animation, the transition and the kind of cut. It also
-takes instructions aimed at **one moment**: "put a card saying SUBSCRIBE at
-second 12", "zoom in where he talks about the price", "cut that bit out",
-"put a voice at second 5 saying watch this". It
-works with **no API key** on a local model, and it never trusts the model
-blindly: verbs come from a closed list, times are checked against the real
-length, and anything invented produces nothing at all.
-
-**Previews and the gallery.** Every look, entrance and crop is shown as a
-picture before you commit to it, made by the same renderer that makes the final
-video, on your own footage, with the crop aimed where it will really be aimed.
-The gallery puts all ten looks on one wall and the nine entrances animating over
-the one you picked, so choosing is looking rather than reading names.
-
-**Colour.** Eight filters, each defined once as ASC CDL numbers, and both
-outputs read that one definition. They are not pixel for pixel identical, and
-saying they were would be easy and wrong: measured on the same frame with the
-warm filter, the MP4 moves it R+11.77 G+3.42 B-10.27 and the file Resolve
-renders moves it R+14.87 G+5.54 B-6.92. Same direction, same intent, about
-three levels out of 255 apart, because Resolve applies it inside its own
-colour-managed pipeline and ffmpeg applies it to the encoded values. In Resolve
-they land as an ordinary primary correction you can keep adjusting by hand, not
-a baked-in look.
-
-**Transitions.** Dissolve, wipe, slide and the rest in the MP4. In Resolve, the
-three that only cover the cut - dip to black, dip to white and a short flash -
-are built as animated layers on their own track, because Resolve's API has no
-transitions of its own. Measured on three seams: the frame at each one comes
-out pure black, against 102.60 average brightness two seconds earlier, and it
-fades rather than jumping (138.60, 92.81, 22.78, 56.03, 139.57 across one
-seam). Each one lasts the same in both outputs, off the same table, so a dip is
-not half a second in the timeline and a third of one in the file. The ones that
-need both shots blended stay MP4-only, and the picker says where each one lands
-and switches the output for you rather than refusing after you press it.
-
-**Voice.** A prompt can ask for a voice-over at a given second. Windows' own
-synthesiser ships as the default, so it works with no key and no internet;
-**ElevenLabs**, **OpenAI** and any OpenAI-compatible `/audio/speech` endpoint
-are there when it needs to sound like a person. The original audio ducks
-underneath the line. MP4 output only.
-
 ## Which AI thinks about your prompt
 
-Out of the box it is the **Ollama on your own machine**: free, no key, and
-nothing leaves the computer. In `Settings > Model and AI` you can point it at:
+Out of the box it is the **Ollama on your own machine**: free, no key, and nothing leaves the computer. In `Settings > Model and AI` you can point it at:
 
 | provider | notes |
 | --- | --- |
@@ -268,110 +122,48 @@ nothing leaves the computer. In `Settings > Model and AI` you can point it at:
 | Google Gemini | |
 | **OpenAI-compatible** | give it a base URL: Groq, DeepSeek, xAI, LM Studio, llama.cpp |
 
-The three command-line entries need nothing set up: if the tool is on your
-PATH it lights up, and if it is not it shows greyed out. The prompt goes to them
-on stdin with their tools switched off, in an empty scratch folder, because they
-are agents and the transcript in that prompt came out of somebody else's video.
+The three command-line entries need nothing set up: if the tool is on your PATH it lights up, and if it is not it shows greyed out. The prompt goes to them on stdin with their tools switched off, in an empty scratch folder, because they are agents and the transcript in that prompt came out of somebody else's video.
 
-`Settings > Voice` is the same idea for speech: Windows' own voice by default,
-then ElevenLabs, OpenAI or any OpenAI-compatible endpoint.
+`Settings > Voice` is the same idea for speech: Windows' own voice by default, then ElevenLabs, OpenAI or any OpenAI-compatible endpoint.
 
-The model list is asked of the provider live, so it is whatever they have today.
-Keys are stored per provider in `%APPDATA%/Vidorq/config.json`, outside this
-repository, and the engine never hands one back out.
+The model list is asked of the provider live, so it is whatever they have today. Keys are stored per provider in `%APPDATA%/Vidorq/config.json`, outside this repository, and the engine never hands one back out.
 
 ## From the AI agent you already use
 
-Vidorq is also a **skill**. Your agent reads `skill/SKILL.md` and drives the same
-engine and the same Resolve:
+Vidorq is also a **skill**. Your agent reads `skill/SKILL.md` and drives the same engine and the same Resolve:
 
 ```
 mklink /J "%USERPROFILE%\.claude\skills\vidorq" "<path>\vidorq\skill"
 ```
 
-Same idea for Codex or OpenCode with their own skills folder. In Cursor or
-Antigravity, open the repo and ask the agent to read `skill/SKILL.md`.
+Same idea for Codex or OpenCode with their own skills folder. In Cursor or Antigravity, open the repo and ask the agent to read `skill/SKILL.md`.
 
 ## Where your stuff goes
 
-The engine is a small HTTP server on `127.0.0.1:9877`, so nothing of yours
-leaves the machine unless you have set an API key and asked for a prompt. Four
-details worth knowing, because "local" is not the same as "private":
+The engine is a small HTTP server on `127.0.0.1:9877`, so nothing of yours leaves the machine unless you have set an API key and asked for a prompt. Four details worth knowing, because "local" is not the same as "private":
 
-- It answers the Vidorq window and refuses everything else. A local port is
-  reachable from any page you happen to have open in a browser, and until it
-  was fixed this one replied to all of them with `Access-Control-Allow-Origin:
-  *`, so a website could have read `/history` (the paths of your videos and
-  what you asked for), `/words` (a whole transcript) or simply stopped the
-  engine mid-edit. Requests carrying an `Origin` that is not this machine now
-  get a 403 before anything happens. Tools with no browser behind them - curl,
-  your own agent, Python - are unaffected.
-- Keys live in `%APPDATA%/Vidorq/config.json`, outside this repository, one per
-  provider, and the engine never hands one back out. Checked rather than assumed:
-  five fake keys were planted in a throwaway config and every GET endpoint was
-  swept for them - sixteen endpoints, no leaks. The hole was somewhere else. A
-  provider's own error body is relayed to the screen and written to the history,
-  and OpenAI's 401 answers `Incorrect API key provided: sk-ant-C****...9f3a` -
-  the first seven characters and the last four, coming straight back. Anthropic
-  does not do it; a self-chosen OpenAI-compatible endpoint could do worse. The
-  key we sent is now struck out of any error before it is shown or stored.
-- Text that came from somewhere else cannot give orders. A transcript is
-  somebody else's material and so is whatever a model writes back, and both get
-  drawn into files that have their own syntax. All five places were checked by
-  attacking them: the Fusion comp escapes quotes and braces and its structure
-  does not move; the Windows voice passes the line, the voice and the
-  destination as files rather than as PowerShell arguments, so a line carrying
-  `"; Set-Content ...` is read aloud instead of run; and two that were not safe
-  are now. A caption saying `{n8}` used to jump to the top of the frame, and
-  one carrying a blank line used to split the .srt and forge an extra subtitle
-  at second zero.
-- The same transcript also goes into the prompt, next to your instruction, and
-  there it is fenced and labelled as data. A video that says "ignore the above"
-  out loud was tried: through Claude only the title that had actually been asked
-  for came back. That is one model on one day, so it is not the defence. The
-  defence is that nothing the model returns is trusted: five verbs are allowed
-  and anything else is dropped, times must fall inside the video, and the text
-  is capped and stripped. The fence just removes the easy path, and it cannot be
-  closed from the inside - a video reading the closing marker aloud gets it
-  taken out of the text.
+- It answers the Vidorq window and refuses everything else. A local port is reachable from any page you happen to have open in a browser, and until it was fixed this one replied to all of them with `Access-Control-Allow-Origin: *`, so a website could have read `/history` (the paths of your videos and what you asked for), `/words` (a whole transcript) or simply stopped the engine mid-edit. Requests carrying an `Origin` that is not this machine now get a 403 before anything happens. Tools with no browser behind them - curl, your own agent, Python - are unaffected.
+- Keys live in `%APPDATA%/Vidorq/config.json`, outside this repository, one per provider, and the engine never hands one back out. Checked rather than assumed: five fake keys were planted in a throwaway config and every GET endpoint was swept for them - sixteen endpoints, no leaks. The hole was somewhere else. A provider's own error body is relayed to the screen and written to the history, and OpenAI's 401 answers `Incorrect API key provided: sk-ant-C****...9f3a` - the first seven characters and the last four, coming straight back. Anthropic does not do it; a self-chosen OpenAI-compatible endpoint could do worse. The key we sent is now struck out of any error before it is shown or stored.
+- Text that came from somewhere else cannot give orders. A transcript is somebody else's material and so is whatever a model writes back, and both get drawn into files that have their own syntax. All five places were checked by attacking them: the Fusion comp escapes quotes and braces and its structure does not move; the Windows voice passes the line, the voice and the destination as files rather than as PowerShell arguments, so a line carrying `"; Set-Content ...` is read aloud instead of run; and two that were not safe are now. A caption saying `{n8}` used to jump to the top of the frame, and one carrying a blank line used to split the .srt and forge an extra subtitle at second zero.
+- The same transcript also goes into the prompt, next to your instruction, and there it is fenced and labelled as data. A video that says "ignore the above" out loud was tried: through Claude only the title that had actually been asked for came back. That is one model on one day, so it is not the defence. The defence is that nothing the model returns is trusted: five verbs are allowed and anything else is dropped, times must fall inside the video, and the text is capped and stripped. The fence just removes the easy path, and it cannot be closed from the inside - a video reading the closing marker aloud gets it taken out of the text.
 
 ## Honest limits
 
-Resolve Free's scripting API is missing things, and pretending otherwise wastes
-your afternoon. Measured on 21.0.4.5:
+Resolve Free's scripting API is missing things, and pretending otherwise wastes your afternoon. Measured on 21.0.4.5:
 
-- **No transitions by API.** Worked around for the ones that only cover the
-  cut, which are built as animated layers instead. Dissolve, wipe and slide
-  have to blend both shots and stay MP4-only.
-- **No audio by API**, so a voice-over also comes out in the MP4 only. Vidorq
-  says so when it finishes rather than handing back a silent timeline that
-  looks done.
+- **No transitions by API.** Worked around for the ones that only cover the cut, which are built as animated layers instead. Dissolve, wipe and slide have to blend both shots and stay MP4-only.
+- **No audio by API**, so a voice-over also comes out in the MP4 only. Vidorq says so when it finishes rather than handing back a silent timeline that looks done.
 - **No typewriter reveal.** Text+ accepts the parameters and ignores them.
-- **No gradient fill** inside a title comp. It crashed Resolve, so it is not
-  attempted.
-- Keyframes are not settable by API. Vidorq works around this by writing the
-  animation into a `.comp` file, which Resolve imports splines and all.
-- **The mask is not editable by hand yet.** "Text behind you" reaches Resolve as
-  an alpha cutout, which works, but you cannot grab a point and drag it the way
-  you would with a real mask. Writing it as an animated Fusion `Polygon` is what
-  would allow that, and the syntax cannot be worked out from outside: all 417
-  factory templates Blackmagic ships were read on 9-sep-2026 and **75 carry a
-  `Polyline`, none carries a `Polygon` node**. `resolve/VidorqPoly.py` asks Fusion
-  from the inside, which is the method that solved character-level styling.
-- **Tracking a mask is the slow part**: 0.43 s per frame, so roughly six minutes
-  of waiting per minute of video. It is off by default and says so before you
-  wait, rather than after.
+- **No gradient fill** inside a title comp. It crashed Resolve, so it is not attempted.
+- Keyframes are not settable by API. Vidorq works around this by writing the animation into a `.comp` file, which Resolve imports splines and all.
+- **The mask is not editable by hand yet.** "Text behind you" reaches Resolve as an alpha cutout, which works, but you cannot grab a point and drag it the way you would with a real mask. Writing it as an animated Fusion `Polygon` is what would allow that, and the syntax cannot be worked out from outside: all 417 factory templates Blackmagic ships were read on 9-sep-2026 and **75 carry a `Polyline`, none carries a `Polygon` node**. `resolve/VidorqPoly.py` asks Fusion from the inside, which is the method that solved character-level styling.
+- **Tracking a mask is the slow part**: 0.43 s per frame, so roughly six minutes of waiting per minute of video. It is off by default and says so before you wait, rather than after.
 
-Everything above was checked by rendering it and looking at the frame. The
-details are in [docs/SUBTITULOS.md](docs/SUBTITULOS.md) and
-[docs/INTELIGENCIA.md](docs/INTELIGENCIA.md) (Spanish).
+Everything above was checked by rendering it and looking at the frame. The details are in [docs/SUBTITULOS.md](docs/SUBTITULOS.md) and [docs/INTELIGENCIA.md](docs/INTELIGENCIA.md) (Spanish).
 
 ## How it is checked
 
-A video editor fails quietly. A cut half a second off, a caption ten seconds
-late, a montage that lost a sentence - none of them throw an error, they just
-make the video worse, and you find out watching it. So the tests are not there
-to make a badge green:
+A video editor fails quietly. A cut half a second off, a caption ten seconds late, a montage that lost a sentence - none of them throw an error, they just make the video worse, and you find out watching it. So the tests are not there to make a badge green:
 
 ```
 python tests/todas.py
@@ -396,33 +188,13 @@ test_mascara.py            18 cases      tracks a mask against a known answer
 
 Eleven seconds, no model, no network, no API key.
 
-Three of those deserve a word. **`test_promesas.py`** reads this file and compares
-its counts against the catalogues in the code, so a README that drifts out of
-date fails the build rather than misleading you. And **`test_render.py`** is the
-only one that can say the product works: it builds a video of four flat colour
-blocks - red, green, blue, yellow, five seconds each - edits it with the real
-engine, then **opens the resulting MP4 and reads the frames**. A cut that lands
-half a second off shows a different colour, and the test sees it.
+Three of those deserve a word. **`test_promesas.py`** reads this file and compares its counts against the catalogues in the code, so a README that drifts out of date fails the build rather than misleading you. And **`test_render.py`** is the only one that can say the product works: it builds a video of four flat colour blocks - red, green, blue, yellow, five seconds each - edits it with the real engine, then **opens the resulting MP4 and reads the frames**. A cut that lands half a second off shows a different colour, and the test sees it.
 
-**`test_aprende.py`** closes a circle: it asks Vidorq to burn in captions with
-a known style, then hands that MP4 back to the analyser as if it came from a
-stranger. The analyser never sees the style name, only pixels. It recovers the
-caption position to within 0.01 of the frame height on every preset tried,
-and the cut rhythm of a twelve-shot video to the exact second. It also
-closes the loop the product is for: a style read off a stranger's video is
-saved to your brand, and the next edit comes out wearing it.
+**`test_aprende.py`** closes a circle: it asks Vidorq to burn in captions with a known style, then hands that MP4 back to the analyser as if it came from a stranger. The analyser never sees the style name, only pixels. It recovers the caption position to within 0.01 of the frame height on every preset tried, and the cut rhythm of a twelve-shot video to the exact second. It also closes the loop the product is for: a style read off a stranger's video is saved to your brand, and the next edit comes out wearing it.
 
-One thing the suite cannot check is the last leg: that Vidorq builds a real
-timeline inside DaVinci Resolve. The conversation with Resolve's bridge is
-tested against a stand-in, but whether Resolve draws what it is handed can only
-be seen on screen. With Resolve open and its bridge started from
-`Workspace > Scripts > Vidorq`, run `python resolve/comprobar_timeline.py`: it
-builds a throwaway timeline and tells you the four things to look for.
+One thing the suite cannot check is the last leg: that Vidorq builds a real timeline inside DaVinci Resolve. The conversation with Resolve's bridge is tested against a stand-in, but whether Resolve draws what it is handed can only be seen on screen. With Resolve open and its bridge started from `Workspace > Scripts > Vidorq`, run `python resolve/comprobar_timeline.py`: it builds a throwaway timeline and tells you the four things to look for.
 
-Every rule in there was checked by deliberately breaking the code to watch the
-test fail. A check that cannot fail is worse than no check, and one of them was
-thrown out for exactly that: it asserted the vertical export leaves no black
-bars, which turned out to be impossible in the MP4 path by construction.
+Every rule in there was checked by deliberately breaking the code to watch the test fail. A check that cannot fail is worse than no check, and one of them was thrown out for exactly that: it asserted the vertical export leaves no black bars, which turned out to be impossible in the MP4 path by construction.
 
 ## Something broke
 
@@ -432,21 +204,6 @@ bars, which turned out to be impossible in the MP4 path by construction.
 | "I could not talk to Resolve" | Resolve is not open, or nobody clicked `Workspace > Scripts > Vidorq` this session |
 | The prompt is ignored | no local model and no key. Install Ollama or add a key in Settings |
 
-## Don't trust it, check it
-
-Open source only helps if somebody actually reads the code, and almost nobody
-does. So instead of asking you to trust this project, here is the prompt to check
-it: point your own AI agent at this repository and get a security report, in your
-language, in a few minutes, even if you do not know how to program.
-
-**[Open AI-AUDIT.md](AI-AUDIT.md)** and paste it into Claude Code, Codex, Cursor,
-Copilot or whatever you use. It is the same prompt in every public repository
-here, so you can compare.
-
-> **ES:** No hace falta que te fíes. Abre [AI-AUDIT.md](AI-AUDIT.md), pega ese texto en tu IA
-> y te dirá en tu idioma qué hace este programa de verdad: qué envía por internet, qué toca
-> en tu ordenador y qué ejecuta al instalarse.
-
 ## More
 
 - [What Vidorq understands about a video](docs/INTELIGENCIA.md) (Spanish)
@@ -454,6 +211,24 @@ here, so you can compare.
 - [Architecture](docs/ARQUITECTURA.md) (Spanish)
 - [Roadmap](docs/METAS.md) (Spanish)
 
+## Don't trust it, check it
+
+Published code only helps if somebody actually reads it, and almost nobody does. So
+instead of asking you to trust this project, here is the prompt to check it: point your own
+AI agent at this repository and get a security report, in your language, in a few minutes,
+even if you do not know how to program.
+
+**[Open AI-AUDIT.md](AI-AUDIT.md)** and paste it into Claude Code, Codex, Cursor, Copilot or
+whatever you use. It is the same prompt in every public repository here, so you can compare.
+
+> **ES:** No hace falta que te fíes. Abre [AI-AUDIT.md](AI-AUDIT.md), pega ese texto en tu IA
+> y te dirá en tu idioma qué hace este programa de verdad: qué envía por internet, qué toca
+> en tu ordenador y qué ejecuta al instalarse.
+
 ## License
 
 MIT - use it however you want.
+
+<br>
+
+<p align="center">Made by <a href="https://munito.dev"><b>Munir Torres</b></a>. Also by him: <a href="https://adeorq.com">Adeorq</a> · <a href="https://vocript.app">VoCript</a> · <a href="https://winshotx.com">winshotx</a> · <a href="https://github.com/Mun1to/Expoal">Expoal</a> · <a href="https://github.com/Mun1to/hotkeyconfig">hotkeyconfig</a> · <a href="https://github.com/Mun1to/froede">froede</a></p>
